@@ -1,0 +1,18 @@
+# Prompt 文件路由 —— 改 prompt 不动代码
+
+step2:
+  system: "step2_proposer_system.md"
+  user_template: "step2_proposer_user_template.md"
+  domain_context:
+    FIN: "domain_context_FIN.md"
+    CRDTC: "domain_context_CRDTC.md"
+    OPN: "domain_context_OPN.md"
+    PUB: "domain_context_PUB.md"
+
+step3:
+  semantic_system: "step3_semantic_system.md"
+  semantic_user_template: "step3_semantic_user_template.md"
+
+# 共享上下文片段（被多个 prompt 引用）
+shared:
+  meta_schema_excerpt: "shared_meta_schema_excerpt.md"

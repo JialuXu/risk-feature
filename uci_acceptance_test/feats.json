@@ -1,0 +1,11 @@
+[
+  {"report_name": "PAY_0_最近还款状态", "source_col": "PAY_0",
+   "risk_direction": "positive", "iv": 0.85,
+   "category": "还款行为", "scope": "full"},
+  {"report_name": "PAY_2_上月还款状态", "source_col": "PAY_2",
+   "risk_direction": "positive", "iv": 0.55,
+   "category": "还款行为", "scope": "full"},
+  {"report_name": "LIMIT_BAL_授信额度", "source_col": "LIMIT_BAL",
+   "risk_direction": "negative", "iv": 0.30,
+   "category": "授信", "scope": "full"}
+]

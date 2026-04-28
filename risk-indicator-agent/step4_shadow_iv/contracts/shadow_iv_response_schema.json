@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShadowIVResponse",
+  "description": "数仓 sandbox 跑完影子 IV 后回填的结果",
+  "type": "object",
+  "required": ["batch_id", "responded_at", "results"],
+  "additionalProperties": false,
+  "properties": {
+    "batch_id": {"type": "string"},
+    "responded_at": {"type": "string", "format": "date-time"},
+    "responder": {"type": "string"},
+    "data_warehouse_run_id": {"type": "string"},
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ind_code", "shadow_iv_status"],
+        "properties": {
+          "ind_code": {"type": "string"},
+          "ind_version": {"type": "integer"},
+          "shadow_iv_status": {
+            "type": "string",
+            "enum": ["SUCCESS", "FAIL", "PENDING_DATAWAREHOUSE",
+                     "DATA_INSUFFICIENT", "SQL_ERROR"]
+          },
+          "shadow_iv": {"type": ["number", "null"]},
+          "shadow_coverage_rate": {"type": ["number", "null"]},
+          "shadow_credibility": {"type": ["string", "null"]},
+          "shadow_sample_size": {"type": ["integer", "null"]},
+          "shadow_bad_size": {"type": ["integer", "null"]},
+          "shadow_risk_direction": {"type": ["string", "null"]},
+          "snap_dt": {"type": ["string", "null"], "format": "date"},
+          "executed_sql_path": {"type": ["string", "null"]},
+          "error_msg": {"type": ["string", "null"]},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}
