@@ -11,6 +11,7 @@
   query     只读已有结果，top-N / 分群查询（不改 level）
   trigger   客户级触碰提取 → 三张表（→ Level 2）
   report    LLM JSON → docx（→ Level 3）
+  visualize 生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
   run       便捷组合：generic 走 prepare→analyze→export；credit/gsfc 转发现有管线
 """
 from __future__ import annotations
@@ -57,6 +58,7 @@ def _build_parser() -> argparse.ArgumentParser:
   trigger:  python -m risk_pipeline trigger --project xxx --use-default-features
   report:   python -m risk_pipeline report --project xxx \\
               --report-markdown report.md --purpose internal
+  visualize: python -m risk_pipeline visualize --project xxx
   run:      python -m risk_pipeline run --pipeline generic \\
               --wide data/raw/x.csv --id-col 客户编号 --target-col is_bad \\
               --project xxx
@@ -145,6 +147,20 @@ def _build_parser() -> argparse.ArgumentParser:
                    help='附录模式（默认 both）')
     p.add_argument('--confirmed-final-version', action='store_true',
                    help='[阻断节点 3] purpose=external 时必传')
+
+    # ----- visualize -----
+    p = sub.add_parser('visualize', parents=[global_parent],
+                        help='生成 IV/相关性/LR/分群/规则/组合可视化（→ output/<project>/charts/）')
+    p.add_argument('--project', required=True)
+    p.add_argument('--kinds', default=None,
+                   help='逗号分隔: iv,iv_heatmap,corr,lr,auc,segment,tree,rules,combos,combo_network'
+                        '（默认全部）')
+    p.add_argument('--dim', default=None,
+                   help='限定单一分群维度，如 企业规模（仅 corr/lr/auc 生效）')
+    p.add_argument('--top', type=int, default=15, help='top-N 条形图截断（默认 15）')
+    p.add_argument('--out-dir', default=None,
+                   help='输出目录，默认 output/<project>/charts/')
+    p.add_argument('--dpi', type=int, default=300)
 
     # ----- run -----
     p = sub.add_parser('run', parents=[global_parent],
