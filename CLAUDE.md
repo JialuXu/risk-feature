@@ -70,11 +70,26 @@ risk-feature-pipeline/
 │       ├── config.py          # RISK_FEATURES 默认特征配置
 │       └── trigger_extraction.py  # extract_triggers / compute_thresholds / evaluate_triggers
 │
-└── risk_docx_report/          # 交付型子 Skill：LLM JSON → 正式 Word 报告
+├── risk_docx_report/          # 交付型子 Skill：LLM JSON → 正式 Word 报告
+│   └── scripts/
+│       ├── build_prompt_bundle.py     # 打包 report-prompt.md + LLM JSON
+│       ├── build_docx_report.py       # Markdown 正文 → .docx
+│       └── render_docx_report.js      # Node 渲染器
+│
+└── risk_visualization/        # ⭐ 可视化子 Skill：Level 1 后读 CSV → PNG 图表
+    ├── SKILL.md
+    ├── references/chart_types.md      # 各图含义、解读、常见误读
     └── scripts/
-        ├── build_prompt_bundle.py     # 打包 report-prompt.md + LLM JSON
-        ├── build_docx_report.py       # Markdown 正文 → .docx
-        └── render_docx_report.js      # Node 渲染器
+        ├── visualize.py               # generate_charts() 顶层入口
+        ├── font_utils.py              # 中文字体 OS 探测
+        ├── style.py                   # 调色板 / figsize / dpi
+        ├── chart_iv.py                # IV 条形图 + 分群 IV 热力图
+        ├── chart_corr.py              # 分群相关系数条形图
+        ├── chart_lr.py                # LR 系数 + 跨分群 AUC
+        ├── chart_segment.py           # 分群画像（坏客户率柱图）
+        ├── chart_tree.py              # 决策树（pkl 真树 / 规则反推）
+        ├── chart_rules.py             # 规则 lift × coverage 散点
+        └── chart_combinations.py      # 指标组合 + 特征共现网络
 ```
 
 ### Skill 分工概览
@@ -92,6 +107,7 @@ risk-feature-pipeline/
 | `risk_result_query` | **只读磁盘已有结果**，不重跑 | "查/看/top X"、"解读已有分析" |
 | `risk_trigger_extraction` | 把风险结论落到每个客户（触碰 + IV 加权得分） | "哪些客户触碰了风险阈值"、"生成风险预警名单"、"客户级风险扫描" |
 | `risk_docx_report` | LLM JSON → `.docx` | "生成 Word 报告"、"正式报告" |
+| `risk_visualization` | IV/相关性/LR/分群/决策树/指标组合 PNG 图表（Level 1 后只读出图） | "画图/可视化/IV 条形图/决策树图/指标组合图" |
 
 ### Pipeline Flow
 
@@ -107,6 +123,9 @@ risk_data_prep → risk_feature_engineering → risk_segment_univariate
 
           查询路径（不触发上面任一步骤）：
           已导出 CSV → risk_result_query.load_results() → top_features()
+
+          可视化路径（Level 1 后；不触发上面任一步骤）：
+          已导出 CSV → risk_visualization.generate_charts() → output/<project>/charts/*.png
 ```
 
 ### Key Entry Points

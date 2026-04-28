@@ -6,7 +6,8 @@
     mine_rules(df, feature_cols, target, ...) -> pd.DataFrame
         返回字段：rule_id, conditions, feature_list, depth, leaf_n, leaf_bad
 """
-from typing import List, Dict, Tuple, Optional
+from pathlib import Path
+from typing import List, Dict, Tuple, Optional, Union
 import numpy as np
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier, _tree
@@ -167,12 +168,18 @@ def mine_rules(
     target: str = 'is_bad',
     max_depth: Optional[int] = None,
     verbose: bool = True,
+    persist_tree_path: Optional[Union[str, Path]] = None,
 ) -> pd.DataFrame:
     """从宽表挖掘风险规则。
 
     流程：准入检查 → 拟合树 → 提取叶路径 → 过滤"坏富集"路径 → 去重 → 返回 DataFrame。
     返回 DataFrame 列：rule_id, conditions, conditions_text, feature_list,
                       depth, leaf_n, leaf_bad, leaf_good。
+
+    Args:
+        persist_tree_path: 若给定，则把拟合好的 DecisionTreeClassifier 与特征列名
+            一起 joblib.dump 到该路径，供 risk_visualization 用 sklearn.tree.plot_tree
+            渲染真树形图。默认 None = 不持久化（向后兼容）。
     """
     # 准入：样本量阈值与 LR 对齐（挖规则与建模对坏样本的要求相当）
     df_clean = df.dropna(subset=[target]).copy()
@@ -200,6 +207,26 @@ def mine_rules(
 
     tree = fit_rule_tree(X, y, max_depth=max_depth)
     paths = _extract_leaf_paths(tree, list(X.columns), X=X, y=y)
+
+    if persist_tree_path is not None:
+        try:
+            import joblib
+            persist_tree_path = Path(persist_tree_path)
+            persist_tree_path.parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(
+                {
+                    'tree': tree,
+                    'feature_names': list(X.columns),
+                    'target': target,
+                    'overall_bad_rate': n_bad / n_total,
+                },
+                persist_tree_path,
+            )
+            if verbose:
+                print(f"[规则挖掘] 树对象已落盘 → {persist_tree_path}")
+        except Exception as e:
+            if verbose:
+                print(f"[规则挖掘] 树对象落盘失败（不影响规则导出）：{e}")
 
     # 过滤："坏富集"叶子 + 最少坏客户数
     overall_bad_rate = n_bad / n_total
