@@ -1,0 +1,256 @@
+# 元表 DIM_DERIV_IND_REG 40 字段 schema —— 流水线唯一事实源
+# 来源: <本地参考资料>/衍生指标层数据结构设计文档.md §1.2 (v1.1)
+# 所有 step 的 schema 校验都从这里编译
+
+version: "1.1"
+table_name: "DIM_DERIV_IND_REG"
+
+# JSON Schema (Draft-2020-12) for a single indicator row
+indicator_schema:
+  type: object
+  required:
+    - ind_code
+    - ind_version
+    - ind_name_cn
+    - domain
+    - granularity
+    - window
+    - value_type
+    - biz_definition
+    - calc_logic
+    - source_tables
+    - source_fields
+    - priority
+    - lifecycle_status
+    - proposer
+    - owner
+    - eff_dt
+    - exp_dt
+    - is_dynamic_expansion
+    - ref_date_logic
+    - post_processing_rule
+  additionalProperties: false
+  properties:
+    # === 基础标识 ===
+    ind_code:
+      type: string
+      pattern: "^(FIN|CRDTC|OPN|PUB|JUDI|LON|GUAR|RELA|FUND)_[MDA]_[A-Z0-9_]+$"
+      maxLength: 60
+      description: "全大写,下划线分段,域_粒度_业务键_(窗口)_(统计)"
+    ind_version:
+      type: integer
+      minimum: 1
+      description: "SCD2 版本号,公式调整 +1"
+    ind_name_cn:
+      type: string
+      minLength: 2
+      maxLength: 200
+    ind_name_en:
+      type: [string, "null"]
+      maxLength: 200
+
+    # === 维度 ===
+    domain:
+      type: string
+      enum: [FIN, CRDTC, OPN, PUB, JUDI, LON, GUAR, RELA, FUND]
+    granularity:
+      type: string
+      enum: [M, D, A, EVT]
+    window:
+      type: string
+      enum: [SNAP, M3, M6, M12, Y1, Y3, Y5, LIFE, EVT]
+    value_type:
+      type: string
+      enum: [NUM, RATIO, FLG, IDX, STR, DATE]
+    value_unit:
+      type: [string, "null"]
+      maxLength: 20
+
+    # === 业务口径 ===
+    biz_definition:
+      type: string
+      minLength: 5
+      maxLength: 2000
+    calc_logic:
+      type: string
+      minLength: 5
+      maxLength: 4000
+      description: "伪表达式,不是可执行 SQL"
+
+    # === 依赖 ===
+    source_tables:
+      type: array
+      items:
+        type: string
+      minItems: 1
+    source_fields:
+      type: array
+      items:
+        type: string
+      minItems: 1
+    source_domain_tables_blocked:
+      type: [array, "null"]
+      items:
+        type: string
+
+    # === 当前信号体检（最新一次重跑后写） ===
+    current_signal_strength:
+      type: [string, "null"]
+      enum: [强, 中, 弱, 观察期, null]
+    current_iv:
+      type: [number, "null"]
+      minimum: 0
+      maximum: 2.0
+    current_iv_credibility:
+      type: [string, "null"]
+      enum: [可信, 参考, 不可信-样本不足, 未做IV分析, null]
+    current_coverage_rate:
+      type: [number, "null"]
+      minimum: -1.0
+      maximum: 1.0
+    current_risk_direction:
+      type: [string, "null"]
+      enum: [正向, 负向, 待验证, null]
+
+    # === IV 时序 ===
+    iv_history:
+      type: [array, "null"]
+      items:
+        type: object
+        required: [snap_dt, iv, credibility]
+        properties:
+          snap_dt: {type: string}
+          iv: {type: number}
+          credibility: {type: string}
+          sample_size: {type: integer}
+          project: {type: string}
+
+    # === 优先级 ===
+    priority:
+      type: string
+      enum: [P0, P0-阻塞, P1, P1-稀疏池, P2, P3-观察, P4-观察]
+    priority_history:
+      type: [array, "null"]
+      items:
+        type: object
+        properties:
+          snap_dt: {type: string}
+          priority: {type: string}
+
+    # === 生命周期 ===
+    lifecycle_status:
+      type: string
+      enum: [DRAFT, ACTIVE, DEPRECATED, RETIRED]
+    physical_target:
+      type: [array, "null"]
+      items:
+        type: string
+
+    # === 来源 ===
+    proposer:
+      type: string
+      enum: [HUMAN, LLM_AGENT, MIGRATION]
+    proposer_detail:
+      type: [string, "null"]
+      maxLength: 200
+    owner:
+      type: string
+      maxLength: 50
+    notes:
+      type: [string, "null"]
+      maxLength: 2000
+
+    # === 拉链 SCD2 ===
+    eff_dt:
+      type: string
+      format: date
+    exp_dt:
+      type: string
+      format: date
+    etl_dt:
+      type: [string, "null"]
+      format: date
+    etl_timestamp:
+      type: [string, "null"]
+    part_ymd:
+      type: [string, "null"]
+      pattern: "^[0-9]{8}$"
+
+    # === v1.1 新增（来自原始加工逻辑整合）===
+    is_dynamic_expansion:
+      type: integer
+      enum: [0, 1]
+      description: "0=具体实例, 1=动态展开模板"
+    dynamic_template:
+      type: [string, "null"]
+      maxLength: 200
+      description: "模板表达式如 累计_{事项类别}"
+    dynamic_axes:
+      type: [array, "null"]
+      items:
+        type: object
+        properties:
+          axis_name: {type: string}
+          source_type: {type: string, enum: [DATA_DRIVEN, ENUM_FIXED, CONFIG]}
+          values: {type: array, items: {type: string}}
+    parent_template_code:
+      type: [string, "null"]
+      maxLength: 60
+      description: "实例指回模板的 ind_code"
+    ref_date_logic:
+      type: string
+      enum: [BATCH_MAX, SYS_TODAY, EXPLICIT_PARAM, SNAP_DT, NONE]
+    null_handling:
+      type: [array, "null"]
+      items:
+        type: string
+        enum: [DROP_KEY_NULL, FILL_ZERO, KEEP_NULL, SAFE_DIVIDE_ZERO,
+               SAFE_DIVIDE_NULL, FALLBACK_OTHER, INT_PARSE_ZERO, POST_LEFT_JOIN_FILL_ZERO]
+    post_processing_rule:
+      type: string
+      enum: [PAD_ZERO_ON_LEFT_JOIN, KEEP_NULL_ON_LEFT_JOIN, NONE]
+
+# === 域命名前缀字典 ===
+domain_prefixes:
+  FIN: 财务
+  CRDTC: 征信
+  OPN: 工商/经营
+  PUB: 舆情
+  JUDI: 司法
+  LON: 信贷行为
+  GUAR: 担保
+  RELA: 关联方
+  FUND: 资金流
+
+# === 18 类工商变更标准事项（数据驱动展开维度参考值）===
+opn_chg_type_enum:
+  - 法定代表人/负责人变更
+  - 董监高变更
+  - 股东/投资人变更
+  - 注册资本变更
+  - 经营范围变更
+  - 地址/住所变更
+  - 企业类型变更
+  - 章程变更
+  - 联络员变更
+  - 登记机关变更
+  - 名称变更
+  - 行业代码变更
+  - 期限变更
+  - 清算组备案
+  - 分支机构备案
+  - 企业状态变更
+  - 其他事项备案
+  - 其他
+
+# === 后处理规则按域默认值 ===
+default_post_processing:
+  FIN: KEEP_NULL_ON_LEFT_JOIN  # 无财报客户,真缺失
+  CRDTC: KEEP_NULL_ON_LEFT_JOIN  # 无征信报告,真缺失
+  OPN: PAD_ZERO_ON_LEFT_JOIN  # 无变更=没动过,补 0
+  PUB: PAD_ZERO_ON_LEFT_JOIN  # 无舆情=没风险信号,补 0
+  JUDI: PAD_ZERO_ON_LEFT_JOIN
+  LON: KEEP_NULL_ON_LEFT_JOIN
+  GUAR: KEEP_NULL_ON_LEFT_JOIN
+  RELA: PAD_ZERO_ON_LEFT_JOIN
+  FUND: KEEP_NULL_ON_LEFT_JOIN

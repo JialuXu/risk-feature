@@ -1,0 +1,16 @@
+{
+  "name": "skill-handbook",
+  "private": true,
+  "description": "本地 HonKit 手册：聚合仓库内 README 与 SKILL，并可导出 PDF / DOCX。",
+  "scripts": {
+    "build": "honkit build",
+    "serve": "honkit serve",
+    "pdf": "honkit pdf",
+    "merge": "bash scripts/merge-for-export.sh",
+    "docx": "npm run merge && pandoc _export/handbook-merged.md -o _export/handbook.docx --from markdown --toc -N --standalone",
+    "export:docx": "npm run docx"
+  },
+  "devDependencies": {
+    "honkit": "^5.1.0"
+  }
+}

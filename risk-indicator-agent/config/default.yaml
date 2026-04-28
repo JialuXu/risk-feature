@@ -1,0 +1,145 @@
+# risk-indicator-agent 主配置
+
+# === 路径 ===
+paths:
+  data_root: "data"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  meta_store_dir: "data/meta_store"
+  meta_sqlite: "data/meta_store/indicator_meta.sqlite"
+  meta_snapshots_dir: "data/meta_store/snapshots"
+  audit_log: "data/meta_store/audit.log"
+  results_dir: "data/results"
+  output_dir: "output"
+  references_dir: "references"
+  prompts_dir: "prompts"
+
+# === 上游 risk-feature-pipeline ===
+upstream:
+  pipeline_root: "<仓库根>/risk-feature-pipeline"
+  results_dirs:
+    - "<仓库根>/data/results/财务行业风险分析"
+    - "<仓库根>/data/results/腰部企业征信分析"
+    - "<仓库根>/data/results/舆情特征分析"
+    - "<仓库根>/data/results/工商变更特征分析"
+
+# === LLM ===
+llm:
+  provider: anthropic
+  model: ${env:ANTHROPIC_MODEL,claude-sonnet-4-5-20250929}
+  max_tokens: 4096
+  temperature: 0.2  # 提案要稳定,温度低
+  retry_attempts: 3
+  retry_wait_seconds: [1, 2, 4]
+  json_strict: true
+
+# === Step 1 候选筛选 ===
+step1:
+  iv_filter:
+    exclude_credibility: ["无法计算", "不可信-过拟合嫌疑"]
+    iv_max: 2.0  # IV >= 2 视为过拟合
+  signal_thresholds:
+    strong: 0.10
+    medium: 0.05
+    weak: 0.02
+  candidate_sources:
+    mining_supplement: true     # 挖掘补足
+    field_exploration: true     # 字段探索
+    obs_pool_promotion: true    # 观察池升级
+
+# === Step 2 LLM 提案 ===
+step2:
+  batch_size: 5  # 每批送 LLM 的 seed 数
+  max_proposals_per_batch: 10  # 每批最多产出几条
+  domain_context_files:
+    FIN: "domain_context_FIN.md"
+    CRDTC: "domain_context_CRDTC.md"
+    OPN: "domain_context_OPN.md"
+    PUB: "domain_context_PUB.md"
+
+# === Step 3 校验 ===
+step3:
+  dedup:
+    fuzz_method: token_set_ratio
+    threshold: 85  # >= 85 判定重复
+    embedding_backend: null  # 首版关闭
+  naming:
+    max_length: 60
+    require_uppercase: true
+  semantic_check:
+    enabled: true
+    similar_top_k: 5  # 取元表中最相似的 5 条作为 LLM 上下文
+  rejection_threshold:
+    max_rejected_ratio: 0.5  # 超过 50% 被拒,整批重做
+
+# === Step 4 影子 IV 工单 ===
+step4:
+  output_request_filename: "shadow_iv_request.json"
+  output_sql_skeleton_filename: "sql_skeleton.sql"
+  expected_response_filename: "shadow_iv_response.json"
+  response_timeout_hours: 168  # 7 天
+  fallback_on_timeout:
+    set_status: "PENDING_DATAWAREHOUSE"
+    proceed_to_step5: true
+
+# === Step 5 注册 ===
+step5:
+  scd2:
+    open_exp_dt: "9999-12-31"
+  delivery:
+    formats: [md, csv, docx]
+    docx_template: null  # 用默认模板
+
+# === 人审闸口 ===
+approval_gate:
+  poll_interval_seconds: 5
+  timeout_hours: 24
+  sentinel_files:
+    step3:
+      approve: "APPROVED"
+      reject: "REJECTED"
+    step5:
+      approve: "STEP5_APPROVED"
+      reject: "STEP5_REJECTED"
+
+# === 优先级分级（与 工作链路-指标设计方法论.md §9.1 对齐）===
+priority_rules:
+  P0:
+    iv_min: 0.10
+    coverage_min: 0.95
+    credibility: 可信
+    require_source_tables_ready: true
+  P0-阻塞:
+    iv_min: 0.10
+    credibility: 可信
+    require_source_tables_ready: false
+  P1:
+    iv_min: 0.05
+    coverage_min: 0.80
+    credibility: 可信
+  P1-稀疏池:
+    coverage_max: 0.50
+    iv_min: 0.02
+    credibility: 可信
+  P2:
+    iv_min: 0.02
+    iv_max: 0.05
+    credibility: 可信
+  P3-观察:
+    iv_max: 0.02
+    credibility: 可信
+  P4-观察:
+    credibility_in: [参考, 不可信-样本不足, 未做IV分析]
+
+# === 默认元数据 ===
+defaults:
+  owner: "风险特征团队"
+  granularity: M
+  window: SNAP
+  ref_date_logic: BATCH_MAX
+  proposer_human_default: "RISK_TEAM"
+
+# === 日志 ===
+logging:
+  level: INFO
+  file: "data/processed/agent.log"

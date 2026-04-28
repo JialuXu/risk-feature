@@ -1,0 +1,707 @@
+# -*- coding: utf-8 -*-
+"""7 子命令实现：薄壳 wrap 现有 Python API + state.json 状态管理。
+
+- prepare: 调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
+- analyze: 调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
+- export:  读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
+- query:   调 risk_result_query.scripts.results_loader.load_results + top_features
+- trigger: 调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
+- report:  调 risk_docx_report.scripts.build_docx_report.build_docx_report
+- run:     便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
+"""
+from __future__ import annotations
+
+import argparse as _argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+import pandas as pd
+
+from . import cli_io
+from .pipeline_state import (
+    PipelineLevelError,
+    PipelineState,
+    format_status_stamp,
+    load_state,
+)
+
+
+# ===== 路径 helpers =====
+
+def _project_processed_dir(project: str) -> str:
+    return os.path.join('data', 'processed', project)
+
+
+def _intermediate_dir(project: str) -> str:
+    return os.path.join(_project_processed_dir(project), '_intermediate')
+
+
+def _prepared_csv_path(project: str) -> str:
+    return os.path.join(_project_processed_dir(project), 'prepared.csv')
+
+
+def _features_json_path(project: str) -> str:
+    return os.path.join(_project_processed_dir(project), 'features.json')
+
+
+def _project_root() -> str:
+    cur = Path(os.getcwd()).resolve()
+    for p in [cur, *cur.parents]:
+        if (p / 'data').exists():
+            return str(p)
+    return str(cur)
+
+
+def _err(msg: str, exit_code: int = 1):
+    print(msg, file=sys.stderr)
+    sys.exit(exit_code)
+
+
+def _is_quiet(args) -> bool:
+    return bool(getattr(args, 'quiet', False))
+
+
+def _is_verbose(args) -> bool:
+    return bool(getattr(args, 'verbose', False))
+
+
+def _state_dir(args) -> Optional[str]:
+    return getattr(args, 'state_dir', None)
+
+
+def _print_stamp(stamp: str, args):
+    if not _is_quiet(args):
+        print(stamp)
+
+
+# ===== prepare =====
+
+def cmd_prepare(args) -> int:
+    from risk_data_prep.scripts.prepare_df import prepare_df
+
+    started = time.time()
+    project = args.project
+    wide = args.wide
+
+    if not os.path.isfile(wide):
+        _err(f'[prepare] 宽表文件不存在: {wide}')
+    if args.bad_customer is not None and not os.path.isfile(args.bad_customer):
+        _err(f'[prepare] 坏客户清单不存在: {args.bad_customer}')
+
+    filter_dict = None
+    if args.filter_file:
+        if not os.path.isfile(args.filter_file):
+            _err(f'[prepare] --filter-file 不存在: {args.filter_file}')
+        with open(args.filter_file, 'r', encoding='utf-8') as f:
+            filter_dict = json.load(f)
+
+    exclude_features = None
+    if args.exclude_features_file:
+        if not os.path.isfile(args.exclude_features_file):
+            _err(f'[prepare] --exclude-features-file 不存在: {args.exclude_features_file}')
+        with open(args.exclude_features_file, 'r', encoding='utf-8') as f:
+            exclude_features = json.load(f)
+
+    state = load_state(project, state_dir=_state_dir(args))
+
+    # 阻断节点 1：首次新数据集必须显式确认
+    if not state.is_known_dataset(wide) and not getattr(args, 'confirmed_new_dataset', False):
+        _err(
+            f'⚠️ [阻断节点 1] 检测到首次使用的数据集: {wide}\n'
+            f'  原因：id_col/target_col/坏客户定义跑错会污染后续 8 张 CSV，无法从结果层面发现。\n'
+            f'  请确认：\n'
+            f'    1. 主键字段名 = {args.id_col!r}\n'
+            f'    2. 目标列名 = {args.target_col!r}（1=坏客户）\n'
+            f'    3. filter 排除规则是否正确（当前: {filter_dict}）\n'
+            f'  若确认无误，重新执行并加 `--confirmed-new-dataset`。'
+        )
+
+    df, feature_cols = prepare_df(
+        wide_path=wide,
+        bad_customer_path=args.bad_customer,
+        id_col=args.id_col,
+        target_col=args.target_col,
+        bad_id_col=args.bad_id_col,
+        filter=filter_dict,
+        exclude_features=exclude_features,
+    )
+
+    prepared_path = _prepared_csv_path(project)
+    features_path = _features_json_path(project)
+    Path(prepared_path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(prepared_path, index=False, encoding='utf-8-sig')
+
+    n_bad = int(df[args.target_col].sum()) if args.target_col in df.columns else 0
+    info = {
+        'feature_cols': feature_cols,
+        'id_col': args.id_col,
+        'target_col': args.target_col,
+        'wide_source_path': wide,
+        'wide_source_fingerprint': cli_io.dataset_fingerprint(wide),
+        'bad_customer_path': args.bad_customer,
+        'filter_applied': filter_dict,
+        'exclude_features': list(exclude_features) if exclude_features else None,
+        'n_rows': len(df),
+        'n_bad': n_bad,
+        'n_features': len(feature_cols),
+        'created_at': cli_io.utc_now_iso(),
+    }
+    cli_io.write_features_json(features_path, info)
+
+    state.record_dataset(wide)
+    state.append_history({
+        'cmd': 'prepare',
+        'args_summary': {
+            'wide': wide,
+            'bad_customer': args.bad_customer,
+            'id_col': args.id_col,
+            'target_col': args.target_col,
+            'filter': filter_dict,
+            'rows': len(df),
+            'bad': n_bad,
+            'features': len(feature_cols),
+        },
+        'outputs': [prepared_path, features_path],
+        'duration_sec': round(time.time() - started, 2),
+        'level_after': state.current_level,
+    })
+    state.save()
+
+    _print_stamp(
+        format_status_stamp(
+            'prepare', project, state.current_level,
+            inputs=[f'wide={wide}'] + ([f'bad={args.bad_customer}'] if args.bad_customer else []),
+            outputs=[prepared_path, features_path],
+            extras=[f'rows={len(df)}, features={len(feature_cols)}, bad={n_bad}'],
+        ),
+        args,
+    )
+    return 0
+
+
+# ===== analyze =====
+
+_VALID_ANALYZE_STEPS = ('univariate', 'iv', 'lr')
+
+
+def cmd_analyze(args) -> int:
+    from risk_pipeline.pipeline import run_generic_pipeline
+
+    started = time.time()
+    project = args.project
+    prepared = args.prepared or _prepared_csv_path(project)
+    features_path = args.features_file or _features_json_path(project)
+
+    if not os.path.isfile(prepared):
+        _err(f'[analyze] prepared.csv 不存在: {prepared}\n'
+             f'建议: 先跑 `python -m risk_pipeline prepare --wide ... --project {project}`')
+    if not os.path.isfile(features_path):
+        _err(f'[analyze] features.json 不存在: {features_path}\n'
+             f'建议: 先跑 prepare 子命令生成 features.json')
+
+    info = cli_io.read_features_json(features_path)
+    target_col = args.target_col or info.get('target_col', 'is_bad')
+    feature_cols = info.get('feature_cols', [])
+    if not feature_cols:
+        _err('[analyze] features.json 中 feature_cols 为空，无法分析')
+
+    requested = [s.strip() for s in (args.steps or '').split(',') if s.strip()]
+    if not requested:
+        requested = list(_VALID_ANALYZE_STEPS)
+    if 'export' in requested:
+        _err('[analyze] --steps 禁止包含 export；export 由独立 `export` 子命令完成')
+    invalid = [s for s in requested if s not in _VALID_ANALYZE_STEPS]
+    if invalid:
+        _err(f'[analyze] 无效 steps: {invalid}；可选: {list(_VALID_ANALYZE_STEPS)}')
+    steps = [s for s in _VALID_ANALYZE_STEPS if s in requested]
+
+    category_dims = (
+        [d.strip() for d in args.category_dims.split(',') if d.strip()]
+        if args.category_dims
+        else None
+    )
+    if args.qual_dims is None:
+        qual_dims = None
+    elif args.qual_dims == '':
+        qual_dims = []
+    else:
+        qual_dims = [d.strip() for d in args.qual_dims.split(',') if d.strip()]
+
+    state = load_state(project, state_dir=_state_dir(args))
+
+    df = pd.read_csv(prepared, encoding='utf-8-sig')
+    verbose = _is_verbose(args) and not _is_quiet(args)
+
+    results = run_generic_pipeline(
+        df=df,
+        feature_cols=feature_cols,
+        target_col=target_col,
+        project_name=project,
+        category_dims=category_dims,
+        qual_dims=qual_dims,
+        steps=steps,
+        verbose=verbose,
+    )
+
+    inter_dir = _intermediate_dir(project)
+    cli_io.dump_intermediate(
+        results, inter_dir,
+        project_name=project,
+        target_col=target_col,
+        category_dims=results.get('category_dims', category_dims or []),
+        qual_dims=results.get('qual_dims', qual_dims or []),
+        feature_cols=feature_cols,
+        raw_features=info.get('raw_features'),
+        derived_features=info.get('derived_features'),
+    )
+
+    state.append_history({
+        'cmd': 'analyze',
+        'args_summary': {
+            'steps': steps,
+            'category_dims': results.get('category_dims', category_dims or []),
+            'qual_dims': results.get('qual_dims', qual_dims or []),
+            'features': len(feature_cols),
+            'target_col': target_col,
+        },
+        'outputs': [inter_dir + '/'],
+        'duration_sec': round(time.time() - started, 2),
+        'level_after': '过渡态',
+    }, new_level='过渡态')
+    state.save()
+
+    _print_stamp(
+        format_status_stamp(
+            'analyze', project, state.current_level,
+            inputs=[prepared, features_path],
+            outputs=[f'{inter_dir}/'],
+            extras=[
+                f'steps={",".join(steps)}',
+                f'下一步: python -m risk_pipeline export --project {project}（→ Level 1）',
+            ],
+        ),
+        args,
+    )
+    return 0
+
+
+# ===== export =====
+
+def cmd_export(args) -> int:
+    from risk_export_report.scripts.report_analysis import (
+        export_results, build_corr_export, build_lr_export,
+        build_comprehensive_table, build_llm_report_data,
+    )
+
+    started = time.time()
+    project = args.project
+    inter_dir = args.intermediate_dir or _intermediate_dir(project)
+    output_subdir = args.output_subdir or project
+
+    if not os.path.isdir(inter_dir):
+        _err(f'[export] _intermediate/ 不存在: {inter_dir}\n'
+             f'建议: 先跑 `python -m risk_pipeline analyze --project {project}`')
+
+    state = load_state(project, state_dir=_state_dir(args))
+
+    results, manifest = cli_io.load_intermediate(inter_dir)
+
+    corr_results = results.get('corr_results') or {}
+    meta_results = results.get('meta_results') or {}
+    lr_coef_results = results.get('lr_coef_results') or {}
+    lr_auc_results = results.get('lr_auc_results') or {}
+
+    if corr_results:
+        results['corr_exports'] = build_corr_export(corr_results, meta_results)
+    if lr_coef_results:
+        results['lr_exports'] = build_lr_export(lr_coef_results, lr_auc_results)
+
+    iv_full_df = results.get('iv_full')
+    if iv_full_df is not None and not iv_full_df.empty:
+        results['comprehensive'] = build_comprehensive_table(
+            iv_full_df, corr_results, lr_coef_results,
+            results.get('iv_group_all'),
+            raw_features=results.get('raw_features', []),
+            derived_features=results.get('derived_features', []),
+        )
+
+    df_path = _prepared_csv_path(project)
+    if os.path.isfile(df_path) and iv_full_df is not None and not iv_full_df.empty:
+        df = pd.read_csv(df_path, encoding='utf-8-sig')
+        try:
+            results['llm_report_data'] = build_llm_report_data(
+                df=df,
+                iv_full_df=iv_full_df,
+                corr_results=corr_results,
+                meta_results=meta_results,
+                lr_coef_results=lr_coef_results,
+                lr_auc_results=lr_auc_results,
+                iv_group_all=results.get('iv_group_all'),
+                rel_summary=results.get('reliability_summary'),
+                rel_warnings=[],
+                comp_all=results.get('feature_set_comparison'),
+                feature_cols=results.get('feature_cols', []),
+                category_dims=results.get('category_dims', []),
+                qual_dims=results.get('qual_dims', []),
+                raw_features=results.get('raw_features', []),
+                derived_features=results.get('derived_features', []),
+                target_col=manifest.get('target_col', 'is_bad'),
+            )
+        except Exception as e:
+            print(f'  [警告] LLM 报告数据构建失败: {e}', file=sys.stderr)
+
+    project_root = _project_root()
+    exported = export_results(
+        project_root, results,
+        project_name=project,
+        output_subdir=output_subdir,
+        results_base='data/results',
+        output_base='output',
+    )
+
+    state.append_history({
+        'cmd': 'export',
+        'args_summary': {
+            'intermediate_dir': inter_dir,
+            'output_subdir': output_subdir,
+            'n_files': len(exported),
+        },
+        'outputs': [str(p) for p in exported] if exported else [],
+        'duration_sec': round(time.time() - started, 2),
+        'level_after': 'Level 1',
+    }, new_level='Level 1')
+    state.save()
+
+    _print_stamp(
+        format_status_stamp(
+            'export', project, state.current_level,
+            inputs=[f'{inter_dir}/'],
+            outputs=[
+                f'data/results/{output_subdir}/',
+                f'output/{output_subdir}/',
+            ],
+            extras=[f'{len(exported)} 个文件已落盘'],
+        ),
+        args,
+    )
+    return 0
+
+
+# ===== query =====
+
+def cmd_query(args) -> int:
+    from risk_result_query.scripts.results_loader import load_results, top_features
+
+    project = args.project
+    try:
+        r = load_results(project)
+    except FileNotFoundError as e:
+        _err(f'[query] {e}')
+
+    df = top_features(
+        r, kind=args.kind, dim=args.dim, group=args.group,
+        n=args.top, sign=args.sign,
+    )
+
+    fmt = args.output_format
+    if fmt == 'csv':
+        print(df.to_csv(index=False))
+    elif fmt == 'json':
+        print(df.to_json(orient='records', force_ascii=False, indent=2))
+    else:
+        if df is None or df.empty:
+            print('(无结果)')
+        else:
+            with pd.option_context('display.max_rows', None, 'display.max_columns', None,
+                                   'display.width', 200):
+                print(df.to_string(index=False))
+    # query 不写 state（不改 level，无副作用）
+    return 0
+
+
+# ===== trigger =====
+
+def cmd_trigger(args) -> int:
+    from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
+
+    started = time.time()
+    project = args.project
+    prepared = args.prepared or _prepared_csv_path(project)
+    if not os.path.isfile(prepared):
+        _err(f'[trigger] prepared.csv 不存在: {prepared}\n'
+             f'建议: 先跑 `python -m risk_pipeline prepare --project {project}`')
+
+    state = load_state(project, state_dir=_state_dir(args))
+    try:
+        state.require_level('Level 1')
+    except PipelineLevelError as e:
+        _err(f'[trigger] {e}\n建议: 先跑 export 子命令推进到 Level 1')
+
+    # 阻断节点 2：features 配置必须显式确认（默认/自定义都拦）
+    if not getattr(args, 'confirmed', False):
+        cfg_desc = (
+            '默认 RISK_FEATURES 通用配置'
+            if args.use_default_features
+            else f'项目专属特征列表（{args.features_file}）'
+        )
+        _err(
+            '⚠️ [阻断节点 2] trigger 即将基于 features 配置生成预警名单\n'
+            f'  原因：触碰阈值依赖的特征集错误会直接导致预警名单错误，是可运营决策的上游，\n'
+            f'        一旦推送给业务部门不可撤回。\n'
+            f'  当前 features 来源：{cfg_desc}\n'
+            f'  请确认：\n'
+            f'    1. features 配置正确（report_name / source_col / risk_direction / iv 全部核对）\n'
+            f'    2. 项目专属特征是否已对齐 prepared.csv 的实际列名\n'
+            f'  若确认无误，重新执行并加 `--confirmed`。'
+        )
+
+    df = pd.read_csv(prepared, encoding='utf-8-sig')
+
+    features = None
+    if args.features_file:
+        if not os.path.isfile(args.features_file):
+            _err(f'[trigger] --features-file 不存在: {args.features_file}')
+        with open(args.features_file, 'r', encoding='utf-8') as f:
+            features = json.load(f)
+
+    info = {}
+    info_path = _features_json_path(project)
+    if os.path.isfile(info_path):
+        info = cli_io.read_features_json(info_path)
+
+    id_col = args.id_col or info.get('id_col', '客户编号')
+    target_col = args.target_col or info.get('target_col', 'is_bad')
+
+    output_dir = os.path.join(_project_root(), 'output', project)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    verbose = _is_verbose(args) and not _is_quiet(args)
+
+    df_wide, df_long, df_threshold = extract_triggers(
+        df=df,
+        features=features,
+        target_col=target_col,
+        id_col=id_col,
+        project_name=project,
+        output_dir=output_dir,
+        verbose=verbose,
+    )
+
+    used_default = bool(args.use_default_features)
+    state.append_history({
+        'cmd': 'trigger',
+        'args_summary': {
+            'used_default_features': used_default,
+            'features_file': args.features_file,
+            'id_col': id_col,
+            'target_col': target_col,
+            'rows': len(df_wide),
+            'triggers': len(df_long),
+        },
+        'outputs': [
+            os.path.join(output_dir, f'{project}_风险触碰明细_宽表.csv'),
+            os.path.join(output_dir, f'{project}_风险触碰明细_长表.csv'),
+            os.path.join(output_dir, f'{project}_触碰阈值说明.csv'),
+        ],
+        'duration_sec': round(time.time() - started, 2),
+        'level_after': 'Level 2',
+    }, new_level='Level 2')
+    state.save()
+
+    _print_stamp(
+        format_status_stamp(
+            'trigger', project, state.current_level,
+            inputs=[prepared],
+            outputs=[
+                f'{output_dir}/{project}_风险触碰明细_宽表.csv',
+                f'{output_dir}/{project}_风险触碰明细_长表.csv',
+                f'{output_dir}/{project}_触碰阈值说明.csv',
+            ],
+            extras=[
+                f'rows={len(df_wide)}, triggers={len(df_long)}',
+                f'used_default_features={used_default}',
+            ],
+        ),
+        args,
+    )
+    return 0
+
+
+# ===== report =====
+
+def cmd_report(args) -> int:
+    from risk_docx_report.scripts.build_docx_report import build_docx_report
+
+    started = time.time()
+    project = args.project
+    llm_json_path = args.llm_json or os.path.join(
+        _project_root(), 'output', project, f'{project}_LLM报告数据.json',
+    )
+    report_md_path = args.report_markdown
+    out_path = args.output or os.path.join(
+        _project_root(), 'output', project, f'{project}.docx',
+    )
+
+    if not os.path.isfile(llm_json_path):
+        _err(f'[report] LLM JSON 不存在: {llm_json_path}\n'
+             f'建议: 先跑 export 子命令落盘 LLM JSON')
+    if not os.path.isfile(report_md_path):
+        _err(f'[report] --report-markdown 不存在: {report_md_path}')
+
+    state = load_state(project, state_dir=_state_dir(args))
+    try:
+        state.require_level('Level 1')
+    except PipelineLevelError as e:
+        _err(f'[report] {e}\n建议: 先跑 export 子命令推进到 Level 1')
+
+    # 阻断节点 3：external 必须显式确认 final version
+    if args.purpose == 'external' and not getattr(args, 'confirmed_final_version', False):
+        _err(
+            '⚠️ [阻断节点 3] 即将生成对外交付的 .docx 报告\n'
+            '  原因：.docx 一旦生成并交付，报告与底层数据的一致性承诺即成立；\n'
+            '        此后修改 CSV 须同步重新出报告，否则存在数据/报告不一致的合规风险。\n'
+            f'  请确认：\n'
+            f'    1. 当前的 LLM JSON 是最终版本（无数据更新计划）\n'
+            f'    2. 报告用途已对齐（external = 对外交付）\n'
+            '  若确认无误，重新执行并加 `--confirmed-final-version`。'
+        )
+
+    if args.purpose == 'internal':
+        title = f'内部审阅版-{project}风险特征分析报告'
+    else:
+        title = f'{project}风险特征分析报告'
+
+    appendix_mode = args.appendix_mode or 'both'
+
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+
+    output = build_docx_report(
+        llm_json=Path(llm_json_path),
+        report_markdown=Path(report_md_path),
+        output_path=Path(out_path),
+        title=title,
+        appendix_mode=appendix_mode,
+    )
+
+    state.append_history({
+        'cmd': 'report',
+        'args_summary': {
+            'purpose': args.purpose,
+            'title': title,
+            'appendix_mode': appendix_mode,
+            'llm_json': llm_json_path,
+            'report_markdown': report_md_path,
+        },
+        'outputs': [str(output)],
+        'duration_sec': round(time.time() - started, 2),
+        'level_after': 'Level 3',
+    }, new_level='Level 3')
+    state.save()
+
+    _print_stamp(
+        format_status_stamp(
+            'report', project, state.current_level,
+            inputs=[llm_json_path, report_md_path],
+            outputs=[str(output)],
+            extras=[f'purpose={args.purpose}', f'title={title}'],
+        ),
+        args,
+    )
+    return 0
+
+
+# ===== run =====
+
+def cmd_run(args) -> int:
+    if args.pipeline == 'credit':
+        from risk_pipeline.pipeline import run_credit_pipeline
+        steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
+        started = time.time()
+        run_credit_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
+        # credit 用 'credit' 作为 project，state 写入 data/results/征信/credit/
+        project = args.project or 'credit'
+        state_dir = _state_dir(args) or os.path.join(
+            _project_root(), 'data', 'results', '征信', project,
+        )
+        state = load_state(project, state_dir=state_dir)
+        state.append_history({
+            'cmd': 'run',
+            'pipeline': 'credit',
+            'args_summary': {'steps': steps},
+            'duration_sec': round(time.time() - started, 2),
+            'level_after': 'Level 1',
+            'note': 'credit/gsfc 不可中段独立调用；state 黑盒一项',
+        }, new_level='Level 1')
+        state.save()
+        if not _is_quiet(args):
+            print('[run] OK | pipeline=credit | level=Level 1')
+        return 0
+
+    if args.pipeline == 'gsfc':
+        from risk_pipeline.pipeline import run_gsfc_pipeline
+        steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
+        started = time.time()
+        run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
+        project = args.project or 'gsfc'
+        state_dir = _state_dir(args) or os.path.join(
+            _project_root(), 'data', 'results', '工商财务', project,
+        )
+        state = load_state(project, state_dir=state_dir)
+        state.append_history({
+            'cmd': 'run',
+            'pipeline': 'gsfc',
+            'args_summary': {'steps': steps},
+            'duration_sec': round(time.time() - started, 2),
+            'level_after': 'Level 1',
+            'note': 'credit/gsfc 不可中段独立调用；state 黑盒一项',
+        }, new_level='Level 1')
+        state.save()
+        if not _is_quiet(args):
+            print('[run] OK | pipeline=gsfc | level=Level 1')
+        return 0
+
+    # generic: prepare → analyze → export
+    if not args.wide:
+        _err('[run] --pipeline generic 必须提供 --wide')
+    if not args.id_col or not args.target_col:
+        _err('[run] --pipeline generic 必须提供 --id-col 和 --target-col')
+    if not args.project:
+        _err('[run] --pipeline generic 必须提供 --project')
+
+    rc = cmd_prepare(_argparse.Namespace(
+        wide=args.wide, bad_customer=args.bad_customer,
+        id_col=args.id_col, target_col=args.target_col,
+        bad_id_col=None, filter_file=None, exclude_features_file=None,
+        project=args.project,
+        confirmed_new_dataset=getattr(args, 'confirmed_new_dataset', False),
+        quiet=_is_quiet(args), verbose=_is_verbose(args),
+        state_dir=_state_dir(args),
+    ))
+    if rc:
+        return rc
+
+    rc = cmd_analyze(_argparse.Namespace(
+        project=args.project, prepared=None, features_file=None,
+        steps=args.steps or 'univariate,iv,lr',
+        category_dims=None, qual_dims=None, target_col=None,
+        quiet=_is_quiet(args), verbose=_is_verbose(args),
+        state_dir=_state_dir(args),
+    ))
+    if rc:
+        return rc
+
+    rc = cmd_export(_argparse.Namespace(
+        project=args.project, intermediate_dir=None, output_subdir=None,
+        quiet=_is_quiet(args), verbose=_is_verbose(args),
+        state_dir=_state_dir(args),
+    ))
+    if rc:
+        return rc
+
+    if not _is_quiet(args):
+        print(f'[run] OK | pipeline=generic | project={args.project} | level=Level 1')
+    return 0

@@ -1,0 +1,66 @@
+-- ============================================================================
+-- 影子 IV 验证 SQL 骨架 (仅作参考, 不可执行)
+-- 指标: {{ ind_code }} ({{ ind_name_cn }})
+-- 域: {{ domain }} | 版本: v{{ ind_version }}
+-- 生成于: {{ generated_at }}
+-- ============================================================================
+
+-- 业务口径:
+-- {{ biz_definition }}
+
+-- 计算逻辑 (伪式):
+-- {{ calc_logic_pseudo }}
+
+-- 依赖基础表: {{ source_tables | join(', ') }}
+-- 依赖字段: {{ source_fields | join('; ') }}
+-- 参考日期口径: {{ ref_date_logic }}
+-- 后处理规则: {{ post_processing_rule }}
+
+-- ============================================================================
+-- Step 1: 计算指标值 (单客户单快照日)
+-- ============================================================================
+
+-- TODO 数仓: 把上面的 calc_logic 翻成 Hive SQL.
+-- 关键约束:
+--   1. 主键: (lp_org_no, cust_no, snap_dt)
+--   2. 参考日 ref_date 取值方式: {{ ref_date_logic }}
+--      {%- if ref_date_logic == 'BATCH_MAX' %}
+--      取 ref_date = MAX(本批数据日期), 即历史回溯时不能用 current_date()
+--      {%- elif ref_date_logic == 'SYS_TODAY' %}
+--      取 ref_date = current_date()
+--      {%- elif ref_date_logic == 'SNAP_DT' %}
+--      取 ref_date = snap_dt 字段
+--      {%- elif ref_date_logic == 'EXPLICIT_PARAM' %}
+--      取 ref_date = ${ref_date} 调用方传入
+--      {%- endif %}
+--   3. 空值处理: {{ null_handling | join(' + ') }}
+
+-- 示例骨架 (需数仓填充具体业务字段聚合):
+INSERT OVERWRITE TABLE dws_shadow_iv_calc PARTITION (part_ymd='${part_ymd}')
+SELECT
+    t.lp_org_no,
+    t.cust_no,
+    DATE('${snap_dt}') AS snap_dt,
+    '{{ ind_code }}' AS ind_code,
+    {{ ind_version }} AS ind_version,
+
+    -- TODO: 这里替换为 calc_logic 的 SQL 实现
+    NULL AS ind_value_num
+
+FROM {{ source_tables[0] if source_tables else 'TODO_SOURCE_TABLE' }} t
+WHERE t.part_ymd <= '${part_ymd}'
+{%- if post_processing_rule == 'PAD_ZERO_ON_LEFT_JOIN' %}
+-- 后处理: 全量客户左连接补 0 (在外层做)
+{%- endif %}
+;
+
+-- ============================================================================
+-- Step 2: 关联 is_bad 标签 + 算 IV (用数仓现有 IV 计算函数)
+-- ============================================================================
+
+-- 期望产出: shadow_iv, shadow_coverage_rate, shadow_credibility, shadow_sample_size
+-- 回填到 contracts/shadow_iv_response_schema.json 格式的 JSON
+
+-- ============================================================================
+-- 注意: 本骨架仅作参考. 数仓应根据实际表结构和性能要求调整.
+-- ============================================================================

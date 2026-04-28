@@ -1,0 +1,26 @@
+环境与命令说明（无 Emoji）
+
+一、安装依赖（在 handbook 目录执行）
+  npm install
+
+二、本地浏览（默认 http://localhost:4000）
+  npm run serve
+
+三、生成静态站点（输出到 handbook/_book）
+  npm run build
+  用浏览器打开 _book/index.html 即可离线查看。
+
+四、导出 PDF（HonKit 调用 Calibre 的 ebook-convert）
+  1) 安装 Calibre，并确保命令行里有 ebook-convert（macOS 安装 Calibre 后，可把 /Applications/Calibre.app/Contents/MacOS 加入 PATH）。
+  2) 在 handbook 目录执行：npm run pdf
+  输出一般为 handbook/book.pdf（若 HonKit 版本有差异，以终端提示为准）。
+
+五、导出 DOCX（Pandoc 合并 Markdown）
+  1) 本机安装 pandoc，并确保在 PATH 中。
+  2) 在 handbook 目录执行：npm run docx
+  输出：handbook/_export/handbook.docx
+  合并顺序由 scripts/export-order.txt 决定，可按需增删行（每行一条相对仓库根目录的路径）。
+
+六、说明
+  - 未收录 node_modules 下的 README。
+  - risk-feature-pipeline 仅收录仓库根下一份，未收录 send/risk-feature-pipeline 的重复副本，避免业务侧看到重复章节。

@@ -1,0 +1,20 @@
+{
+  "title": "Skill 文档手册",
+  "description": "企业征信风险特征流水线与 Skills 文档汇编",
+  "author": "Skill 仓库",
+  "language": "zh-hans",
+  "root": ".",
+  "structure": {
+    "readme": "README.md",
+    "summary": "SUMMARY.md"
+  },
+  "pdf": {
+    "paperSize": "a4",
+    "margin": {
+      "top": 56,
+      "bottom": 56,
+      "left": 62,
+      "right": 62
+    }
+  }
+}

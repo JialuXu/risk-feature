@@ -1,0 +1,4 @@
+{
+  "EDUCATION": {"exclude": [0, 5, 6]},
+  "MARRIAGE":  {"exclude": [0]}
+}

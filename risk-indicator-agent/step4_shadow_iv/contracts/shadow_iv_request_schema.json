@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShadowIVRequest",
+  "description": "本地 risk-indicator-agent 提交给数仓 sandbox 的影子 IV 验证工单",
+  "type": "object",
+  "required": ["batch_id", "submitted_at", "indicators"],
+  "additionalProperties": false,
+  "properties": {
+    "batch_id": {"type": "string"},
+    "submitted_at": {"type": "string", "format": "date-time"},
+    "submitter": {"type": "string"},
+    "expected_response_by": {"type": "string", "format": "date"},
+    "verification_window": {
+      "type": "object",
+      "properties": {
+        "snap_dt_start": {"type": "string", "format": "date"},
+        "snap_dt_end": {"type": "string", "format": "date"},
+        "sample_size_target": {"type": "integer"}
+      }
+    },
+    "indicators": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["ind_code", "ind_version", "calc_logic_pseudo",
+                     "source_tables", "source_fields"],
+        "properties": {
+          "ind_code": {"type": "string"},
+          "ind_version": {"type": "integer"},
+          "ind_name_cn": {"type": "string"},
+          "domain": {"type": "string"},
+          "biz_definition": {"type": "string"},
+          "calc_logic_pseudo": {"type": "string", "description": "伪式,数仓据此翻 SQL"},
+          "source_tables": {"type": "array", "items": {"type": "string"}},
+          "source_fields": {"type": "array", "items": {"type": "string"}},
+          "ref_date_logic": {"type": "string"},
+          "null_handling": {"type": "array", "items": {"type": "string"}},
+          "post_processing_rule": {"type": "string"},
+          "is_dynamic_expansion": {"type": "integer"},
+          "dynamic_template": {"type": ["string", "null"]},
+          "expected_iv_range": {"type": "array", "items": {"type": "number"}},
+          "expected_coverage_rate": {"type": "number"},
+          "sql_skeleton_hint_path": {"type": "string"}
+        }
+      }
+    }
+  }
+}

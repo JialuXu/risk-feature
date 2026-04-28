@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-indicator-agent"
+version = "0.1.0"
+description = "LLM 指标衍生 Agent 流水线 — 把特征挖掘结果翻译成衍生指标设计稿（含元表注册）"
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=0.40",
+    "pyyaml>=6.0",
+    "jsonschema>=4.21",
+    "rapidfuzz>=3.6",
+    "sqlglot>=23.0",
+    "pandas>=2.0",
+    "python-dotenv>=1.0",
+    "jinja2>=3.1",
+    "tenacity>=8.2",
+    "python-docx>=1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3.12",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+include = [
+    "indicator_pipeline*",
+    "step1_candidate_screening*",
+    "step2_llm_proposal*",
+    "step3_validation*",
+    "step4_shadow_iv*",
+    "step5_registration*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

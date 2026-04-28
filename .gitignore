@@ -1,0 +1,11 @@
+# 本地数据与产出、历史数据与设计草稿（不入库）
+output/
+data_old/
+data/
+衍生指标设计/
+
+# 依赖与缓存（不入库）
+node_modules/
+__pycache__/
+*.py[cod]
+.DS_Store
