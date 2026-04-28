@@ -857,7 +857,8 @@ def main():
     parser.add_argument('--target', default='is_bad', help='目标变量列名（默认 is_bad）')
     parser.add_argument('--project-name', default='风险特征分析', help='输出文件前缀')
     parser.add_argument('--feature-cols', default=None, help='特征列名（逗号分隔），默认自动检测')
-    parser.add_argument('--merge-target', default=None, help='如果宽表中没有目标变量，可以指定包含目标变量的CSV路径，将自动与宽表按客户编号左连接')
+    parser.add_argument('--merge-target', default=None, help='如果宽表中没有目标变量，可以指定包含目标变量的CSV路径，将自动与宽表按主键左连接')
+    parser.add_argument('--id-col', default=None, help='合并主键列名；缺省时按 ColumnMapper().customer_id 解析（默认 客户编号）')
     
     parser.add_argument(
         '--steps', '-s',
@@ -894,13 +895,17 @@ def main():
         if not args.input:
             parser.error("generic 模式需要 --input 指定宽表CSV路径")
         df = pd.read_csv(args.input, encoding='utf-8-sig')
-        
+
+        # 解析合并主键：优先 --id-col，其次 ColumnMapper().customer_id
+        if args.id_col:
+            join_key = args.id_col
+        else:
+            from risk_pipeline.column_mapper import ColumnMapper
+            join_key = ColumnMapper().customer_id
+
         # 合并目标变量（如果需要）
         if args.merge_target:
             df_target = pd.read_csv(args.merge_target, encoding='utf-8-sig')
-            # 假设主键是 客户编号 或类似字段，尝试自动识别
-            # TODO: 目前先假设使用 客户编号 作为合并键
-            join_key = '客户编号'
             if join_key in df.columns and join_key in df_target.columns:
                 # 场景 1: df_target 中有 target_col (例如 is_bad)，直接 join 并填充 0
                 if args.target in df_target.columns:
@@ -916,18 +921,19 @@ def main():
                     if not args.quiet:
                         print(f"[INFO] 成功从 {args.merge_target} (坏客户清单) 匹配出 {df[args.target].sum()} 个坏客户。")
             else:
-                parser.error(f"宽表或目标文件中未找到合并主键 '{join_key}'，无法自动合并。")
-        
+                parser.error(f"宽表或目标文件中未找到合并主键 '{join_key}'，无法自动合并。可用 --id-col 指定。")
+
         if args.target not in df.columns:
             parser.error(f"宽表中不存在目标列 '{args.target}'。如果目标变量在另一文件中，请使用 --merge-target 指定包含目标变量的CSV文件。")
-        
+
         if args.feature_cols:
             feature_cols = args.feature_cols.split(',')
         else:
             # 自动过滤零方差特征，数值型，非主键非target
+            exclude_cols = {join_key, args.target}
             feature_cols = [
                 c for c in df.select_dtypes(include='number').columns
-                if c not in ('客户编号', 'is_bad', args.target) and df[c].std() > 0
+                if c not in exclude_cols and df[c].std() > 0
             ]
             
         run_generic_pipeline(
