@@ -102,15 +102,30 @@ def chart_iv_heatmap(
         return []
 
     df = iv_pivot.copy()
-    # iv_pivot 既可能 index=特征，也可能首列是 '特征'（CSV 读出来时）
-    if '特征' in df.columns:
-        df = df.set_index('特征')
+    # 透视表两种合法朝向：
+    #   A. index=特征, columns=分群 (set_index('特征') 后)
+    #   B. index=分群, columns=特征 (CSV 第一列 '分群名称' / '分群')
+    # 用 iv_full.特征 与两轴的交集大小判断
+    feat_universe = set()
+    if iv_full is not None and not iv_full.empty and '特征' in iv_full.columns:
+        feat_universe = set(iv_full['特征'].dropna().astype(str))
+
+    for col_name in ('特征', '分群名称', '分群'):
+        if col_name in df.columns:
+            df = df.set_index(col_name)
+            break
     df = df.apply(pd.to_numeric, errors='coerce')
 
+    overlap_index = len(feat_universe & set(map(str, df.index))) if feat_universe else 0
+    overlap_cols = len(feat_universe & set(map(str, df.columns))) if feat_universe else 0
+    if overlap_cols > overlap_index and overlap_cols > 0:
+        # 朝向 B：转置成「特征=行，分群=列」
+        df = df.T
+
     # 选 top-N 特征：优先按全量 IV 排，否则按行均值
-    if iv_full is not None and not iv_full.empty and '特征' in iv_full.columns and 'IV值' in iv_full.columns:
+    if feat_universe:
         order = (iv_full[['特征', 'IV值']].dropna()
-                 .sort_values('IV值', ascending=False)['特征'].tolist())
+                 .sort_values('IV值', ascending=False)['特征'].astype(str).tolist())
         keep = [f for f in order if f in df.index][:top_n]
     else:
         keep = df.mean(axis=1).sort_values(ascending=False).head(top_n).index.tolist()
@@ -118,12 +133,17 @@ def chart_iv_heatmap(
     if df.empty:
         return []
 
-    # 可信度 mask
+    # 可信度 mask（同样自适应朝向）
     rel = None
     if reliability_pivot is not None and not reliability_pivot.empty:
         rel = reliability_pivot.copy()
-        if '特征' in rel.columns:
-            rel = rel.set_index('特征')
+        for col_name in ('特征', '分群名称', '分群'):
+            if col_name in rel.columns:
+                rel = rel.set_index(col_name)
+                break
+        # 与 df 对齐朝向
+        if not set(df.index).issubset(set(rel.index)):
+            rel = rel.T
         rel = rel.reindex(index=df.index, columns=df.columns)
 
     fig, ax = plt.subplots(figsize=FIGSIZE_HEATMAP)
