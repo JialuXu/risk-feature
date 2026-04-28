@@ -105,7 +105,19 @@ def chart_lr_auc(
     df = df.sort_values('AUC', ascending=True)
     df['_label'] = df['分群维度'].astype(str) + ' = ' + df['分群名称'].astype(str)
     auc_types = df.get('AUC类型', pd.Series([''] * len(df), index=df.index))
-    colors = [AUC_TYPE_COLORS.get(str(t), NEUTRAL_COLOR) for t in auc_types]
+
+    def _auc_color(t: object) -> str:
+        ts = str(t)
+        # 子串匹配以兼容多种命名（如 "5折交叉验证" / "训练集(样本不足)"）
+        if 'CV失败' in ts or 'cv失败' in ts.lower():
+            return AUC_TYPE_COLORS['训练集-CV失败']
+        if '训练集' in ts:
+            return AUC_TYPE_COLORS['训练集-样本不足']
+        if '交叉验证' in ts or 'CV' in ts.upper():
+            return AUC_TYPE_COLORS['交叉验证']
+        return NEUTRAL_COLOR
+
+    colors = [_auc_color(t) for t in auc_types]
 
     fig, ax = plt.subplots(figsize=FIGSIZE_BAR_WIDE)
     bars = ax.barh(df['_label'], df['AUC'], color=colors, edgecolor='white')
@@ -123,9 +135,8 @@ def chart_lr_auc(
         ax.text(bar.get_width() + 0.01, bar.get_y() + bar.get_height() / 2,
                 f'{val:.3f}', va='center', fontsize=9, color='#2C3E50')
 
-    # AUC 类型图例
+    # AUC 类型图例（按真实出现的字符串去重，颜色用语义匹配函数）
     seen = []
-    handles = [plt.Line2D([0], [0], marker='|', color='black', linestyle='None')]  # placeholder
     handles = []
     for t in auc_types:
         ts = str(t)
@@ -133,8 +144,7 @@ def chart_lr_auc(
             continue
         seen.append(ts)
         handles.append(plt.Rectangle((0, 0), 1, 1,
-                                      color=AUC_TYPE_COLORS.get(ts, NEUTRAL_COLOR),
-                                      label=ts))
+                                      color=_auc_color(ts), label=ts))
     if handles:
         ax.legend(handles=handles, loc='lower right', fontsize=9, framealpha=0.9)
 
