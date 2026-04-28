@@ -8,8 +8,9 @@
     export_rules(rules_df, project_name, output_dir)        # CSV 导出
     build_llm_rules_payload(rules_df)                       # LLM JSON 节点
 """
+import re
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Union
 import pandas as pd
 
 from .config import (
@@ -21,14 +22,27 @@ from .rule_evaluation import evaluate_rules, attach_suggestion
 from .rule_stability import assess_rule_stability
 
 
+def _safe_scope_name(scope: str) -> str:
+    """把分群值变成可作文件名的字符串。"""
+    s = re.sub(r'[\\/:*?"<>|\s]+', '_', scope.strip()) or 'scope'
+    return s[:60]
+
+
 def mine_rules_full(
     df: pd.DataFrame,
     feature_cols: List[str],
     target: str = 'is_bad',
     verbose: bool = True,
+    persist_tree_path: Optional[Union[str, Path]] = None,
 ) -> pd.DataFrame:
-    """全流程：挖掘 → 评估闸门 → 稳定性 → 业务建议。"""
-    raw = mine_rules(df, feature_cols, target=target, verbose=verbose)
+    """全流程：挖掘 → 评估闸门 → 稳定性 → 业务建议。
+
+    persist_tree_path: 若给定，把全量拟合的决策树持久化（供可视化）。
+    """
+    raw = mine_rules(
+        df, feature_cols, target=target, verbose=verbose,
+        persist_tree_path=persist_tree_path,
+    )
     if raw.empty:
         return raw
     evaluated = evaluate_rules(df, raw, target=target)
@@ -44,16 +58,25 @@ def rules_by_group(
     feature_cols: List[str],
     target: str = 'is_bad',
     verbose: bool = True,
+    persist_tree_dir: Optional[Union[str, Path]] = None,
 ) -> pd.DataFrame:
     """按分群列分别挖掘规则，合并为长表。
 
     每个分群独立跑 mine_rules_full。未满足 MIN_SAMPLES 的群组跳过并打印原因。
+
+    persist_tree_dir: 若给定，每个分群拟合的树落到
+        `<persist_tree_dir>/rule_tree_<segment_col>__<segment_value>.pkl`。
     """
     if segment_col not in df.columns:
         raise KeyError(f"分群列不存在：{segment_col}")
 
     min_samples = SAMPLE_THRESHOLDS['MIN_SAMPLES']
     all_rules = []
+
+    persist_dir: Optional[Path] = None
+    if persist_tree_dir is not None:
+        persist_dir = Path(persist_tree_dir)
+        persist_dir.mkdir(parents=True, exist_ok=True)
 
     for seg_val, sub in df.groupby(segment_col, dropna=False):
         label = '(缺失)' if pd.isna(seg_val) else str(seg_val)
@@ -64,7 +87,17 @@ def rules_by_group(
 
         if verbose:
             print(f"\n=== 挖掘分群规则：{segment_col}={label} (n={len(sub)}) ===")
-        rules = mine_rules_full(sub, feature_cols, target=target, verbose=verbose)
+
+        seg_pkl = None
+        if persist_dir is not None:
+            seg_pkl = persist_dir / (
+                f"rule_tree_{_safe_scope_name(segment_col)}__{_safe_scope_name(label)}.pkl"
+            )
+
+        rules = mine_rules_full(
+            sub, feature_cols, target=target, verbose=verbose,
+            persist_tree_path=seg_pkl,
+        )
         if rules.empty:
             continue
         rules.insert(0, 'segment_dim', segment_col)

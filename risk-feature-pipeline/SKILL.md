@@ -135,6 +135,9 @@ python -m risk_pipeline trigger --project <项目名> \
 # 生成 Word 报告
 python -m risk_pipeline report --project <项目名> \
   --report-markdown <md报告>.md --purpose internal
+
+# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr,lr,auc,segment,tree,rules,combos,combo_network）
+python -m risk_pipeline visualize --project <项目名>
 ```
 
 > **老入口 `python -m shared --pipeline X` 仍可工作但会打 stderr deprecation 警告**，请尽快迁移到 `python -m risk_pipeline run --pipeline X`。
@@ -157,6 +160,7 @@ python -m risk_pipeline report --project <项目名> \
 | `risk_result_query` | **只读**已有结果（top-N、分群查询） | Level 1 后 |
 | `risk_trigger_extraction` | 把风险结论落到每个客户（触碰+得分） | **→ Level 2** |
 | `risk_docx_report` | LLM JSON → 正式 Word 报告 | **→ Level 3** |
+| `risk_visualization` | Level 1 后，IV/相关性/LR/分群/决策树/指标组合 PNG 图表 | Level 1 后 |
 
 ---
 
