@@ -1,19 +1,21 @@
-# 企业征信风险特征工程体系
+# 客户宽表风险特征工程体系
 
-> 一个围绕"**风险特征挖掘 → 衍生指标设计 → 工具与文档集成**"组织的多组件工程仓库。
+> 一个围绕"**客户宽表 → 风险特征挖掘 → 衍生指标设计 → 工具与文档集成**"组织的多组件工程仓库。
+> 面向**任意类型的客户宽表**（征信、工商财务、舆情、行为、UCI 等公开数据集……），只要有主键、二分类目标列和若干特征列即可入库。
 > 本文件是顶层引导，详细文档分散在各子目录的 `README.md` / `SKILL.md` 中。
 
 ---
 
 ## 一、仓库定位
 
-本仓库不是单一管线，而是一个**生态**：
+本仓库不是单一管线，而是一个**通用的客户级风险特征工程生态**：
 
-- **核心**：模块化的风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰）
+- **数据形态无关**：支持任意客户宽表——征信 / 工商财务 / 舆情 / 行为 / 标签…只要满足"主键 + 二分类目标 + 数值特征列"即可
+- **核心**：模块化的风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰），内置 `credit` / `gsfc` / `generic` 三套预设管线，generic 适配自备宽表
 - **上层**：基于 LLM 的衍生指标设计 Agent（把挖掘结果翻译成元表里的指标）
 - **接口**：MCP Server，把管线包装成异步工具供 LLM 客户端（Claude Desktop / Cursor 等）调用
 - **文档**：HonKit 手册站点，把仓库内的 `README.md` / `SKILL.md` 聚合并导出 PDF / DOCX
-- **验收**：UCI Credit Card 数据集端到端测试剧本
+- **验收**：UCI Credit Card 数据集端到端测试剧本（同时也证明本工具不限于征信场景）
 
 > 默认所有交互、注释、输出使用**中文**。
 
@@ -191,22 +193,26 @@ npm run docx            # 导出 DOCX（需 pandoc）
 ```bash
 cd risk-feature-pipeline
 
-python -m risk_pipeline run --pipeline credit \
-  --project 我的征信项目 --quiet            # ① 跑完 prepare→analyze→export
+# 三选一：credit（征信） / gsfc（工商财务） / generic（自备宽表）
+python -m risk_pipeline run --pipeline generic \
+  --wide data/raw/我的宽表.csv \
+  --bad-customer data/raw/坏客户清单.csv \
+  --id-col 客户编号 --target-col is_bad \
+  --project 我的项目 --quiet               # ① prepare→analyze→export
 
 python -m risk_pipeline trigger \
-  --project 我的征信项目 --use-default-features  # 客户级触碰
+  --project 我的项目 --use-default-features  # 客户级触碰
 
 python -m risk_pipeline report \
-  --project 我的征信项目 \
+  --project 我的项目 \
   --report-markdown ./report.md \
-  --purpose internal                           # → output/docx-report/*.docx
+  --purpose internal                         # → output/docx-report/*.docx
 ```
 
 ### 工作流 B：分析结果 → 衍生指标元表
 
 ```bash
-# 前置：工作流 A 已经产出 data/results/我的征信项目/
+# 前置：工作流 A 已经产出 data/results/我的项目/
 cd risk-indicator-agent
 
 BATCH=$(date +%Y%m%d)_first
