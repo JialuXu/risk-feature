@@ -84,6 +84,8 @@ risk-feature-pipeline/                # 仓库根
 |---|---|---|
 | 跑一次完整的风险特征分析（IV / LR / 触碰 / 报告） | `risk-feature-pipeline/README.md` | `python -m risk_pipeline run --pipeline credit` |
 | 已经跑过一次，只是想查 top IV / 分群结果 | `risk-feature-pipeline/risk_result_query/SKILL.md` | `python -m risk_pipeline query --project X --kind iv --top 15` |
+| 已跑过一次，想看 IV / LR / 决策树 / 指标组合 PNG 图表 | `risk-feature-pipeline/risk_visualization/SKILL.md` | `python -m risk_pipeline visualize --project X` |
+| 跑分析时一并出决策树规则与可视化 | 见 §六 工作流 A | `python -m risk_pipeline analyze --steps univariate,iv,lr,rules ...` |
 | 把分析结果翻译成衍生指标设计稿 | `risk-indicator-agent/README.md` | `python -m indicator_pipeline --step 1 --batch-id YYYYMMDD_X` |
 | 在 Claude Desktop / Cursor 里调用管线 | `risk_feature_MCPServer/server.py` 顶部说明 | 配置 MCP server 后用 `run_pipeline` / `query_results` / `extract_triggers` |
 | 本地浏览 / 导出全套文档 | `handbook/USAGE.txt` | `cd handbook && npm install && npm run serve` |
@@ -104,14 +106,15 @@ risk_feature_engineering → 比值类衍生特征
 risk_segment_univariate  → 分群相关性 / T 检验
 risk_iv_diagnosis        → 自适应分箱 IV + 可信度评级
 risk_logistic_regression → 标准化 + L2 的分群 LR
-risk_rule_mining         → 决策树多变量交互规则（可选）
+risk_rule_mining         → 决策树多变量交互规则（通过 `analyze --steps univariate,iv,lr,rules` 触发；树 pkl 落 _intermediate/，规则表随 export 进 Level 1）
 risk_export_report       → 8 张标准 CSV + LLM 友好 JSON
 risk_trigger_extraction  → 客户级风险触碰（宽表/长表/阈值表）
 risk_result_query        → 只读已导出结果，不重跑管线
+risk_visualization       → Level 1 后从 CSV 出 PNG 图表（IV / 相关性 / LR / 决策树 / 指标组合 / 共现网络等 10 类）
 risk_docx_report         → LLM JSON → 正式 Word 报告
 ```
 
-**统一 CLI**：`python -m risk_pipeline <subcommand>`，7 个子命令——`prepare` / `analyze` / `export` / `query` / `trigger` / `report` / `run`。
+**统一 CLI**：`python -m risk_pipeline <subcommand>`，**8 个子命令**——`prepare` / `analyze` / `export` / `query` / `trigger` / `report` / `visualize` / `run`。
 
 **Python API**：
 
@@ -200,6 +203,17 @@ python -m risk_pipeline run --pipeline generic \
   --id-col 客户编号 --target-col is_bad \
   --project 我的项目 --quiet               # ① prepare→analyze→export
 
+# 想要决策树规则 + 指标组合可视化时，把 analyze 重跑一遍并加上 rules 步骤：
+python -m risk_pipeline analyze --project 我的项目 \
+  --steps univariate,iv,lr,rules \
+  --category-dims 企业规模                  # → _intermediate/ 落 rule_tree_*.pkl + rules.pkl
+python -m risk_pipeline export --project 我的项目  # → data/results/ 增加 _风险规则表.csv
+
+python -m risk_pipeline visualize --project 我的项目  # → output/我的项目/charts/*.png
+                                                   #   含 IV / 相关性 / LR / AUC / 分群画像 /
+                                                   #     决策树（真树 + 路径还原）/ 规则散点 /
+                                                   #     指标组合 / 特征共现网络
+
 python -m risk_pipeline trigger \
   --project 我的项目 --use-default-features  # 客户级触碰
 
@@ -274,6 +288,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 | 核心管线调度规则 | `risk-feature-pipeline/SKILL.md` |
 | 各步骤 Skill 文档 | `risk-feature-pipeline/<step>/SKILL.md` |
 | 列名 / 查询配方 / 文件布局 | `risk-feature-pipeline/risk_result_query/references/` |
+| 可视化图表说明（10 种图、解读、常见误读） | `risk-feature-pipeline/risk_visualization/SKILL.md` + `references/chart_types.md` |
 | LLM Agent 总览 | `risk-indicator-agent/README.md` |
 | LLM Agent 5 步路由 | `risk-indicator-agent/SKILL.md` |
 | MCP 工具说明 | `risk_feature_MCPServer/server.py`（docstring） |
