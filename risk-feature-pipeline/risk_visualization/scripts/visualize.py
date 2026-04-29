@@ -21,8 +21,8 @@ from risk_result_query.scripts.results_loader import load_results, Results
 
 from . import style  # 触发字体配置（必须先于 chart_* import）
 from .chart_iv import chart_iv_full, chart_iv_heatmap
-from .chart_corr import chart_corr
-from .chart_lr import chart_lr_coef, chart_lr_auc
+from .chart_corr import chart_corr, chart_corr_heatmap
+from .chart_lr import chart_lr_coef, chart_lr_heatmap, chart_lr_auc
 from .chart_segment import chart_segment_profile
 from .chart_tree import chart_tree
 from .chart_rules import chart_rules_scatter
@@ -30,7 +30,10 @@ from .chart_combinations import chart_combo_lift, chart_combo_network
 
 
 ALL_KINDS = (
-    'iv', 'iv_heatmap', 'corr', 'lr', 'auc', 'segment',
+    'iv', 'iv_heatmap',
+    'corr', 'corr_heatmap',
+    'lr', 'lr_heatmap', 'auc',
+    'segment',
     'tree', 'rules', 'combos', 'combo_network',
 )
 
@@ -135,8 +138,16 @@ def generate_charts(
         ))
     if 'corr' in kinds:
         _record('corr', chart_corr(r.corr_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi))
+    if 'corr_heatmap' in kinds:
+        _record('corr_heatmap', chart_corr_heatmap(
+            r.corr_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi,
+        ))
     if 'lr' in kinds:
         _record('lr', chart_lr_coef(r.lr_coef_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi))
+    if 'lr_heatmap' in kinds:
+        _record('lr_heatmap', chart_lr_heatmap(
+            r.lr_coef_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi,
+        ))
     if 'auc' in kinds:
         _record('auc', chart_lr_auc(r.lr_auc_long, chart_dir, dim=dim, dpi=dpi))
     if 'segment' in kinds:
