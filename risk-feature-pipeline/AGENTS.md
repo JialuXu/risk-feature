@@ -82,7 +82,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 | 工具 | 雷区 |
 |---|---|
 | `prepare` | `--id-col`/`--target-col` 传错会静默通过但目标列语义错误；`--filter-file` 的 `exclude`/`include` 逻辑相反；首次新数据集**必须传 `--confirmed-new-dataset`**（阻断节点 1） |
-| `analyze` | CLI 强制按 `univariate→iv→lr` 排序；禁止 `--steps export`（export 是独立子命令）；落产物到 `data/processed/{project}/_intermediate/`（过渡态） |
+| `analyze` | CLI 强制按 `univariate→iv→lr→rules` 排序；禁止 `--steps export`（export 是独立子命令）；落产物到 `data/processed/{project}/_intermediate/`（过渡态）。**要做决策树/规则/指标组合可视化，必须 `--steps univariate,iv,lr,rules`** —— rules 步骤会拟合树并把 pkl + 规则 pkl 落 `_intermediate/`，`export` 阶段会自动把规则表写到 `data/results/<project>/<project>_风险规则表.csv` |
 | `export` | 必须先有 `_intermediate/`；产出 8 张 CSV + LLM JSON + 推进到 Level 1 |
 | `query` | 读的是**磁盘快照**——上游重跑后若不重新跑，查询到的是旧结果；`--sign positive` 在坏客户定义反转的项目中方向反转 |
 | `trigger` | **必须传 `--confirmed`**（阻断节点 2）；`--use-default-features` 是通用配置，项目专属特征必须 `--features-file` |
@@ -189,6 +189,17 @@ python -m risk_pipeline analyze \
   --qual-dims ""               # 空字符串 = 不算资质标签
 
 python -m risk_pipeline export --project <项目名>
+```
+
+**带规则挖掘 + 可视化的全套路径**（决策树/组合图必须的前置）：
+```bash
+python -m risk_pipeline analyze \
+  --project <项目名> \
+  --steps univariate,iv,lr,rules \
+  --category-dims 企业规模
+
+python -m risk_pipeline export --project <项目名>
+python -m risk_pipeline visualize --project <项目名>
 ```
 
 **复杂 filter / exclude_features 用 JSON 文件**（避免 shell 转义）：
