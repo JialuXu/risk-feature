@@ -30,8 +30,6 @@ if _MY_SKILLS_ROOT not in sys.path:
 def _make_global_parent() -> argparse.ArgumentParser:
     """返回一个含全局 flag 的 parent parser，让每个子命令都接受这些 flag。"""
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument('--config', default=None, help='用户 yaml（覆盖 default.yaml）')
-    p.add_argument('--columns-file', default=None, help='column mapping yaml 覆盖')
     p.add_argument('--state-dir', default=None, help='自定义 state.json 目录（默认随 project）')
     p.add_argument('-q', '--quiet', action='store_true', help='静默')
     p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志')
