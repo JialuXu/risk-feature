@@ -35,12 +35,9 @@ _SEARCH_BASES = [
 
 
 def _find_project_root(start: Optional[str] = None) -> str:
-    """与 risk_export_report.io_utils.get_project_root 同逻辑：向上找 data/ 目录。"""
-    cur = Path(start or os.getcwd()).resolve()
-    for p in [cur, *cur.parents]:
-        if (p / 'data').exists():
-            return str(p)
-    return str(cur)
+    """委托到 risk_pipeline.paths.get_project_root（支持 RISK_PROJECT_ROOT）。"""
+    from risk_pipeline.paths import get_project_root
+    return get_project_root(start=start)
 
 
 @dataclass

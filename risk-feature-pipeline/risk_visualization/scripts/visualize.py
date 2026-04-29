@@ -36,11 +36,9 @@ ALL_KINDS = (
 
 
 def _find_project_root(start: Optional[str] = None) -> str:
-    cur = Path(start or os.getcwd()).resolve()
-    for p in [cur, *cur.parents]:
-        if (p / 'data').exists():
-            return str(p)
-    return str(cur)
+    """委托到 risk_pipeline.paths.get_project_root（支持 RISK_PROJECT_ROOT）。"""
+    from risk_pipeline.paths import get_project_root
+    return get_project_root(start=start)
 
 
 def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
@@ -114,8 +112,10 @@ def generate_charts(
     elif r.output_dir:
         chart_dir = Path(r.output_dir) / 'charts'
     else:
-        chart_dir = Path(_find_project_root()) / 'output' / project_name / 'charts'
-    chart_dir.mkdir(parents=True, exist_ok=True)
+        from risk_pipeline.paths import output_dir as _output_dir_for
+        chart_dir = Path(_output_dir_for(project_name)) / 'charts'
+    from risk_pipeline.paths import ensure_writable_dir
+    ensure_writable_dir(chart_dir)
 
     rules_df = _load_rules_csv(r)
     inter_dir = _intermediate_dir_for(r)
