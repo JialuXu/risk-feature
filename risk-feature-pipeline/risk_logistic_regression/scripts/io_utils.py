@@ -34,56 +34,15 @@ def _setup_windows_encoding():
 
 
 def get_project_root():
-    """
-    获取项目根目录
-
-    支持多种运行方式：
-    1. 直接运行脚本：从脚本所在目录向上一级
-    2. 从项目根目录运行：使用当前工作目录
-    3. Jupyter/IPython环境：使用当前工作目录
-    """
-    project_root = None
-
-    # 方式1：尝试从 __file__ 获取（标准Python脚本运行）
-    try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(current_dir)
-        project_root = os.path.normpath(project_root)
-    except NameError:
-        # __file__ 不存在（Jupyter/IPython环境）
-        project_root = None
-
-    # 方式2：验证项目结构，如果不正确则使用当前工作目录
-    if project_root is None or not os.path.exists(os.path.join(project_root, 'data')):
-        cwd = os.getcwd()
-        if os.path.exists(os.path.join(cwd, 'data')):
-            project_root = cwd
-            print("[INFO] 使用当前工作目录作为项目根目录")
-        else:
-            # 尝试向上查找包含data目录的父目录
-            search_dir = cwd
-            for _ in range(5):  # 最多向上查找5级
-                parent = os.path.dirname(search_dir)
-                if os.path.exists(os.path.join(parent, 'data')):
-                    project_root = parent
-                    print("[INFO] 自动检测到项目根目录")
-                    break
-                if parent == search_dir:  # 已到根目录
-                    break
-                search_dir = parent
-
-            # 如果仍未找到，使用当前工作目录
-            if project_root is None:
-                project_root = cwd
-                print(f"[WARN] 未找到data目录，使用当前工作目录: {cwd}")
-
-    return os.path.normpath(project_root)
+    """获取项目根目录（薄壳；真实实现见 risk_pipeline.paths.get_project_root）。"""
+    from risk_pipeline.paths import get_project_root as _impl
+    return _impl()
 
 
 def ensure_dir(path):
-    """确保目录存在"""
-    if not os.path.exists(path):
-        os.makedirs(path)
+    """确保目录存在（薄壳；PermissionError 时给出 RISK_OUTPUT_ROOT 提示）。"""
+    from risk_pipeline.paths import ensure_writable_dir
+    ensure_writable_dir(path)
 
 
 def read_csv_auto_encoding(file_path, **kwargs):

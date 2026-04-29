@@ -49,11 +49,8 @@ def _features_json_path(project: str) -> str:
 
 
 def _project_root() -> str:
-    cur = Path(os.getcwd()).resolve()
-    for p in [cur, *cur.parents]:
-        if (p / 'data').exists():
-            return str(p)
-    return str(cur)
+    from .paths import get_project_root
+    return get_project_root()
 
 
 def _err(msg: str, exit_code: int = 1):

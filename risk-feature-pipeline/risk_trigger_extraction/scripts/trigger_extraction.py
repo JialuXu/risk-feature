@@ -11,7 +11,6 @@
     build_threshold_table(features, thresholds)  -> pd.DataFrame
 """
 import os
-from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
 import numpy as np
@@ -251,8 +250,10 @@ def extract_triggers(
         features = RISK_FEATURES
 
     if output_dir is None:
-        output_dir = str(Path(__file__).resolve().parent.parent.parent / 'output')
-    os.makedirs(output_dir, exist_ok=True)
+        from risk_pipeline.paths import output_dir as _output_dir_for
+        output_dir = _output_dir_for(project_name)
+    from risk_pipeline.paths import ensure_writable_dir
+    ensure_writable_dir(output_dir)
 
     if verbose:
         print(f"\n{'=' * 70}")

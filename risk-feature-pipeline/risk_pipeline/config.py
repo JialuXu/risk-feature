@@ -6,8 +6,11 @@
 配置值从 config/default.yaml 和 config/column_mapping.yaml 加载，
 Python 接口与改造前完全一致，保证向后兼容。
 """
+import os
+
 import numpy as np
 
+from . import paths as _paths
 from .config_loader import load_config, load_column_mapping
 
 # =============================================================================
@@ -28,20 +31,34 @@ DATA_CONFIG = {
 }
 
 # =============================================================================
-# 输出路径配置（各管线导出子目录，相对项目根，由 YAML 驱动）
+# 输出路径配置（YAML 提供相对路径；RISK_OUTPUT_ROOT 设置时改为绝对路径）
+#
+# 设计说明：env 在 import 时一次性读取，于是 os.path.join(project_root, X)
+# 在两种情形都正确：
+#   - 未设 RISK_OUTPUT_ROOT：X 是相对路径，照旧落到 <project_root>/X。
+#   - 设了 RISK_OUTPUT_ROOT：X 是绝对路径，os.path.join 短路返回 X 自身。
+# 因此现存所有 os.path.join(project_root, OUTPUT_DIR_*) 调用点无需改动。
+# 但代价是：要让 env 生效，必须在启动前设置（运行中改无效），符合典型用法。
 # =============================================================================
-# 征信管线
-RESULTS_DIR_CREDIT = _cfg['output']['results_credit'].rstrip('/')   # data/results/征信
-OUTPUT_DIR_CREDIT  = _cfg['output']['final_credit'].rstrip('/')      # output/征信
-# 工商财务管线
-RESULTS_DIR_GSFC   = _cfg['output']['results_gsfc'].rstrip('/')      # data/results/工商财务
-OUTPUT_DIR_GSFC    = _cfg['output']['final_gsfc'].rstrip('/')        # output/工商财务
-# 通用管线（generic / 任意宽表，不含业务类型子目录）
-RESULTS_DIR        = _cfg['output'].get('results', 'data/results').rstrip('/')
-OUTPUT_DIR_GENERIC = _cfg['output'].get('final', 'output').rstrip('/')
+def _resolve_output_path(rel: str) -> str:
+    rel = rel.rstrip('/')
+    if os.environ.get(_paths.ENV_OUTPUT_ROOT):
+        return os.path.join(_paths.get_output_root(), rel)
+    return rel
 
-# 向后兼容别名（保留旧名以免其他模块已有导入）
-OUTPUT_DIR      = RESULTS_DIR_GSFC
+
+# 征信管线
+RESULTS_DIR_CREDIT = _resolve_output_path(_cfg['output']['results_credit'])
+OUTPUT_DIR_CREDIT  = _resolve_output_path(_cfg['output']['final_credit'])
+# 工商财务管线
+RESULTS_DIR_GSFC   = _resolve_output_path(_cfg['output']['results_gsfc'])
+OUTPUT_DIR_GSFC    = _resolve_output_path(_cfg['output']['final_gsfc'])
+# 通用管线
+RESULTS_DIR        = _resolve_output_path(_cfg['output'].get('results', 'data/results'))
+OUTPUT_DIR_GENERIC = _resolve_output_path(_cfg['output'].get('final', 'output'))
+
+# 向后兼容别名
+OUTPUT_DIR       = RESULTS_DIR_GSFC
 FINAL_OUTPUT_DIR = OUTPUT_DIR_GSFC
 
 # =============================================================================

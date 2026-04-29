@@ -7,47 +7,15 @@ from .config import COL_CUSTOMER_ID
 
 
 def get_project_root():
-    """
-    获取项目根目录。
-
-    支持：脚本直接运行、从项目根 cwd 运行、Jupyter 下无 __file__ 时回退 cwd 或向上查找含 data 的目录。
-    """
-    project_root = None
-
-    try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.normpath(os.path.dirname(current_dir))
-    except NameError:
-        project_root = None
-
-    if project_root is None or not os.path.exists(os.path.join(project_root, 'data')):
-        cwd = os.getcwd()
-        if os.path.exists(os.path.join(cwd, 'data')):
-            project_root = cwd
-            print("[INFO] 使用当前工作目录作为项目根目录")
-        else:
-            search_dir = cwd
-            for _ in range(5):
-                parent = os.path.dirname(search_dir)
-                if os.path.exists(os.path.join(parent, 'data')):
-                    project_root = parent
-                    print("[INFO] 自动检测到项目根目录")
-                    break
-                if parent == search_dir:
-                    break
-                search_dir = parent
-
-            if project_root is None:
-                project_root = cwd
-                print(f"[WARN] 未找到data目录，使用当前工作目录: {cwd}")
-
-    return os.path.normpath(project_root)
+    """获取项目根目录（薄壳；真实实现见 risk_pipeline.paths.get_project_root）。"""
+    from risk_pipeline.paths import get_project_root as _impl
+    return _impl()
 
 
 def ensure_dir(path):
-    """确保目录存在。"""
-    if not os.path.exists(path):
-        os.makedirs(path)
+    """确保目录存在（薄壳；PermissionError 时给出 RISK_OUTPUT_ROOT 提示）。"""
+    from risk_pipeline.paths import ensure_writable_dir
+    ensure_writable_dir(path)
 
 
 def read_csv_auto_encoding(file_path, **kwargs):

@@ -5,6 +5,7 @@ YAML 配置加载器
 支持用户仅覆盖需要修改的部分，未覆盖的项自动回退到 default.yaml。
 """
 import copy
+import os
 from pathlib import Path
 
 import yaml
@@ -13,6 +14,17 @@ import yaml
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config'
 _DEFAULT_CONFIG_PATH = _CONFIG_DIR / 'default.yaml'
 _DEFAULT_MAPPING_PATH = _CONFIG_DIR / 'column_mapping.yaml'
+
+
+def _expand(value):
+    """递归对配置中的所有字符串做 ${VAR} 与 ~ 展开。"""
+    if isinstance(value, str):
+        return os.path.expandvars(os.path.expanduser(value))
+    if isinstance(value, dict):
+        return {k: _expand(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_expand(v) for v in value]
+    return value
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -31,12 +43,13 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def load_yaml(path):
-    """读取单个 YAML 文件"""
+    """读取单个 YAML 文件，并对所有字符串值做环境变量与 ~ 展开。"""
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"配置文件不存在: {p}")
     with open(p, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f) or {}
+        data = yaml.safe_load(f) or {}
+    return _expand(data)
 
 
 def load_config(user_config_path=None, *, print_attribution: bool = False):
