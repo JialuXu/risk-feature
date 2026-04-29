@@ -6,7 +6,7 @@
 
 子命令：
   prepare   构建 prepared.csv + features.json（前置态）
-  analyze   跑 univariate/iv/lr 子集 → _intermediate/（过渡态）
+  analyze   跑 univariate/iv/lr/rules 子集 → _intermediate/（过渡态）
   export    重建结果 → 8 张 CSV + LLM JSON（→ Level 1）
   query     只读已有结果，top-N / 分群查询（不改 level）
   trigger   客户级触碰提取 → 三张表（→ Level 2）
@@ -53,6 +53,9 @@ def _build_parser() -> argparse.ArgumentParser:
               --target-col is_bad --project xxx
   analyze:  python -m risk_pipeline analyze --project xxx \\
               --steps univariate,iv,lr --category-dims 企业规模
+  analyze 含规则挖掘（供 visualize 出决策树/组合图）：
+            python -m risk_pipeline analyze --project xxx \\
+              --steps univariate,iv,lr,rules --category-dims 企业规模
   export:   python -m risk_pipeline export --project xxx
   query:    python -m risk_pipeline query --project xxx --kind iv --top 15
   trigger:  python -m risk_pipeline trigger --project xxx --use-default-features
@@ -90,7 +93,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--prepared', default=None, help='默认 data/processed/{project}/prepared.csv')
     p.add_argument('--features-file', default=None, help='默认 data/processed/{project}/features.json')
     p.add_argument('--steps', default='univariate,iv,lr',
-                   help='子集，逗号分隔；CLI 强制按 univariate→iv→lr 顺序')
+                   help='子集，逗号分隔；可选: univariate,iv,lr,rules；'
+                        'CLI 强制按 univariate→iv→lr→rules 顺序。'
+                        '加 rules 会跑决策树规则挖掘并把树持久化到 _intermediate/，'
+                        '供 visualize 出真树图 / 规则散点 / 指标组合 / 共现网络')
     p.add_argument('--category-dims', default=None,
                    help='类别维度列名（逗号分隔），默认自动检测')
     p.add_argument('--qual-dims', default=None,

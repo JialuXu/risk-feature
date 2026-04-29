@@ -10,6 +10,15 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 3. **决策树两条路**：优先读 `_intermediate/rule_tree_*.pkl`（用 `sklearn.tree.plot_tree` 出真树），找不到时自动降级为按规则文本反推的"规则路径图"
 4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 只 warn 不报错（fallback 渲染 CJK 会变方框）
 
+## 前置条件
+
+| 图 | 前置 |
+|---|---|
+| `iv` / `iv_heatmap` / `corr` / `lr` / `auc` / `segment` | `analyze --steps univariate,iv,lr` + `export`（标准 Level 1） |
+| `tree` / `rules` / `combos` / `combo_network` | analyze 必须包含 `rules` 步骤：<br/>`python -m risk_pipeline analyze --project <name> --steps univariate,iv,lr,rules --category-dims <dim>`<br/>然后 `python -m risk_pipeline export --project <name>`<br/>这样 `_intermediate/rule_tree_*.pkl` + `data/results/<project>/<project>_风险规则表.csv` 才会落盘 |
+
+**没跑 `rules` 时这 4 张图会被 visualize 自动跳过**（status stamp 里会显示 `skipped=tree,rules,combos,combo_network`），不会报错。
+
 ## 快速开始
 
 ```python
