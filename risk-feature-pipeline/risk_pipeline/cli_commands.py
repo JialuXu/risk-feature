@@ -235,28 +235,46 @@ def cmd_analyze(args) -> int:
 
     # rules 是 CLI 层独立步骤；run_generic_pipeline 不识别它，剥离后再传
     pipeline_steps = [s for s in steps if s != 'rules']
-    results = run_generic_pipeline(
-        df=df,
-        feature_cols=feature_cols,
-        target_col=target_col,
-        project_name=project,
-        category_dims=category_dims,
-        qual_dims=qual_dims,
-        steps=pipeline_steps,
-        verbose=verbose,
-    )
-
     inter_dir = _intermediate_dir(project)
-    cli_io.dump_intermediate(
-        results, inter_dir,
-        project_name=project,
-        target_col=target_col,
-        category_dims=results.get('category_dims', category_dims or []),
-        qual_dims=results.get('qual_dims', qual_dims or []),
-        feature_cols=feature_cols,
-        raw_features=info.get('raw_features'),
-        derived_features=info.get('derived_features'),
-    )
+
+    if pipeline_steps:
+        results = run_generic_pipeline(
+            df=df,
+            feature_cols=feature_cols,
+            target_col=target_col,
+            project_name=project,
+            category_dims=category_dims,
+            qual_dims=qual_dims,
+            steps=pipeline_steps,
+            verbose=verbose,
+        )
+        cli_io.dump_intermediate(
+            results, inter_dir,
+            project_name=project,
+            target_col=target_col,
+            category_dims=results.get('category_dims', category_dims or []),
+            qual_dims=results.get('qual_dims', qual_dims or []),
+            feature_cols=feature_cols,
+            raw_features=info.get('raw_features'),
+            derived_features=info.get('derived_features'),
+        )
+        effective_category_dims = results.get('category_dims', category_dims or [])
+    else:
+        # rules-only：前置 manifest 必须存在，否则 export 阶段没东西可读
+        manifest_path = os.path.join(inter_dir, 'manifest.json')
+        if not os.path.isfile(manifest_path):
+            _err(
+                f'[analyze] --steps rules 需要前置的 _intermediate/manifest.json：{manifest_path}\n'
+                f'建议: 先跑 `python -m risk_pipeline analyze --project {project} '
+                f'--steps univariate,iv,lr` 再追加 rules'
+            )
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+        effective_category_dims = (
+            category_dims if category_dims is not None
+            else manifest.get('category_dims', [])
+        )
+        results = {}  # 只是给后面 status stamp 用
 
     rules_summary = ''
     if 'rules' in steps:
@@ -264,7 +282,7 @@ def cmd_analyze(args) -> int:
             df=df,
             feature_cols=feature_cols,
             target_col=target_col,
-            category_dims=results.get('category_dims', category_dims or []),
+            category_dims=effective_category_dims,
             inter_dir=inter_dir,
             verbose=verbose,
         )
@@ -273,23 +291,28 @@ def cmd_analyze(args) -> int:
         'cmd': 'analyze',
         'args_summary': {
             'steps': steps,
-            'category_dims': results.get('category_dims', category_dims or []),
+            'category_dims': effective_category_dims,
             'qual_dims': results.get('qual_dims', qual_dims or []),
             'features': len(feature_cols),
             'target_col': target_col,
         },
         'outputs': [inter_dir + '/'],
         'duration_sec': round(time.time() - started, 2),
-        'level_after': '过渡态',
     }, new_level='过渡态')
     state.save()
 
-    extras = [
-        f'steps={",".join(steps)}',
-        f'下一步: python -m risk_pipeline export --project {project}（→ Level 1）',
-    ]
+    extras = [f'steps={",".join(steps)}']
     if rules_summary:
-        extras.insert(1, rules_summary)
+        extras.append(rules_summary)
+    # "下一步"提示按真实 level 给：仅在 过渡态 时建议 export
+    if state.current_level == '过渡态':
+        extras.append(
+            f'下一步: python -m risk_pipeline export --project {project}（→ Level 1）'
+        )
+    else:
+        extras.append(
+            f'当前 level={state.current_level}（本次为补充分析；如需刷新结果重跑 export）'
+        )
 
     _print_stamp(
         format_status_stamp(
@@ -811,17 +834,18 @@ def cmd_run(args) -> int:
             _project_root(), 'data', 'results', '征信', project,
         )
         state = load_state(project, state_dir=state_dir)
+        # 只有 export 真的跑了才推进到 Level 1；steps=None 表示全跑（含 export）
+        has_export = steps is None or 'export' in steps
         state.append_history({
             'cmd': 'run',
             'pipeline': 'credit',
             'args_summary': {'steps': steps},
             'duration_sec': round(time.time() - started, 2),
-            'level_after': 'Level 1',
             'note': 'credit/gsfc 不可中段独立调用；state 黑盒一项',
-        }, new_level='Level 1')
+        }, new_level='Level 1' if has_export else None)
         state.save()
         if not _is_quiet(args):
-            print('[run] OK | pipeline=credit | level=Level 1')
+            print(f'[run] OK | pipeline=credit | level={state.current_level}')
         return 0
 
     if args.pipeline == 'gsfc':
@@ -834,17 +858,17 @@ def cmd_run(args) -> int:
             _project_root(), 'data', 'results', '工商财务', project,
         )
         state = load_state(project, state_dir=state_dir)
+        has_export = steps is None or 'export' in steps
         state.append_history({
             'cmd': 'run',
             'pipeline': 'gsfc',
             'args_summary': {'steps': steps},
             'duration_sec': round(time.time() - started, 2),
-            'level_after': 'Level 1',
             'note': 'credit/gsfc 不可中段独立调用；state 黑盒一项',
-        }, new_level='Level 1')
+        }, new_level='Level 1' if has_export else None)
         state.save()
         if not _is_quiet(args):
-            print('[run] OK | pipeline=gsfc | level=Level 1')
+            print(f'[run] OK | pipeline=gsfc | level={state.current_level}')
         return 0
 
     # generic: prepare → analyze → export
@@ -869,7 +893,8 @@ def cmd_run(args) -> int:
 
     rc = cmd_analyze(_argparse.Namespace(
         project=args.project, prepared=None, features_file=None,
-        steps=args.steps or 'univariate,iv,lr',
+        # 默认含 rules，让 visualize 立即能出决策树/规则散点/共现网络
+        steps=args.steps or 'univariate,iv,lr,rules',
         category_dims=None, qual_dims=None, target_col=None,
         quiet=_is_quiet(args), verbose=_is_verbose(args),
         state_dir=_state_dir(args),

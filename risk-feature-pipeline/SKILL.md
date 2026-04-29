@@ -174,7 +174,7 @@ python -m risk_pipeline visualize --project <项目名>
 
 ## 调试顺序
 
-1. 看错误在 `shared/pipeline.py` 哪个阶段
+1. 看错误在 `risk_pipeline/pipeline.py` 哪个阶段
 2. 确认下游函数签名与透传参数是否一致
 3. 检查目标列、主键列、分群列是否真实存在（读 `df.columns`，不猜）
 4. 常见错误：`KeyError: 'is_bad'`、`unexpected keyword argument 'target'`、分群字段不存在
