@@ -1,0 +1,96 @@
+<mxfile host="app.diagrams.net" modified="2026-04-29T05:50:00.000Z" agent="Cursor" version="24.7.17" type="device">
+  <diagram id="risk-pipeline-mechanism" name="risk-feature-pipeline 机制图">
+    <mxGraphModel dx="1280" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="risk-feature-pipeline 机制图" style="text;html=1;strokeColor=none;fillColor=none;fontSize=30;fontStyle=1;fontColor=#111827;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="340" y="20" width="600" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="统一 CLI 驱动的企业风险特征分析管线：先准备数据，再分析导出，最后按结果层级查询、可视化、触碰或生成报告" style="text;html=1;strokeColor=none;fillColor=none;fontSize=13;fontColor=#374151;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="260" y="60" width="760" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="input" value="&lt;b&gt;输入数据&lt;/b&gt;&lt;br&gt;原始宽表 CSV&lt;br&gt;坏客户清单或目标列&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;主键 + 二分类目标 + 数值特征&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#2563eb;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="105" width="230" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="config" value="&lt;b&gt;配置与字段映射&lt;/b&gt;&lt;br&gt;--columns-file&lt;br&gt;项目 .risk_pipeline_columns.yaml&lt;br&gt;config/银行.yaml&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;默认值会显式 attribution&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#7c3aed;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="270" width="230" height="150" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="prepare" value="&lt;b&gt;prepare&lt;/b&gt;&lt;br&gt;python -m risk_pipeline prepare&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;阻断节点 1：首次数据集必须确认&lt;br&gt;产出 prepared.csv + features.json&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#059669;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="110" width="250" height="115" as="geometry"/>
+        </mxCell>
+        <mxCell id="analyze" value="&lt;b&gt;analyze&lt;/b&gt;&lt;br&gt;univariate → iv → lr → rules&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;按固定顺序执行，可跑子集&lt;br&gt;产出 _intermediate/，状态为过渡态&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="640" y="110" width="250" height="115" as="geometry"/>
+        </mxCell>
+        <mxCell id="export" value="&lt;b&gt;export&lt;/b&gt;&lt;br&gt;标准 CSV + LLM JSON&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;8 张分析表、分群画像、规则表&lt;br&gt;推进到 Level 1&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#ea580c;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="950" y="110" width="250" height="115" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="run" value="&lt;b&gt;run 便捷组合&lt;/b&gt;&lt;br&gt;generic：prepare → analyze → export；credit / gsfc：转发内置管线&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;统一入口为 python -m risk_pipeline &amp;lt;subcommand&amp;gt;，旧 shared 入口仅兼容保留&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#059669;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="285" width="870" height="92" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="level1" value="&lt;b&gt;Level 1&lt;/b&gt;&lt;br&gt;分析结论可用&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;可 query / visualize / 人工审阅&lt;br&gt;不可直接对外交付或写预警名单&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#dc2626;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="330" y="430" width="250" height="128" as="geometry"/>
+        </mxCell>
+        <mxCell id="level2" value="&lt;b&gt;Level 2&lt;/b&gt;&lt;br&gt;客户级风险落地&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;trigger 输出宽表、长表、阈值说明&lt;br&gt;阻断节点 2：features 必须确认&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#dc2626;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="640" y="430" width="250" height="128" as="geometry"/>
+        </mxCell>
+        <mxCell id="level3" value="&lt;b&gt;Level 3&lt;/b&gt;&lt;br&gt;正式报告交付&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;report 将 LLM JSON 渲染为 docx&lt;br&gt;external 用途必须确认最终版本&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef2f2;strokeColor=#dc2626;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="950" y="430" width="250" height="128" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="query" value="&lt;b&gt;只读消费&lt;/b&gt;&lt;br&gt;query / visualize&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;读取磁盘快照，不重跑上游&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#475569;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="592" width="250" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="api" value="&lt;b&gt;代码集成&lt;/b&gt;&lt;br&gt;Python API / 单元测试&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;prepare_df、run_generic_pipeline、load_results&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#475569;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="385" y="592" width="250" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="mcp" value="&lt;b&gt;LLM / MCP 集成&lt;/b&gt;&lt;br&gt;MCP Server 异步工具&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;run_pipeline、query_results、extract_triggers&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#475569;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="690" y="592" width="250" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="indicator" value="&lt;b&gt;衍生指标闭环&lt;/b&gt;&lt;br&gt;indicator-agent&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;消费结果，产出指标设计与元表版本&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#475569;fontColor=#111827;fontSize=15;align=center;verticalAlign=middle;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="995" y="592" width="250" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="input" target="prepare">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="endArrow=block;html=1;rounded=0;strokeColor=#6b7280;strokeWidth=1.5;dashed=1;" edge="1" parent="1" source="config" target="run">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="prepare" target="analyze">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="analyze" target="export">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="export" target="level1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1075" y="430" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="level1" target="level2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="endArrow=block;html=1;rounded=0;strokeColor=#374151;strokeWidth=2;" edge="1" parent="1" source="level1" target="level3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="endArrow=block;html=1;rounded=0;strokeColor=#6b7280;strokeWidth=1.5;dashed=1;" edge="1" parent="1" source="level1" target="query">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" style="endArrow=block;html=1;rounded=0;strokeColor=#6b7280;strokeWidth=1.5;dashed=1;" edge="1" parent="1" source="level1" target="api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" style="endArrow=block;html=1;rounded=0;strokeColor=#6b7280;strokeWidth=1.5;dashed=1;" edge="1" parent="1" source="level2" target="mcp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" style="endArrow=block;html=1;rounded=0;strokeColor=#6b7280;strokeWidth=1.5;dashed=1;" edge="1" parent="1" source="level1" target="indicator">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
