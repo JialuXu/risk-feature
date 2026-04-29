@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">risk-feature-pipeline 机制图</title>
+  <desc id="desc">展示风险特征分析管线从输入、配置、统一 CLI、分析步骤、结果层级到集成扩展点的机制。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#374151"/>
+    </marker>
+    <style>
+      .title { font: 700 30px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #111827; }
+      .section { font: 700 18px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #111827; }
+      .label { font: 600 15px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #111827; }
+      .small { font: 13px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #374151; }
+      .tiny { font: 12px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #4b5563; }
+      .box { rx: 14; ry: 14; stroke-width: 1.4; }
+      .input { fill: #eff6ff; stroke: #2563eb; }
+      .config { fill: #f5f3ff; stroke: #7c3aed; }
+      .cli { fill: #ecfdf5; stroke: #059669; }
+      .analysis { fill: #fff7ed; stroke: #ea580c; }
+      .level { fill: #fef2f2; stroke: #dc2626; }
+      .integration { fill: #f8fafc; stroke: #475569; }
+      .line { stroke: #374151; stroke-width: 1.7; fill: none; marker-end: url(#arrow); }
+      .softline { stroke: #6b7280; stroke-width: 1.4; fill: none; stroke-dasharray: 5 5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1280" height="760" fill="#ffffff"/>
+  <text x="640" y="46" text-anchor="middle" class="title">risk-feature-pipeline 机制图</text>
+  <text x="640" y="74" text-anchor="middle" class="small">统一 CLI 驱动的企业风险特征分析管线：先准备数据，再分析导出，最后按结果层级查询、可视化、触碰或生成报告</text>
+
+  <rect x="40" y="105" width="230" height="120" class="box input"/>
+  <text x="155" y="137" text-anchor="middle" class="section">输入数据</text>
+  <text x="155" y="166" text-anchor="middle" class="small">原始宽表 CSV</text>
+  <text x="155" y="188" text-anchor="middle" class="small">坏客户清单或目标列</text>
+  <text x="155" y="210" text-anchor="middle" class="tiny">主键 + 二分类目标 + 数值特征</text>
+
+  <rect x="40" y="270" width="230" height="150" class="box config"/>
+  <text x="155" y="302" text-anchor="middle" class="section">配置与字段映射</text>
+  <text x="155" y="332" text-anchor="middle" class="small">--columns-file</text>
+  <text x="155" y="354" text-anchor="middle" class="small">项目 .risk_pipeline_columns.yaml</text>
+  <text x="155" y="376" text-anchor="middle" class="small">config/银行.yaml</text>
+  <text x="155" y="398" text-anchor="middle" class="tiny">默认值会显式 attribution</text>
+
+  <rect x="330" y="110" width="250" height="115" class="box cli"/>
+  <text x="455" y="142" text-anchor="middle" class="section">prepare</text>
+  <text x="455" y="170" text-anchor="middle" class="small">python -m risk_pipeline prepare</text>
+  <text x="455" y="194" text-anchor="middle" class="tiny">阻断节点 1：首次数据集必须确认</text>
+  <text x="455" y="214" text-anchor="middle" class="tiny">产出 prepared.csv + features.json</text>
+
+  <rect x="640" y="110" width="250" height="115" class="box analysis"/>
+  <text x="765" y="142" text-anchor="middle" class="section">analyze</text>
+  <text x="765" y="170" text-anchor="middle" class="small">univariate → iv → lr → rules</text>
+  <text x="765" y="194" text-anchor="middle" class="tiny">按固定顺序执行，可跑子集</text>
+  <text x="765" y="214" text-anchor="middle" class="tiny">产出 _intermediate/，状态为过渡态</text>
+
+  <rect x="950" y="110" width="250" height="115" class="box analysis"/>
+  <text x="1075" y="142" text-anchor="middle" class="section">export</text>
+  <text x="1075" y="170" text-anchor="middle" class="small">标准 CSV + LLM JSON</text>
+  <text x="1075" y="194" text-anchor="middle" class="tiny">8 张分析表、分群画像、规则表</text>
+  <text x="1075" y="214" text-anchor="middle" class="tiny">推进到 Level 1</text>
+
+  <rect x="330" y="285" width="870" height="92" class="box cli"/>
+  <text x="765" y="317" text-anchor="middle" class="section">run 便捷组合</text>
+  <text x="765" y="346" text-anchor="middle" class="small">generic：prepare → analyze → export；credit / gsfc：转发内置管线</text>
+  <text x="765" y="368" text-anchor="middle" class="tiny">统一入口为 python -m risk_pipeline &lt;subcommand&gt;，旧 shared 入口仅兼容保留</text>
+
+  <rect x="330" y="430" width="250" height="128" class="box level"/>
+  <text x="455" y="462" text-anchor="middle" class="section">Level 1</text>
+  <text x="455" y="490" text-anchor="middle" class="small">分析结论可用</text>
+  <text x="455" y="516" text-anchor="middle" class="tiny">可 query / visualize / 人工审阅</text>
+  <text x="455" y="538" text-anchor="middle" class="tiny">不可直接对外交付或写预警名单</text>
+
+  <rect x="640" y="430" width="250" height="128" class="box level"/>
+  <text x="765" y="462" text-anchor="middle" class="section">Level 2</text>
+  <text x="765" y="490" text-anchor="middle" class="small">客户级风险落地</text>
+  <text x="765" y="516" text-anchor="middle" class="tiny">trigger 输出宽表、长表、阈值说明</text>
+  <text x="765" y="538" text-anchor="middle" class="tiny">阻断节点 2：features 必须确认</text>
+
+  <rect x="950" y="430" width="250" height="128" class="box level"/>
+  <text x="1075" y="462" text-anchor="middle" class="section">Level 3</text>
+  <text x="1075" y="490" text-anchor="middle" class="small">正式报告交付</text>
+  <text x="1075" y="516" text-anchor="middle" class="tiny">report 将 LLM JSON 渲染为 docx</text>
+  <text x="1075" y="538" text-anchor="middle" class="tiny">external 用途必须确认最终版本</text>
+
+  <rect x="80" y="592" width="250" height="105" class="box integration"/>
+  <text x="205" y="624" text-anchor="middle" class="section">只读消费</text>
+  <text x="205" y="652" text-anchor="middle" class="small">query / visualize</text>
+  <text x="205" y="676" text-anchor="middle" class="tiny">读取磁盘快照，不重跑上游</text>
+
+  <rect x="385" y="592" width="250" height="105" class="box integration"/>
+  <text x="510" y="624" text-anchor="middle" class="section">代码集成</text>
+  <text x="510" y="652" text-anchor="middle" class="small">Python API / 单元测试</text>
+  <text x="510" y="676" text-anchor="middle" class="tiny">prepare_df、run_generic_pipeline、load_results</text>
+
+  <rect x="690" y="592" width="250" height="105" class="box integration"/>
+  <text x="815" y="624" text-anchor="middle" class="section">LLM / MCP 集成</text>
+  <text x="815" y="652" text-anchor="middle" class="small">MCP Server 异步工具</text>
+  <text x="815" y="676" text-anchor="middle" class="tiny">run_pipeline、query_results、extract_triggers</text>
+
+  <rect x="995" y="592" width="250" height="105" class="box integration"/>
+  <text x="1120" y="624" text-anchor="middle" class="section">衍生指标闭环</text>
+  <text x="1120" y="652" text-anchor="middle" class="small">indicator-agent</text>
+  <text x="1120" y="676" text-anchor="middle" class="tiny">消费结果，产出指标设计与元表版本</text>
+
+  <path d="M270 167 L330 167" class="line"/>
+  <path d="M270 345 L330 345" class="softline"/>
+  <path d="M580 167 L640 167" class="line"/>
+  <path d="M890 167 L950 167" class="line"/>
+  <path d="M1075 225 L1075 430" class="line"/>
+  <path d="M580 494 L640 494" class="line"/>
+  <path d="M580 494 C700 390 960 390 1075 430" class="line"/>
+  <path d="M455 558 C455 590 260 560 205 592" class="softline"/>
+  <path d="M455 558 C455 580 510 570 510 592" class="softline"/>
+  <path d="M765 558 C765 580 815 570 815 592" class="softline"/>
+  <path d="M455 558 C455 610 1035 555 1120 592" class="softline"/>
+  <path d="M765 377 L765 430" class="line"/>
+
+  <text x="640" y="745" text-anchor="middle" class="tiny">源文件：docs/risk-pipeline-mechanism.drawio；README 嵌入：docs/risk-pipeline-mechanism.drawio.svg</text>
+</svg>
