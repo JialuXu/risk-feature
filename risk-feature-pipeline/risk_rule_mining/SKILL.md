@@ -61,7 +61,7 @@ export_rules(rules_df, project_name='征信特征分析')
 
 ## 关键配置（本步为主）
 
-取自 `shared.config.RULE_MINING_CONFIG`：
+取自 `risk_pipeline.config.RULE_MINING_CONFIG`：
 
 | 参数 | 默认 | 作用 |
 |------|------|------|
@@ -94,7 +94,7 @@ export_rules(rules_df, project_name='征信特征分析')
 | `scripts/rule_evaluation.py` | 单规则/批量规则评估：覆盖率、坏账率、Lift、置信区间 |
 | `scripts/rule_stability.py` | K-fold 交叉验证稳定性评估 |
 | `scripts/rule_mining_pipeline.py` | 分群挖掘编排 + 导出 |
-| `scripts/config.py` | 模块配置（`from shared.config import *`） |
+| `scripts/config.py` | 模块配置（`from risk_pipeline.config import *`） |
 
 ## 输出形态（字段级）
 

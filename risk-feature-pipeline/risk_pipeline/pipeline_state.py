@@ -102,6 +102,10 @@ class PipelineState:
         entry.setdefault('ts', utc_now_iso())
         self._data.setdefault('history', []).append(entry)
         self._maybe_promote(new_level)
+        # level_after 始终落真实的 post-promotion level；若调用方传了旧值，这里会覆盖。
+        # 这样 partial 步骤（如 run --pipeline credit --steps data_prep）不会再把 level
+        # 谎报为 Level 1。
+        entry['level_after'] = self.current_level
         self._data['updated_at'] = utc_now_iso()
 
     # ---- 持久化 ----

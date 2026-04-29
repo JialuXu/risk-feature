@@ -24,13 +24,20 @@ risk-feature-pipeline/
 ├── AGENTS.md                  # 本目录下 agent 的硬规矩（先查再跑、prepare_df、verbose=False 等）
 ├── report-prompt.md           # DOCX 报告写作约束（供 risk_docx_report 使用）
 │
-├── shared/                    # 共享模块（唯一配置源 + 统一入口）
+├── risk_pipeline/             # 共享模块 + 统一 CLI 入口
 │   ├── __init__.py
-│   ├── __main__.py            # python -m shared 执行入口
+│   ├── __main__.py            # python -m risk_pipeline 执行入口
+│   ├── cli.py                 # 7 子命令解析（prepare/analyze/export/query/trigger/report/visualize/run）
+│   ├── cli_commands.py        # 子命令实现（薄壳 wrap 现有 Python API + state 推进）
+│   ├── cli_io.py              # _intermediate/ 落盘与重建、features.json、数据集指纹
+│   ├── pipeline_state.py      # .pipeline_state.json：Level 推进 + 历史追加 + 阻断节点
+│   ├── paths.py               # get_project_root / get_output_root（唯一定位入口）
 │   ├── config.py              # 公共配置（从 YAML 加载）
 │   ├── config_loader.py       # YAML 加载器（支持深度合并）
 │   ├── column_mapper.py       # 字段映射器 ColumnMapper
 │   └── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
+│
+├── shared/                    # ⚠️ 兼容 shim：转发到 risk_pipeline.*；下个版本会移除
 │
 ├── config/                    # YAML 配置目录
 │   ├── default.yaml           # 默认阈值、IV 参数、数据路径
@@ -177,17 +184,48 @@ from risk_export_report.scripts.report_analysis import export_results, build_llm
 
 注：所有子 Skill 目录均使用下划线命名，可直接作为 Python 包导入。
 
-### CLI Entry (shared.pipeline)
+### CLI Entry (risk_pipeline)
+
+7 子命令，每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
 
 ```bash
 cd risk-feature-pipeline
-python -m shared --pipeline credit                       # 征信全流程
-python -m shared --pipeline gsfc --steps data_prep iv    # 指定步骤
-python -m shared --pipeline credit --quiet               # 静默
-python -m shared --help
+
+# 一键跑通（generic：自带宽表 + 坏客户清单）
+python -m risk_pipeline run --pipeline generic \
+    --wide data/raw/x.csv --id-col 客户编号 --target-col is_bad \
+    --project xxx --confirmed-new-dataset
+
+# 也支持征信/工商财务老管线（数据路径走 config/ 默认值）
+python -m risk_pipeline run --pipeline credit
+python -m risk_pipeline run --pipeline gsfc --steps data_prep,iv
+python -m risk_pipeline run --pipeline credit --quiet
+
+# 三步走（细控）：prepare → analyze → export
+python -m risk_pipeline prepare --wide data/raw/x.csv \
+    --bad-customer data/raw/bad.csv --id-col 客户编号 \
+    --target-col is_bad --project xxx --confirmed-new-dataset
+python -m risk_pipeline analyze --project xxx \
+    --steps univariate,iv,lr,rules --category-dims 企业规模
+python -m risk_pipeline export --project xxx
+
+# 后置子命令
+python -m risk_pipeline query --project xxx --kind iv --top 15
+python -m risk_pipeline visualize --project xxx
+python -m risk_pipeline trigger --project xxx --use-default-features --confirmed
+python -m risk_pipeline report --project xxx \
+    --report-markdown report.md --purpose internal
+
+python -m risk_pipeline --help          # 全局帮助
+python -m risk_pipeline <子命令> --help  # 子命令帮助
 ```
 
-合法 `--steps` 取值：`data_prep`、`feature_engineering`、`univariate`、`iv`、`lr`、`export`。
+合法 `--steps` 取值：
+- `run --pipeline credit`：`data_prep`、`feature_engineering`、`univariate`、`iv`、`lr`、`export`
+- `run --pipeline gsfc`：`data_prep`、`feature_eng`、`univariate`、`iv`、`lr`、`export`
+- `run --pipeline generic` / `analyze`：`univariate`、`iv`、`lr`、`rules`（CLI 强制按此顺序；`export` 由独立子命令完成）
+
+老入口 `python -m shared --pipeline ...` 仍可用，但会打印 deprecation 警告，下个版本会移除。
 
 ### Configuration Architecture
 

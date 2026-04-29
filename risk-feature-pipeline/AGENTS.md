@@ -87,7 +87,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 | `query` | 读的是**磁盘快照**——上游重跑后若不重新跑，查询到的是旧结果；`--sign positive` 在坏客户定义反转的项目中方向反转 |
 | `trigger` | **必须传 `--confirmed`**（阻断节点 2）；`--use-default-features` 是通用配置，项目专属特征必须 `--features-file` |
 | `report` | `--purpose external` **必须传 `--confirmed-final-version`**（阻断节点 3）；title 由 purpose 自动选择 |
-| `run --pipeline credit/gsfc` | 不可中段独立调用（state.json 黑盒一项）；不接受 `--wide` 等 generic 参数 |
+| `run --pipeline credit/gsfc` | 不可中段独立调用（state.json 黑盒一项）；不接受 `--wide` 等 generic 参数；`--steps` 不含 `export` 时不会推进 Level 1 |
 | `visualize` | 读的是磁盘快照（与 `query` 同源），上游重跑后须重出图；中文字体缺失时只 warn 不报错（fallback 字体渲染中文会变方框）；决策树图优先吃 `_intermediate/rule_tree_*.pkl`，找不到时按规则 CSV 反推 |
 
 ---
@@ -100,27 +100,17 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 |---|---|---|
 | 字段是否存在 | 读 `df.columns` 或 CSV 表头，不猜测 | `ColumnMapper.detect_qual_cols(df.columns)` 自动推断分群维度 |
 | 结果文件是否已生成 | 检查 `data/results/征信/{project_name}/` 目录是否有 `*_IV分析结果.csv` | 提示用户先跑 `risk_export_report`，不允许用空结果假装有数据 |
-| 列映射是否正确（多银行） | `load_config("{bank}.yaml")` 读取，与 `df.columns` 做交集验证 | 回退 `config/default.yaml` 默认映射，并**显式告知用户**哪些列使用了默认值 |
+| 列映射是否正确 | `df.columns` 与 `config/default.yaml`/`config/column_mapping.yaml` 中的 `customer_id` / `target` 做交集验证 | 字段对不上时硬错并提示用户，不允许悄悄回退到默认列名 |
 
 **任何情况下不允许的退路：** 假设字段存在后继续执行。错误必须在 `prepare` 阶段暴露，不能延迟到 `analyze` / `export` 内部。
 
 ---
 
-## 四之二、配置优先级链（多银行 / 多项目）
+## 四之二、配置覆盖
 
-字段映射、阈值、IV 参数等配置按优先级覆盖，**用 default 兜底时 stdout 必须显式标注命中的默认键**：
+本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。需要调整阈值 / 字段映射 / IV 参数时，直接编辑 `config/default.yaml` 与 `config/column_mapping.yaml` 后重跑；prepare 时如有差异通过 `--id-col` / `--target-col` / `--bad-id-col` 直接传。
 
-1. CLI `--columns-file <path>`（最高优先级）
-2. 项目目录 `.risk_pipeline_columns.yaml`
-3. `config/{bank}.yaml`（如 `config/city_bank.yaml`）
-4. `config/default.yaml`（兜底）
-
-```bash
-# 示例：使用城市行映射
-python -m risk_pipeline --columns-file config/city_bank.yaml run --pipeline generic ...
-```
-
-**强制 attribution**：`load_config()` 默认开启 `print_attribution`——任何字段从 default.yaml 读取时，CLI 必须打印 `[默认] {key}=...`，使用者不会"以为是项目配置"被悄悄套用默认值。
+如未来真要做多 YAML 切换，新加 flag 时务必同步在 `cli_commands.py` 里把它消费掉，不要再让"声明而不读"的 flag 静默吞用户输入。
 
 ---
 
