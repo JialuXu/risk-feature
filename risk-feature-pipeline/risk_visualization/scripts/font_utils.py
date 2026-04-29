@@ -1,105 +1,20 @@
 # -*- coding: utf-8 -*-
-"""中文字体 OS 探测（CLAUDE.md 硬要求）。
+"""中文字体探测：转发到 `risk_pipeline.font_utils`（管线级唯一权威）。
 
-按 macOS / Windows / Linux 列候选字体，逐个用 matplotlib 的 fontManager 探测；
-命中第一个即设到 rcParams['font.sans-serif']，并关掉 unicode_minus 的默认负号渲染。
-全部 miss 时只 warn，不抛异常 —— 让没装中文字体的环境也能出图（CJK 会变方框）。
+历史背景：原本只在 `risk_visualization` 用，后来 `risk_segment_univariate.boxplot`
+也要画中文图，避免循环依赖把实现提到 `risk_pipeline.font_utils`。这里仅保留
+旧导入路径的薄壳，不要在这里再加逻辑。
 """
 from __future__ import annotations
 
-import platform
-import warnings
-from typing import List, Optional
+import sys
+from pathlib import Path
 
-_CANDIDATES = {
-    'Darwin': [
-        'PingFang SC', 'Heiti SC', 'STHeiti', 'Hiragino Sans GB',
-        'Arial Unicode MS', 'Songti SC',
-    ],
-    'Windows': [
-        'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong',
-    ],
-    'Linux': [
-        'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC',
-        'WenQuanYi Zen Hei', 'WenQuanYi Micro Hei', 'AR PL UMing CN',
-        'AR PL UKai CN', 'DejaVu Sans',  # DejaVu = 最终兜底（不含 CJK）
-    ],
-}
+# 确保 risk-feature-pipeline/ 在 sys.path 上（被 chart_*.py from . import 触发时仍可用）
+_SKILL_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if _SKILL_ROOT not in sys.path:
+    sys.path.insert(0, _SKILL_ROOT)
 
-_configured = False
-_active_font: Optional[str] = None
+from risk_pipeline.font_utils import configure_chinese_font, active_font  # noqa: F401
 
-
-def _candidate_list() -> List[str]:
-    sysname = platform.system()
-    cands = list(_CANDIDATES.get(sysname, []))
-    # 跨平台兜底：把所有平台候选合一份（用户可能装了第三方 CJK 字体）
-    for k, v in _CANDIDATES.items():
-        if k == sysname:
-            continue
-        for f in v:
-            if f not in cands:
-                cands.append(f)
-    return cands
-
-
-def configure_chinese_font(force: bool = False) -> Optional[str]:
-    """探测并配置中文字体。返回命中的字体名（None = 全 miss）。
-
-    幂等：默认只配置一次；force=True 时强制重跑探测。
-    """
-    global _configured, _active_font
-    if _configured and not force:
-        return _active_font
-
-    import matplotlib
-    from matplotlib import font_manager, rcParams
-
-    available = {f.name for f in font_manager.fontManager.ttflist}
-    hit: Optional[str] = None
-    for name in _candidate_list():
-        if name in available:
-            hit = name
-            break
-
-    if hit is None:
-        # 再用 findfont 兜一次（处理别名）
-        for name in _candidate_list():
-            try:
-                path = font_manager.findfont(
-                    font_manager.FontProperties(family=name),
-                    fallback_to_default=False,
-                )
-                if path:
-                    hit = name
-                    break
-            except Exception:
-                continue
-
-    if hit is None:
-        warnings.warn(
-            '[risk_visualization] 未发现中文字体，CJK 字符将渲染为方框。'
-            '建议：Linux 安装 fonts-noto-cjk；Windows 检查 Microsoft YaHei；'
-            'macOS 通常自带 PingFang SC。'
-        )
-    else:
-        # 中文字体优先；保留 DejaVu Sans 作为非 CJK 字符（如 −、✗、希腊字母）的 fallback
-        existing = list(rcParams.get('font.sans-serif', []))
-        chain = [hit]
-        for f in ('DejaVu Sans', 'Liberation Sans', 'Bitstream Vera Sans'):
-            if f not in chain:
-                chain.append(f)
-        for f in existing:
-            if f not in chain:
-                chain.append(f)
-        rcParams['font.sans-serif'] = chain
-        rcParams['font.family'] = 'sans-serif'
-
-    rcParams['axes.unicode_minus'] = False  # 即使没中文字体，也修负号渲染
-
-    _configured = True
-    _active_font = hit
-    return hit
-
-
-__all__ = ['configure_chinese_font']
+__all__ = ['configure_chinese_font', 'active_font']
