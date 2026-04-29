@@ -125,16 +125,17 @@ class PipelineState:
 # ===== 工厂：定位 + 加载 =====
 
 def _project_root_from_cwd() -> str:
-    cur = Path(os.getcwd()).resolve()
-    for p in [cur, *cur.parents]:
-        if (p / 'data').exists():
-            return str(p)
-    return str(cur)
+    from .paths import get_project_root
+    return get_project_root()
 
 
 def _resolve_state_dir(project: str, state_dir: Optional[str], project_root: str) -> str:
     if state_dir:
         return state_dir
+    # state.json 跟随写盘根（RISK_OUTPUT_ROOT 设置时落到那里）
+    from .paths import get_output_root
+    if os.environ.get('RISK_OUTPUT_ROOT'):
+        return os.path.join(get_output_root(), 'data', 'results', project)
     return os.path.join(project_root, 'data', 'results', project)
 
 
