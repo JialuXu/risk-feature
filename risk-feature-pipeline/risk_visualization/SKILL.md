@@ -14,7 +14,7 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 
 | 图 | 前置 |
 |---|---|
-| `iv` / `iv_heatmap` / `corr` / `lr` / `auc` / `segment` | `analyze --steps univariate,iv,lr` + `export`（标准 Level 1） |
+| `iv` / `iv_heatmap` / `corr` / `corr_heatmap` / `lr` / `lr_heatmap` / `auc` / `segment` | `analyze --steps univariate,iv,lr` + `export`（标准 Level 1） |
 | `tree` / `rules` / `combos` / `combo_network` | analyze 必须包含 `rules` 步骤：<br/>`python -m risk_pipeline analyze --project <name> --steps univariate,iv,lr,rules --category-dims <dim>`<br/>然后 `python -m risk_pipeline export --project <name>`<br/>这样 `_intermediate/rule_tree_*.pkl` + `data/results/<project>/<project>_风险规则表.csv` 才会落盘 |
 
 **没跑 `rules` 时这 4 张图会被 visualize 自动跳过**（status stamp 里会显示 `skipped=tree,rules,combos,combo_network`），不会报错。
@@ -26,7 +26,7 @@ from risk_visualization.scripts.visualize import generate_charts
 
 paths = generate_charts(
     project_name='舆情特征分析',
-    kinds=None,        # None = 全部 10 类
+    kinds=None,        # None = 全部 12 类
     top_n=15,
     dim='企业规模',    # 限定单一分群维度（不传则跨维度都画）
     dpi=300,
@@ -42,20 +42,26 @@ python -m risk_pipeline visualize --project 舆情特征分析 \
     --kinds iv,lr,combos --top 20 --dim 企业规模
 ```
 
-## 支持的图表（10 种）
+## 支持的图表（12 种）
 
 | `kinds=` | 图表 | 输入 | 数量 |
 |---|---|---|---|
 | `iv` | 全量 IV 横向条形图（top-N，按预测能力着色） | `_IV分析结果.csv` | 1 |
-| `iv_heatmap` | 分群 IV 热力图（不可信单元打 ✗） | `_IV值透视表.csv` + `_IV可信度透视表.csv` | 1 |
+| `iv_heatmap` | **分群 × 特征 IV 热力图**（行=分群、列=特征 top-N，不可信单元打 ✗） | `_IV值透视表.csv` + `_IV可信度透视表.csv` | 1 |
 | `corr` | 分群相关系数条形图（每分群一张，正负双色） | `_特征风险相关性.csv` | N（分群数） |
+| `corr_heatmap` | **分群 × 特征 相关系数热力图**（行=分群、列=特征 top-N，发散色以 0 为中心） | `_特征风险相关性.csv` | M（分群维度数） |
 | `lr` | LR 系数条形图（每分群一张，按 \|系数\| 排序） | `_逻辑回归系数.csv` | N |
+| `lr_heatmap` | **分群 × 特征 LR 系数热力图**（行=分群、列=特征 top-N，发散色以 0 为中心） | `_逻辑回归系数.csv` | M |
 | `auc` | 跨分群 AUC 条形图（按 AUC 类型着色） | `_逻辑回归系数.csv` | 1 |
 | `segment` | 分群画像图（坏客户率柱图 + 样本数标注） | `_LLM_分群画像.csv` | 1 |
 | `tree` | 决策树图（pkl 真树 / 规则反推退化） | `_intermediate/rule_tree_*.pkl` 或 `_风险规则表.csv` | 0–N |
 | `rules` | 规则 lift × coverage 散点（按稳定性着色） | `_风险规则表.csv` | 1 |
 | `combos` | 指标组合 max lift 条形图（按 feature_list 聚合） | `_风险规则表.csv` | 1 |
 | `combo_network` | 特征共现网络（节点=特征，边=共现规则数） | `_风险规则表.csv` | 1 |
+
+> **业务视角**：`iv_heatmap` / `corr_heatmap` / `lr_heatmap` 三张图都把"分群"放纵轴、"特征"放横轴。
+> 一行 = 一个分群（如 `企业规模 = 小型企业`）的横向画像，从左到右扫一眼就能比较"同一指标在不同分群的表现是否一致"。
+> 一列里出现红蓝切换 = 该特征跨分群符号冲突，往往不能直接进入通用规则。
 
 ## 何时加载扩展参考（渐进式披露）
 
