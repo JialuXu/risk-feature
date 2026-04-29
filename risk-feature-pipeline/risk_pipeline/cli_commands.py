@@ -185,7 +185,7 @@ def cmd_prepare(args) -> int:
 
 # ===== analyze =====
 
-_VALID_ANALYZE_STEPS = ('univariate', 'iv', 'lr')
+_VALID_ANALYZE_STEPS = ('univariate', 'iv', 'lr', 'rules')
 
 
 def cmd_analyze(args) -> int:
@@ -236,6 +236,8 @@ def cmd_analyze(args) -> int:
     df = pd.read_csv(prepared, encoding='utf-8-sig')
     verbose = _is_verbose(args) and not _is_quiet(args)
 
+    # rules 是 CLI 层独立步骤；run_generic_pipeline 不识别它，剥离后再传
+    pipeline_steps = [s for s in steps if s != 'rules']
     results = run_generic_pipeline(
         df=df,
         feature_cols=feature_cols,
@@ -243,7 +245,7 @@ def cmd_analyze(args) -> int:
         project_name=project,
         category_dims=category_dims,
         qual_dims=qual_dims,
-        steps=steps,
+        steps=pipeline_steps,
         verbose=verbose,
     )
 
@@ -258,6 +260,17 @@ def cmd_analyze(args) -> int:
         raw_features=info.get('raw_features'),
         derived_features=info.get('derived_features'),
     )
+
+    rules_summary = ''
+    if 'rules' in steps:
+        rules_summary = _run_rule_mining_step(
+            df=df,
+            feature_cols=feature_cols,
+            target_col=target_col,
+            category_dims=results.get('category_dims', category_dims or []),
+            inter_dir=inter_dir,
+            verbose=verbose,
+        )
 
     state.append_history({
         'cmd': 'analyze',
@@ -274,22 +287,113 @@ def cmd_analyze(args) -> int:
     }, new_level='过渡态')
     state.save()
 
+    extras = [
+        f'steps={",".join(steps)}',
+        f'下一步: python -m risk_pipeline export --project {project}（→ Level 1）',
+    ]
+    if rules_summary:
+        extras.insert(1, rules_summary)
+
     _print_stamp(
         format_status_stamp(
             'analyze', project, state.current_level,
             inputs=[prepared, features_path],
             outputs=[f'{inter_dir}/'],
-            extras=[
-                f'steps={",".join(steps)}',
-                f'下一步: python -m risk_pipeline export --project {project}（→ Level 1）',
-            ],
+            extras=extras,
         ),
         args,
     )
     return 0
 
 
+def _run_rule_mining_step(
+    df: 'pd.DataFrame',
+    feature_cols: list,
+    target_col: str,
+    category_dims: list,
+    inter_dir: str,
+    verbose: bool,
+) -> str:
+    """analyze 的 rules 步骤：拟合树 + 落 pkl 到 _intermediate/，规则 DF pickle 一并落盘。
+
+    返回一行人类可读的 summary 字符串（用于 status stamp）。
+    """
+    from risk_rule_mining.scripts.rule_mining_pipeline import (
+        mine_rules_full, rules_by_group,
+    )
+    inter = Path(inter_dir)
+    inter.mkdir(parents=True, exist_ok=True)
+
+    parts = []
+
+    # 1) 全样本规则（pkl → _intermediate/rule_tree_全样本.pkl）
+    rules_full = mine_rules_full(
+        df, feature_cols, target=target_col, verbose=verbose,
+        persist_tree_path=inter / 'rule_tree_全样本.pkl',
+    )
+    if not rules_full.empty:
+        rules_full.insert(0, 'segment_dim', '全样本')
+        rules_full.insert(1, 'segment_value', '全样本')
+        parts.append(rules_full)
+
+    # 2) 每个分群维度的规则（pkl → _intermediate/rule_tree_<dim>__<group>.pkl）
+    for dim in (category_dims or []):
+        if dim not in df.columns:
+            print(f'[跳过 rules] 分群维度列不存在: {dim}', file=sys.stderr)
+            continue
+        try:
+            rules_dim = rules_by_group(
+                df, segment_col=dim, feature_cols=feature_cols,
+                target=target_col, verbose=verbose,
+                persist_tree_dir=inter,
+            )
+        except Exception as e:
+            print(f'[跳过 rules] {dim} 规则挖掘失败: {e}', file=sys.stderr)
+            continue
+        if not rules_dim.empty:
+            parts.append(rules_dim)
+
+    rules_pkl = inter / 'rules.pkl'
+    if not parts:
+        # 没挖出任何规则也写一个空 pkl，避免 export 阶段误以为是"未跑过 rules"
+        import pandas as _pd
+        _pd.DataFrame().to_pickle(rules_pkl)
+        return 'rules=0（未挖到满足闸门的规则）'
+
+    import pandas as _pd
+    rules_all = _pd.concat(parts, ignore_index=True)
+    rules_all.to_pickle(rules_pkl)
+    n_pkl = len(list(inter.glob('rule_tree_*.pkl')))
+    return f'rules={len(rules_all)}（树 pkl={n_pkl}；规则 pkl={rules_pkl.name}）'
+
+
 # ===== export =====
+
+def _maybe_export_rules_csv(
+    *, inter_dir: str, project: str, output_subdir: str, project_root: str,
+):
+    """若 _intermediate/rules.pkl 存在，则把规则表写到 data/results/<subdir>/<project>_风险规则表.csv。
+
+    返回写出的 Path（或 None 表示未做）。
+    """
+    rules_pkl = Path(inter_dir) / 'rules.pkl'
+    if not rules_pkl.is_file():
+        return None
+    try:
+        rules_df = pd.read_pickle(rules_pkl)
+    except Exception as e:
+        print(f'  [警告] 读取 rules.pkl 失败: {e}', file=sys.stderr)
+        return None
+    if rules_df is None or rules_df.empty:
+        # 跑过 rules 但未挖到规则也算有效信号，写一个空表占位
+        print('  [提示] rules.pkl 为空（analyze 阶段未挖到满足闸门的规则）', file=sys.stderr)
+
+    from risk_export_report.scripts.report_analysis import export_results as _noop  # noqa
+    from risk_rule_mining.scripts.rule_mining_pipeline import export_rules
+
+    out_dir = os.path.join(project_root, 'data', 'results', output_subdir)
+    return export_rules(rules_df, project_name=project, output_dir=out_dir)
+
 
 def cmd_export(args) -> int:
     from risk_export_report.scripts.report_analysis import (
@@ -363,12 +467,20 @@ def cmd_export(args) -> int:
         output_base='output',
     )
 
+    rules_csv = _maybe_export_rules_csv(
+        inter_dir=inter_dir, project=project,
+        output_subdir=output_subdir, project_root=project_root,
+    )
+    if rules_csv is not None:
+        exported = list(exported) + [rules_csv]
+
     state.append_history({
         'cmd': 'export',
         'args_summary': {
             'intermediate_dir': inter_dir,
             'output_subdir': output_subdir,
             'n_files': len(exported),
+            'rules_csv': str(rules_csv) if rules_csv else None,
         },
         'outputs': [str(p) for p in exported] if exported else [],
         'duration_sec': round(time.time() - started, 2),
