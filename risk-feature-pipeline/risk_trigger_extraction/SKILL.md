@@ -148,8 +148,10 @@ trigger 三件套默认落在 `<project_root>/output/<project>/`，与 IV/LR/规
 > ⚠️  **B6 后默认行为变更**：宽表 CSV **不再包含** `is_bad` / `企业规模` / `所属行业` 等业务元信息列，避免与 `prepared.csv` merge 时撞列冲突。需要业务字段做后处理时：
 >
 > 1. 默认：`pd.merge(prepared, df_wide, on='客户编号', how='left')` 直接用，不会冲突
-> 2. 显式保留：`extract_triggers(..., keep_metadata_cols=['企业规模'])` 或
->    CLI `--keep-metadata-cols 企业规模,所属行业`
+> 2. 显式保留：`extract_triggers(..., keep_metadata_cols=['企业规模', '内部评级'])` 或
+>    CLI `--keep-metadata-cols 企业规模,内部评级`
+>
+> `keep_metadata_cols` **不限于** 默认白名单（所属分行/客户性质/控股类型/所属行业/行业大类/企业规模/客户分层/赛道/是否腰部企业）；任意原始宽表列都可指定（如 `内部评级`）。指定的列若在宽表中不存在，verbose 模式会打印 `[WARN] keep_metadata_cols 指定的列在宽表中不存在` 但不阻断。
 
 ## 职责边界
 

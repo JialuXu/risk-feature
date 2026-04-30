@@ -292,6 +292,14 @@ def top_features(results: Results,
         已按相应指标降序、head(n) 后的 DataFrame。
     """
     if kind == 'iv':
+        if dim or group:
+            import warnings
+            warnings.warn(
+                f"kind='iv' 走全量 IV 表，不接受 dim/group 参数（dim={dim!r}, group={group!r} 已被忽略）。"
+                f"如需分群 IV top-N，请改用 kind='iv_group'。",
+                UserWarning,
+                stacklevel=2,
+            )
         df = results.iv_full
         if df is None or df.empty:
             return pd.DataFrame()

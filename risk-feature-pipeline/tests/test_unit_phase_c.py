@@ -141,3 +141,86 @@ def test_legacy_confirmation_still_works(project_workdir):
     with open(feats_path, 'r', encoding='utf-8') as f:
         info = json.load(f)
     assert info['confirmation']['mode'] == 'legacy'
+
+
+# ---------- 微调 1：query kind='iv' 误传 dim/group 警告 ----------
+
+def test_top_features_iv_with_dim_warns():
+    """top_features(kind='iv', dim=...) 应当 warn 而非静默忽略。"""
+    import warnings
+    from risk_result_query.scripts.results_loader import top_features, Results
+    fake_iv = pd.DataFrame({'特征': ['A', 'B', 'C'], 'IV值': [0.5, 0.3, 0.1]})
+    r = Results(project_name='x', results_dir='.', iv_full=fake_iv)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        out = top_features(r, kind='iv', dim='企业规模', n=2)
+    assert len(out) == 2
+    assert any('iv_group' in str(w.message) for w in caught), '应提示改用 iv_group'
+
+
+def test_top_features_iv_no_warning_without_dim_group():
+    """top_features(kind='iv') 不传 dim/group 时不应 warn。"""
+    import warnings
+    from risk_result_query.scripts.results_loader import top_features, Results
+    fake_iv = pd.DataFrame({'特征': ['A', 'B'], 'IV值': [0.5, 0.3]})
+    r = Results(project_name='x', results_dir='.', iv_full=fake_iv)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        top_features(r, kind='iv', n=2)
+    assert not any('iv_group' in str(w.message) for w in caught)
+
+
+# ---------- 微调 2：keep_metadata_cols 应能保留非默认列（如「内部评级」） ----------
+
+def test_keep_metadata_cols_includes_non_default_columns(tmp_path):
+    """keep_metadata_cols 指定的非白名单列（如「内部评级」）也要被带进宽表。"""
+    from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
+
+    df = pd.DataFrame({
+        '客户编号': ['A', 'B', 'C'],
+        'is_bad':   [0, 1, 0],
+        '企业规模': ['大', '小', '大'],
+        '所属行业': ['金融', '制造', '金融'],
+        '内部评级': ['AA', 'B', 'A'],
+        'feat_x':   [0.1, 0.9, 0.5],
+    })
+    features = [{
+        'report_name': 'feat_x', 'source_col': 'feat_x',
+        'risk_direction': 'positive', 'iv': 0.4,
+        'category': 'test', 'scope': 'full',
+    }]
+    df_wide, _, _ = extract_triggers(
+        df=df, features=features,
+        project_name='unit_keep_metadata',
+        output_dir=str(tmp_path), verbose=False,
+        keep_metadata_cols=['企业规模', '所属行业', '内部评级'],
+    )
+    # 三项都应在 wide 表里
+    assert '企业规模' in df_wide.columns
+    assert '所属行业' in df_wide.columns
+    assert '内部评级' in df_wide.columns, '内部评级 不在默认白名单，但用户显式 keep 应保留'
+
+
+def test_keep_metadata_cols_missing_in_widetable_warns(tmp_path, capsys):
+    """keep_metadata_cols 指定的列在宽表中不存在时应给出 warn 不静默。"""
+    from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
+
+    df = pd.DataFrame({
+        '客户编号': ['A', 'B'],
+        'is_bad':   [0, 1],
+        '企业规模': ['大', '小'],
+        'feat_x':   [0.1, 0.9],
+    })
+    features = [{
+        'report_name': 'feat_x', 'source_col': 'feat_x',
+        'risk_direction': 'positive', 'iv': 0.4,
+        'category': 'test', 'scope': 'full',
+    }]
+    extract_triggers(
+        df=df, features=features,
+        project_name='unit_keep_missing',
+        output_dir=str(tmp_path), verbose=True,
+        keep_metadata_cols=['企业规模', '不存在的列'],
+    )
+    out, _ = capsys.readouterr()
+    assert '不存在的列' in out and 'WARN' in out
