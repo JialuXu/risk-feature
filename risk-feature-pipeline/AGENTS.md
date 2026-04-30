@@ -251,6 +251,13 @@ python -m risk_pipeline query --project <项目名> \
 python -m risk_pipeline query --project <项目名> --kind iv --top 15 --output-format csv
 ```
 
+**速查捷径**：横向对比同一特征在多个分群下的 IV，**直接读 `_IV值透视表.csv`** —— 行 = 分群名称，列 = 特征名，值 = IV，一眼能看完，比写 query 反复传 `--dim/--group` 更快。
+
+```bash
+# 看 IV 透视表（行=分群, 列=特征）
+head -1 data/results/<项目名>/<项目名>_IV值透视表.csv | tr ',' '\n' | head -20
+```
+
 ### 模板 C — 触碰提取（须先过阻断节点 2）
 
 ```bash
