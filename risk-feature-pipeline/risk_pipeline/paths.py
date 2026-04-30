@@ -96,6 +96,27 @@ def output_dir(subdir: Optional[str] = None) -> str:
     return os.path.join(base, subdir) if subdir else base
 
 
+# 推荐的统一产物目录布局（B10 引入；旧的 results_dir / output_dir 仍兼容）：
+#   <output_root>/data/results/<project>/level1/    Level 1 产物（IV / LR / 规则）
+#   <output_root>/data/results/<project>/level2/    Level 2 产物（trigger 三件套）
+#   <output_root>/data/results/<project>/level3/    Level 3 产物（DOCX 报告 / LLM JSON）
+# 新代码可调用 unified_results_dir 以避免「IV 在 data/results、trigger 在 output」的两处分裂。
+_VALID_LEVELS = {'level1', 'level2', 'level3'}
+
+
+def unified_results_dir(project: str, level: str = 'level1') -> str:
+    """`<output_root>/data/results/<project>/<level>/`，不创建目录。
+
+    level ∈ {'level1', 'level2', 'level3'}：
+      - level1：IV / LR / 规则等分析产物（对齐 PipelineState 的 Level 1）
+      - level2：trigger 客户级触碰三件套
+      - level3：DOCX 报告 / 对外交付物
+    """
+    if level not in _VALID_LEVELS:
+        raise ValueError(f"level 必须是 {sorted(_VALID_LEVELS)} 之一，实际：{level!r}")
+    return os.path.join(get_output_root(), 'data', 'results', project, level)
+
+
 def ensure_writable_dir(path: PathLike) -> str:
     """makedirs(exist_ok=True)；PermissionError 时改抛带提示的 RuntimeError。"""
     p = str(path)

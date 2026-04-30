@@ -124,6 +124,12 @@ df_wide, df_long = evaluate_triggers(df, RISK_FEATURES, thresholds)
 df_thr = build_threshold_table(RISK_FEATURES, thresholds)
 ```
 
+## 输出位置
+
+trigger 三件套默认落在 `<project_root>/output/<project>/`，与 IV/LR/规则等 Level 1 产物的 `data/results/<project>/` 是**两个不同根**。CLI status stamp 会打印完整绝对路径；找不到时优先用 `find <project_root>/output -name '*风险触碰*'` 而非在 `data/results/` 里翻。
+
+> 未来计划（B10 留位）：`risk_pipeline.paths.unified_results_dir(project, 'level2')` 已就位，后续会切换 trigger 默认输出到 `data/results/<project>/level2/`。届时旧路径仍向后兼容读取。
+
 ## 输出列说明（宽表）
 
 | 列名 | 说明 |
