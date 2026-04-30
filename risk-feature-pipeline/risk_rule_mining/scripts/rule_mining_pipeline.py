@@ -115,7 +115,7 @@ def rules_by_group(
 
 _EXPORT_COL_MAP = {
     'segment_dim': '分群维度',
-    'segment_value': '分群值',
+    'segment_value': '分群名称',
     'rule_id': '规则编号',
     'conditions_text': '规则条件',
     'feature_list': '涉及特征',

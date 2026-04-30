@@ -1381,21 +1381,38 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
 
     exported = []
 
+    # 列名归一化（统一对外列名：特征 / 分群维度 / 分群名称；详见 docs/SCHEMA.md）
+    _EXPORT_COLUMN_RENAMES = {
+        '特征名称': '特征',
+        '分群值': '分群名称',
+    }
+
+    def _normalize_export_cols(df):
+        if df is None or df.empty:
+            return df
+        cols_to_rename = {old: new for old, new in _EXPORT_COLUMN_RENAMES.items() if old in df.columns}
+        if cols_to_rename:
+            df = df.rename(columns=cols_to_rename)
+        return df
+
     def _save(df, filename, directory=res_dir):
         if df is not None and not df.empty:
+            df = _normalize_export_cols(df)
             path = os.path.join(directory, filename)
             df.to_csv(path, index=False, encoding='utf-8-sig')
             exported.append(filename)
             print(f"  -> {filename} ({len(df)} 行)")
 
-    # 1. 全量IV分析结果
+    # 1. 全量IV分析结果（A5：拆分为「_全量」+「_分群」两份；旧文件名 `_IV分析结果.csv`/`_IV值分析.csv` 仍写一份兼容副本）
     iv_full = results.get('iv_full')
     if iv_full is not None and not iv_full.empty:
         if '分群' in iv_full.columns:
             iv_full_export = iv_full[iv_full['分群'] == '全量'].copy()
         else:
             iv_full_export = iv_full
-        _save(iv_full_export, f'{pname}_IV分析结果.csv')
+        _save(iv_full_export, f'{pname}_IV分析结果_全量.csv')
+        # 兼容副本（一个版本后移除）
+        _save(iv_full_export.copy(), f'{pname}_IV分析结果.csv')
 
     # 2. 特征风险相关性（分群相关系数 + 元信息）
     corr_exports = results.get('corr_exports')
@@ -1407,9 +1424,11 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
     if lr_exports is not None:
         _save(lr_exports, f'{pname}_逻辑回归系数.csv')
 
-    # 4. 分群IV值明细
+    # 4. 分群IV值明细（A5：新名 _IV分析结果_分群.csv；旧名 _IV值分析.csv 保留兼容副本）
     iv_group = results.get('iv_group_all')
-    _save(iv_group, f'{pname}_IV值分析.csv')
+    _save(iv_group, f'{pname}_IV分析结果_分群.csv')
+    if iv_group is not None and not iv_group.empty:
+        _save(iv_group.copy(), f'{pname}_IV值分析.csv')
 
     # 5. IV可信度透视表
     if iv_group is not None and not iv_group.empty and '特征' in iv_group.columns:

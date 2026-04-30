@@ -95,6 +95,9 @@ def cmd_prepare(args) -> int:
             _err(f'[prepare] --filter-file 不存在: {args.filter_file}')
         with open(args.filter_file, 'r', encoding='utf-8') as f:
             filter_dict = json.load(f)
+        if not _is_quiet(args):
+            summary = ', '.join(f'{c}: {sorted(r.keys())}' for c, r in filter_dict.items())
+            print(f'[prepare] filter 规则 {len(filter_dict)} 列 → {summary}')
 
     exclude_features = None
     if args.exclude_features_file:
