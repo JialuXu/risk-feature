@@ -116,10 +116,35 @@ def _simplify_conditions(
     return sorted(out, key=lambda x: (x[0], x[1]))
 
 
+# C11 阈值精度启发式 token 顺序：
+# 比率类先判断（资产负债率含"资产"但本质是比率，须走 2 位小数分支）
+_RATIO_TOKENS = ('占比', '比率', '率', '系数')
+_AMOUNT_TOKENS = ('金额', '余额', '资产', '收入', '负债', '现金', '存款', '贷款')
+
+
+def _format_threshold(thr: float, feature_name: str) -> str:
+    """C11: 按特征名启发式选阈值精度，便于业务宣贯。
+
+    优先级：比率类 > 金额类 > 默认。
+    - 比率/占比/率/系数类：保留 2 位小数（如 `0.12`、`0.75`）
+    - 金额/余额/资产/收入/负债/现金/存款/贷款类：取整 + 千分位（如 `21,120,000`）
+    - 其它：现有 `:.4g`（小数与科学计数法兜底）
+    """
+    if not feature_name:
+        return f"{thr:.4g}"
+    if any(tok in feature_name for tok in _RATIO_TOKENS):
+        return f"{thr:.2f}"
+    if any(tok in feature_name for tok in _AMOUNT_TOKENS):
+        if abs(thr) >= 10000:
+            return f"{thr:,.0f}"
+        return f"{thr:.0f}"
+    return f"{thr:.4g}"
+
+
 def _conditions_to_text(conditions: List[Tuple[str, str, float]]) -> str:
-    """规则条件转中文业务语言。"""
+    """规则条件转中文业务语言（阈值精度按特征名自适应，C11）。"""
     parts = [
-        f"{feat} {OPERATOR_CN.get(op, op)} {thr:.4g}"
+        f"{feat} {OPERATOR_CN.get(op, op)} {_format_threshold(thr, feat)}"
         for feat, op, thr in conditions
     ]
     return " 且 ".join(parts)

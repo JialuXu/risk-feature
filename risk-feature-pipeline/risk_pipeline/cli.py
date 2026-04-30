@@ -86,7 +86,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--project', '--project-name', dest='project', required=True,
                    help='项目名（用作输出目录前缀）')
     p.add_argument('--confirmed-new-dataset', action='store_true',
-                   help='[阻断节点 1] 首次使用新数据集时必传')
+                   help='[阻断节点 1] 首次使用新数据集时必传（一键确认）')
+    # C15：拆分版确认 flag——三项全填 + 与 --id-col/--target-col 一致才视为确认通过
+    p.add_argument('--confirmed-id-col', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明确认的主键列名（须与 --id-col 一致）')
+    p.add_argument('--confirmed-target-col', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明确认的目标列名（须与 --target-col 一致）')
+    p.add_argument('--confirmed-target-positive', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit')
 
     # ----- analyze -----
     p = sub.add_parser('analyze', parents=[global_parent],
