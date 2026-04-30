@@ -58,8 +58,16 @@ python -m risk_pipeline export --project 我的项目
 
 ```bash
 python -m risk_pipeline query --project 我的项目 --kind iv --top 15
-python -m risk_pipeline visualize --project 我的项目
+python -m risk_pipeline visualize --project 我的项目          # 需先装可视化依赖
 ```
+
+> **可视化依赖**：matplotlib / seaborn 不在核心管线依赖里。首次出图前需要安装：
+> ```bash
+> pip install -e .[viz]                    # 推荐：同时声明项目可被 import
+> # 或
+> pip install matplotlib seaborn
+> ```
+> PEP 668 锁定环境（部分 macOS / CI）请先 `python -m venv .venv && source .venv/bin/activate`，或加 `--break-system-packages`。
 
 ## 集成改造要点
 
@@ -70,3 +78,11 @@ python -m risk_pipeline visualize --project 我的项目
 - `report` 面向正式交付，`purpose=external` 时必须确认当前结果是最终版本。
 
 更细的 agent 约束、阻断节点和日志规范见 [`AGENTS.md`](AGENTS.md)；面向自然语言调度的说明见 [`SKILL.md`](SKILL.md)。
+
+## 文档辅助
+
+| 文档 | 用途 |
+|---|---|
+| [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源（A4 后统一列名、A5 后文件改名） |
+| [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | dim / group / scope / coverage 等术语统一表 + 列名跨表对照 + 阻断节点缩写 |
+| [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio) | 核心管线机制图源文件 |

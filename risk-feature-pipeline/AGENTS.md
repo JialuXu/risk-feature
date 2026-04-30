@@ -38,10 +38,13 @@
 ```
 Level 1 — 分析结论可用（内部流转）
   达成条件：risk_export_report 完成，以下文件全部落盘：
-    *_IV分析结果.csv / *_特征风险相关性.csv / *_逻辑回归系数.csv
-    *_IV值分析.csv / *_IV可信度透视表.csv / *_IV可信度诊断.csv
+    *_IV分析结果_全量.csv ⭐ / *_IV分析结果_分群.csv ⭐
+    *_特征风险相关性.csv / *_逻辑回归系数.csv
+    *_IV可信度透视表.csv / *_IV可信度诊断.csv
     *_IV值透视表.csv / *_综合特征分析结果.csv
     *_LLM报告数据.json + *_LLM_分群画像.csv
+    *_audit.json ⭐（C12 机器可读自检：IV>2 过拟合 + 不稳定规则）
+  注：旧名 *_IV分析结果.csv / *_IV值分析.csv 仍写一份兼容副本，下版本移除
   可做：risk_result_query 查询、人工审阅、修改后重跑
   不可做：对外交付、写入预警名单
 
@@ -99,7 +102,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 | 断层类型 | 核验方式 | 退路 |
 |---|---|---|
 | 字段是否存在 | 读 `df.columns` 或 CSV 表头，不猜测 | `ColumnMapper.detect_qual_cols(df.columns)` 自动推断分群维度 |
-| 结果文件是否已生成 | 检查 `data/results/征信/{project_name}/` 目录是否有 `*_IV分析结果.csv` | 提示用户先跑 `risk_export_report`，不允许用空结果假装有数据 |
+| 结果文件是否已生成 | 检查 `data/results/<project_name>/` 目录是否有 `*_IV分析结果_全量.csv`（A5 新名）或旧名 `*_IV分析结果.csv` | 提示用户先跑 `risk_export_report`，不允许用空结果假装有数据 |
 | 列映射是否正确（多银行） | `load_config("{bank}.yaml")` 读取，与 `df.columns` 做交集验证 | 回退 `config/default.yaml` 默认映射，并**显式告知用户**哪些列使用了默认值 |
 
 **任何情况下不允许的退路：** 假设字段存在后继续执行。错误必须在 `prepare` 阶段暴露，不能延迟到 `analyze` / `export` 内部。
@@ -143,12 +146,12 @@ python -m risk_pipeline --columns-file config/city_bank.yaml run --pipeline gene
 
 ### 阻断节点 2 — extract_triggers 使用非默认 features 配置时
 
-**触发条件：** 用户要求触碰提取，但项目专属特征集与 `RISK_FEATURES` 默认值存在差异（或用户未明确表态用默认）。
+**触发条件：** 用户要求触碰提取，但项目专属特征集与 `RISK_FEATURES_GSFC`（默认特征别名 `RISK_FEATURES`）存在差异，或用户未明确表态用默认。
 
-**阻断原因：** 触碰阈值计算的特征集错误会直接导致预警名单错误，是可运营决策的上游，一旦推送给业务部门不可撤回。
+**阻断原因：** 触碰阈值计算的特征集错误会直接导致预警名单错误，是可运营决策的上游，一旦推送给业务部门不可撤回。**A1 后**默认特征仅适配 GSFC（工商财务）主题；其它主题（征信/舆情/generic）若误用默认会被匹配率守门拦下（< 50% 抛 RuntimeError），不会输出全 0 名单——但仍要求 agent 在阻断节点显式确认。
 
 **必须确认：**
-- [ ] 使用默认 `RISK_FEATURES` 配置，还是项目专属特征列表？
+- [ ] 当前数据是否 GSFC 主题？是 → 可用默认 `RISK_FEATURES_GSFC`；否 → 必须 `--features-file`
 - [ ] 如用专属列表，请用户确认 `features=` 参数中每个特征的 `risk_direction` 和 `iv`
 
 ---
@@ -261,7 +264,7 @@ head -1 data/results/<项目名>/<项目名>_IV值透视表.csv | tr ',' '\n' | 
 ### 模板 C — 触碰提取（须先过阻断节点 2）
 
 ```bash
-# 默认 RISK_FEATURES 配置（用户已确认）
+# 默认 RISK_FEATURES_GSFC 配置（用户已确认数据为工商财务主题）
 python -m risk_pipeline trigger --project <项目名> \
   --use-default-features --confirmed
 
@@ -316,10 +319,12 @@ python -m risk_pipeline report --project <项目名> \
 
 - [ ] 已声明本次目标 Level（1 / 2 / 3）
 - [ ] 用了 `python -m risk_pipeline <子命令>` 而非 Bash 里 import 模块手抄
-- [ ] `prepare` 首次新数据集是否传了 `--confirmed-new-dataset`
-- [ ] `trigger` 是否传了 `--confirmed`（默认/自定义 features 都要）
+- [ ] `prepare` 首次新数据集是否传了 `--confirmed-new-dataset`（或 C15 拆分版三件套 `--confirmed-id-col / --confirmed-target-col / --confirmed-target-positive`）
+- [ ] `trigger` 是否传了 `--confirmed`（默认/自定义 features 都要；默认 features 仅 GSFC 主题适用，其它主题用 `--features-file`）
 - [ ] `report --purpose external` 是否传了 `--confirmed-final-version`
-- [ ] 任何 IV>2.0 的特征是否标"过拟合嫌疑"且未进结论推荐
+- [ ] **C12: `cat data/results/<project>/<project>_audit.json` 比照机器可读自检**：
+  - `iv_overfit_features` 列表中的特征是否已标「过拟合嫌疑」且排除出结论推荐
+  - `unstable_rules` 列表中的规则是否未直接写进政策（已附人工复核标注）
 - [ ] segment 跳过是否每条有原因 log
 - [ ] 输出是否含客户姓名/编号/手机号（必须 0）
 - [ ] 末尾是否附了 CLI status stamp（最后一行 `[<cmd>] OK | ...`）

@@ -8,7 +8,9 @@ The project content is **`risk-feature-pipeline/`** — a custom enterprise cred
 
 **Non-project directories** (reference material only, not part of the codebase):
 - `skills/` — Anthropic's official Skills examples (cloned from anthropics/skills). Used only as a reference for SKILL.md authoring conventions. Do **not** edit or ship files here as part of the pipeline.
-- `data/`, `output/` — local data scratch (gitignore-style; not reviewed as code).
+- `data/`, `output/`, `data_old/`, `衍生指标设计/` — local scratch / drafts (gitignored; not reviewed as code).
+- `risk-feature-pipeline.backup-*` — historical snapshots; do not edit.
+- `risk-indicator-agent/`, `risk_data_extract/`, `risk_feature_MCPServer/`, `uci_acceptance_test/`, `handbook/` — sibling projects/experiments. Touch only when the user explicitly points there.
 
 When the user asks you to "update the project" / "review my changes" / "add a feature," scope your work to `risk-feature-pipeline/` unless they explicitly point elsewhere.
 
@@ -67,7 +69,7 @@ risk-feature-pipeline/
 ├── risk_trigger_extraction/   # ⭐ 触碰提取子 Skill：把风险结论落到每个客户
 │   ├── SKILL.md
 │   └── scripts/
-│       ├── config.py          # RISK_FEATURES 默认特征配置
+│       ├── config.py          # RISK_FEATURES_GSFC 默认特征配置（GSFC 主题；RISK_FEATURES 为兼容 alias）
 │       └── trigger_extraction.py  # extract_triggers / compute_thresholds / evaluate_triggers
 │
 ├── risk_docx_report/          # 交付型子 Skill：LLM JSON → 正式 Word 报告
@@ -163,7 +165,11 @@ df_wide, df_long, df_threshold = extract_triggers(
     df=df,                          # 已完成特征工程的宽表
     project_name='征信触碰分析',    # 输出文件前缀
 )
-# 自定义特征配置时传 features= 参数（否则使用 RISK_FEATURES 默认值）
+# 默认 features=None → 走 RISK_FEATURES_GSFC（仅工商财务主题适用）。其它主题
+# （征信、舆情、generic）必须传 features=YOUR_LIST 或 CLI --features-file，
+# 否则若匹配率 < 50% 会抛 RuntimeError 阻断（避免输出全 0 名单）。
+# 默认会从宽表 CSV 剔除 is_bad/企业规模 等元信息列防 merge 冲突；
+# 需保留可传 keep_metadata_cols=['企业规模', ...]。
 
 # 单步调用（高级用法，普通情况用上面的统一入口即可）
 from risk_data_prep.scripts.data_prep import prepare_credit_wide_table
@@ -177,17 +183,37 @@ from risk_export_report.scripts.report_analysis import export_results, build_llm
 
 注：所有子 Skill 目录均使用下划线命名，可直接作为 Python 包导入。
 
-### CLI Entry (shared.pipeline)
+### CLI Entry (risk_pipeline)
+
+CLI 已迁移到 `risk_pipeline/`（旧 `python -m shared` 仍可用，但是 deprecation shim，会打印警告并在下一版本移除）。
 
 ```bash
 cd risk-feature-pipeline
-python -m shared --pipeline credit                       # 征信全流程
-python -m shared --pipeline gsfc --steps data_prep iv    # 指定步骤
-python -m shared --pipeline credit --quiet               # 静默
-python -m shared --help
+python -m risk_pipeline --pipeline credit                       # 征信全流程
+python -m risk_pipeline --pipeline gsfc --steps data_prep iv    # 指定步骤
+python -m risk_pipeline --pipeline credit --quiet               # 静默
+python -m risk_pipeline --help
 ```
 
 合法 `--steps` 取值：`data_prep`、`feature_engineering`、`univariate`、`iv`、`lr`、`export`。
+
+`risk_pipeline/` 内含统一 CLI（`cli.py` / `cli_commands.py` / `cli_io.py`）、唯一权威的路径模块 `paths.py`（见下文 Data Paths）、运行时状态 `pipeline_state.py`，以及配置入口 `config.py` / `config_loader.py` / `column_mapper.py`。`shared/` 仍保留作为旧的兼容入口。
+
+### Tests
+
+测试在 `risk-feature-pipeline/tests/`（pytest）。`conftest.py` 会把 `risk-feature-pipeline/` 注入 `sys.path` 并提供 `synthetic_dataframe` fixture，可直接从仓库根运行：
+
+```bash
+cd risk-feature-pipeline
+pytest                                          # 全部
+pytest tests/test_unit_paths.py                 # 单文件
+pytest tests/test_unit_paths.py::test_env_project_root_wins   # 单用例
+pytest -k smoke                                 # 仅 smoke
+```
+
+- `test_smoke_*.py` — legacy / query / generic 管线 / trigger 的端到端冒烟。
+- `test_unit_paths.py` — `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 优先级、`ensure_writable_dir` 友好报错。
+- `test_unit_state.py`、`test_unit_blocking.py`、`test_unit_validation.py` — pipeline_state / 阻断逻辑 / 入参校验。
 
 ### Configuration Architecture
 
@@ -237,19 +263,26 @@ Centralized in `config/default.yaml` (Python: `shared.config`):
 Pattern: `{project_name}_{type}.csv` (UTF-8 with BOM), written under
 `data/results/征信/{project_name}/` and `output/征信/{project_name}/`.
 
-1. `_IV分析结果.csv` — Full-sample IV
+A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本，下版本移除）：
+- 列：`特征` / `分群维度` / `分群名称`（旧 `特征名称` / `分群值` 在 `load_results()` 读取时自动 rename）
+- 文件：IV 按颗粒度拆分
+
+1. `_IV分析结果_全量.csv` ⭐ — Full-sample IV (旧名 `_IV分析结果.csv` 兼容副本仍写)
 2. `_特征风险相关性.csv` — Per-segment correlations
 3. `_逻辑回归系数.csv` — LR coefficients + AUC + AUC type
-4. `_IV值分析.csv` — Per-segment IV with credibility
+4. `_IV分析结果_分群.csv` ⭐ — Per-segment IV with credibility (旧名 `_IV值分析.csv` 兼容副本)
 5. `_IV可信度透视表.csv` — Credibility pivot
 6. `_IV可信度诊断.csv` — IV reliability summary
-7. `_IV值透视表.csv` — IV pivot
+7. `_IV值透视表.csv` — IV pivot (查 top N 最快：行=分群、列=特征)
 8. `_综合特征分析结果.csv` — Consolidated
 9. `_LLM报告数据.json` + `_LLM_分群画像.csv` — for LLM / docx report
+10. `_audit.json` ⭐ — 机器可读自检（IV>2 过拟合特征、不稳定规则、Level 状态；agent 报回前 cat 这个文件）
 
-`risk_result_query.load_results(project_name)` 一次性读取上述文件并暴露为长格式 DataFrame（`iv_full` / `iv_group_all` / `corr_long` / `lr_coef_long` / `lr_auc_long` / `comprehensive` / `reliability_summary` 等）。列名详情见 `risk_result_query/references/columns.md`。
+`risk_result_query.load_results(project_name)` 一次性读取上述文件并暴露为长格式 DataFrame（`iv_full` / `iv_group_all` / `corr_long` / `lr_coef_long` / `lr_auc_long` / `comprehensive` / `reliability_summary` 等）。列名详情见 `docs/SCHEMA.md` 与 `risk_result_query/references/columns.md`；术语表见 `docs/GLOSSARY.md`。
 
-## Agent Behavior (risk-feature-pipeline/AGENTS.md)
+## Agent Behavior (risk-feature-pipeline/AGENTS.md + .cursor rules)
+
+`.cursor/rules/karpathy-guidelines.mdc` 设了 `alwaysApply: true`，对所有改动生效：澄清假设、保持简单、外科手术式改动、目标驱动验证。
 
 在 `risk-feature-pipeline/` 下工作时，必须遵守 `AGENTS.md` 的硬规矩：
 
@@ -291,6 +324,15 @@ All data paths are configurable via `config/default.yaml`. Defaults:
 - `data/processed/` — Cleaned intermediate data
 - `data/results/` — Analysis outputs (CSV)
 - `output/` — Final charts, Excel, LLM JSON, docx reports
+
+**唯一权威的路径定位**: `risk_pipeline/paths.py`（旧仓库里散落的 9 处 `get_project_root` 已收敛到此处）。
+
+- `RISK_PROJECT_ROOT` — 显式指定项目根（输入读自何处）。设置后跳过 `data/` 探测。
+- `RISK_OUTPUT_ROOT` — 显式指定输出根（结果写到何处）。未设置时复用项目根。
+- 优先级：env > 函数入参 > 自 CWD 向上找首个含 `data/` 的目录 > CWD 兜底（带一次性 `[WARN]`）。
+- `ensure_writable_dir(path)` 会把 `PermissionError` 转成 `RuntimeError`，提示设置 `RISK_OUTPUT_ROOT`。
+
+**永远不要**自己写 `os.getcwd()` 或 `__file__` 兜底路径——这正是被替换掉的反模式。新代码应 `from risk_pipeline.paths import get_project_root, results_dir, output_dir, ensure_writable_dir`。
 
 ## Reference-Only: `skills/`
 
