@@ -160,25 +160,37 @@ def compute_thresholds(
     return thresholds
 
 
+_DEFAULT_INFO_COLS = (
+    '所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
+    '企业规模', '客户分层', '赛道', '是否腰部企业',
+)
+
+
 def evaluate_triggers(
     df: pd.DataFrame,
     features: List[Dict],
     thresholds: Dict,
     id_col: str = '客户编号',
     target_col: str = 'is_bad',
+    extra_info_cols: Optional[List[str]] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     对每个客户、每个特征评估是否触碰风险阈值。
+
+    Args:
+        extra_info_cols: 默认白名单之外的元信息列（用户通过 keep_metadata_cols
+            指定的非常规列，如 `内部评级`）；缺失自动跳过，不报错。
 
     返回:
       df_wide : 宽表（每行一客户）含特征值列、触碰标记列、汇总统计
       df_long : 长表（仅保留触碰记录，每行一条 客户-特征 记录）
     """
-    info_cols = [
-        c for c in ['所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
-                    '企业规模', '客户分层', '赛道', '是否腰部企业']
-        if c in df.columns
-    ]
+    candidates = list(_DEFAULT_INFO_COLS)
+    if extra_info_cols:
+        for c in extra_info_cols:
+            if c not in candidates:
+                candidates.append(c)
+    info_cols = [c for c in candidates if c in df.columns]
 
     result = df[[id_col] + info_cols + [target_col]].copy()
 
@@ -305,12 +317,6 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
     return pd.DataFrame(rows)
 
 
-_INFO_COLS_FULL = (
-    '所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
-    '企业规模', '客户分层', '赛道', '是否腰部企业',
-)
-
-
 def _slim_wide_for_export(
     df_wide: pd.DataFrame,
     id_col: str,
@@ -322,7 +328,7 @@ def _slim_wide_for_export(
     默认 keep_metadata_cols=None → 全部剔除（仅保留 id + 触碰列 + 汇总列）。
     用户显式声明保留时，按列表把它们重新插回紧跟 id_col 后面。
     """
-    drop_candidates = list(_INFO_COLS_FULL) + [target_col]
+    drop_candidates = list(_DEFAULT_INFO_COLS) + [target_col]
     keep = set(keep_metadata_cols or [])
     drop_cols = [c for c in drop_candidates if c in df_wide.columns and c not in keep]
     if not drop_cols:
@@ -384,7 +390,19 @@ def extract_triggers(
     thresholds = compute_thresholds(df, features, target_col=target_col)
 
     # 评估触碰（df_wide_full 含 info_cols + target_col，便于 _print_summary 计算坏客户触碰率）
-    df_wide_full, df_long = evaluate_triggers(df, features, thresholds, id_col=id_col, target_col=target_col)
+    # 把 keep_metadata_cols 透传为 extra_info_cols：让用户指定的非默认元信息列
+    # （如 `内部评级`）能被带进 result，否则后续 _slim_wide_for_export 也无从保留
+    df_wide_full, df_long = evaluate_triggers(
+        df, features, thresholds,
+        id_col=id_col, target_col=target_col,
+        extra_info_cols=keep_metadata_cols,
+    )
+
+    # 警示：keep_metadata_cols 中明确请求保留但宽表里根本不存在的列
+    if keep_metadata_cols and verbose:
+        missing = [c for c in keep_metadata_cols if c not in df.columns]
+        if missing:
+            print(f"[WARN] keep_metadata_cols 指定的列在宽表中不存在，已忽略：{missing}")
 
     # 构建阈值说明表
     df_threshold = build_threshold_table(features, thresholds)
