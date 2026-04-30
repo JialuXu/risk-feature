@@ -286,8 +286,12 @@ def chart_tree(
 
     # 即使 pkl 已经渲染，规则反推图也保留作为对照（更紧凑、含 lift）
     if rules_df is not None and not rules_df.empty:
-        if '分群维度' in rules_df.columns and '分群值' in rules_df.columns:
-            for (d, g), sub in rules_df.groupby(['分群维度', '分群值']):
+        # A4 后规则表分群值列改名为「分群名称」，兼容旧版「分群值」
+        seg_col = '分群名称' if '分群名称' in rules_df.columns else (
+            '分群值' if '分群值' in rules_df.columns else None
+        )
+        if '分群维度' in rules_df.columns and seg_col is not None:
+            for (d, g), sub in rules_df.groupby(['分群维度', seg_col]):
                 out = out_dir / f'tree_paths_{_safe(d)}__{_safe(g)}.png'
                 rendered = _render_path_tree(
                     sub, out, title=f'规则路径树 | {d} = {g}', dpi=dpi,

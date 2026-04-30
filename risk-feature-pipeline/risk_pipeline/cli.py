@@ -78,7 +78,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--target-col', required=True, help='目标列名（无默认，必填）')
     p.add_argument('--bad-id-col', default=None, help='坏客户清单主键列名（默认与 --id-col 同）')
     p.add_argument('--filter-file', default=None,
-                   help='filter 规则 JSON 文件，格式: {"企业规模": {"exclude": ["0"]}}')
+                   help='filter 规则 JSON。规则键: exclude/include(类别) | min/max/range(数值) | drop_na(布尔)。'
+                        '示例: {"企业规模": {"exclude": ["0"]}, "非银机构占比": {"range": [0, 1]}, '
+                        '"资产负债率": {"max": 1.0, "drop_na": true}}')
     p.add_argument('--exclude-features-file', default=None,
                    help='不参与分析的特征 JSON 数组')
     p.add_argument('--project', '--project-name', dest='project', required=True,

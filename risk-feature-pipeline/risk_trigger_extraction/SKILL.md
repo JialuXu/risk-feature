@@ -5,13 +5,28 @@ description: 逆向提取风险特征触碰客户清单：基于已筛选的有�
 
 ## 方法论前提
 
-- **输入**：已完成特征工程的宽表（需含 `is_bad` 目标列）；风险特征配置列表（`RISK_FEATURES`，含 IV、风险方向、可选显式阈值）。
+- **输入**：已完成特征工程的宽表（需含 `is_bad` 目标列）；风险特征配置列表（`features=` 参数 / `--features-file`，含 IV、风险方向、可选显式阈值、scope 维度筛选）。
 - **产出对象**：
   1. `{project}_风险触碰明细_宽表.csv` — 每行一个客户，含各特征值、触碰标记（0/1）、触碰特征总数、IV加权风险得分、触碰特征清单
   2. `{project}_风险触碰明细_长表.csv` — 仅保留触碰的 客户×特征 记录，含阈值、来源、特征类别
   3. `{project}_触碰阈值说明.csv` — 每个特征的触碰条件、好/坏客户均值、阈值来源
 
 - **非产出**：不重新跑 IV/LR/单变量分析，不替代 `risk_iv_diagnosis` 或 `risk_logistic_regression`。
+
+> ⚠️  **默认特征 `RISK_FEATURES_GSFC` 仅适配 GSFC 主题宽表（工商变更 + 财务 + 授信 + 数据完整度）。** 征信、舆情、generic 等其他主题请通过 `features=` 或 CLI `--features-file` 注入项目专属配置；若使用默认特征但宽表匹配率 < 50%，`extract_triggers` 会抛 `RuntimeError` 阻断，避免输出全 0 名单。
+
+## scope 维度筛选
+
+每个特征的 `scope` 字段指定其触发范围，支持 4 种形态：
+
+| scope 形态 | 含义 |
+|-----------|------|
+| `'full'`（默认）| 全量客户 |
+| `'waist'` | 仅腰部企业（兼容旧写法，等价于 `{"dim": "是否腰部企业", "value": 1}`） |
+| `{"dim": "X", "value": "Y"}` | 单值维度筛选，如 `{"dim": "企业规模", "value": "大型企业"}` |
+| `{"dim": "X", "values": ["Y1","Y2"]}` | 多值维度筛选 |
+
+若 `dim` 不在宽表列中，scope 退化为全量（不阻断）。
 
 ## 阈值策略
 
@@ -28,7 +43,7 @@ description: 逆向提取风险特征触碰客户清单：基于已筛选的有�
 ```
 
 - 高 IV 特征被触碰时贡献更大权重
-- 腰部企业专项特征使用 `iv_waist` 参与加权（仅当 `scope='waist'` 且客户属于腰部企业时触发）
+- `scope='waist'` 的特征使用 `iv_waist` 参与加权（兼容旧配置）；通用 `scope` dict 一律用 `iv` 字段
 - 结果按得分降序排列，便于直接识别高风险客户
 
 ## 流水线位置
@@ -74,7 +89,15 @@ MY_FEATURES = [
         'iv': 0.35,
         'category': '偿债能力',
         'explicit_threshold': ('>', 0.75),  # 可选，优先于数据计算
-        'scope': 'full',
+        'scope': 'full',                     # 全量
+    },
+    {
+        'report_name': '非银机构占比_大型',
+        'source_col': '非银机构占比',
+        'risk_direction': 'positive',
+        'iv': 0.42,
+        'category': '征信结构',
+        'scope': {'dim': '企业规模', 'value': '大型企业'},   # 维度筛选示例
     },
     ...
 ]

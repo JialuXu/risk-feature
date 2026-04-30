@@ -11,12 +11,98 @@
     build_threshold_table(features, thresholds)  -> pd.DataFrame
 """
 import os
-from typing import List, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-from .config import RISK_FEATURES
+from .config import (
+    RISK_FEATURES,
+    RISK_FEATURES_GSFC,
+    MIN_DEFAULT_FEATURE_MATCH_RATE,
+)
+
+
+def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> pd.Series:
+    """解析 feature 的 scope 字段，返回布尔掩码（True=该客户落入触发范围）。
+
+    支持 4 种形态：
+        'full' / None                          → 全量
+        'waist'                                → 等价 {"dim": "是否腰部企业", "value": 1}
+        {"dim": "X", "value": "Y"}             → df[X] == Y
+        {"dim": "X", "values": ["Y1","Y2"]}    → df[X].isin([...])
+    若 dim 不在宽表列中，返回全 True 并不阻断（与现状一致：当前 waist 写法在缺列时也是放行）。
+    """
+    if scope is None or scope == 'full':
+        return pd.Series(True, index=df.index)
+
+    if scope == 'waist':
+        scope = {'dim': '是否腰部企业', 'value': 1}
+
+    if isinstance(scope, dict):
+        dim = scope.get('dim')
+        if not dim or dim not in df.columns:
+            return pd.Series(True, index=df.index)
+        if 'values' in scope:
+            return df[dim].isin(scope['values'])
+        if 'value' in scope:
+            return df[dim] == scope['value']
+
+    return pd.Series(True, index=df.index)
+
+
+def _format_scope_label(scope: Union[str, Dict, None]) -> str:
+    """把 scope 字段格式化成人类可读的「适用范围」字符串。"""
+    if scope is None or scope == 'full':
+        return '全量'
+    if scope == 'waist':
+        return '腰部企业'
+    if isinstance(scope, dict):
+        dim = scope.get('dim', '?')
+        if 'values' in scope:
+            return f"{dim}∈{list(scope['values'])}"
+        if 'value' in scope:
+            return f"{dim}={scope['value']}"
+    return str(scope)
+
+
+def _get_feature_iv(feat: Dict[str, Any]) -> float:
+    """根据 scope 选择应使用的 IV 值。仅 scope='waist' 走 iv_waist 兼容分支。"""
+    if feat.get('scope') == 'waist':
+        return feat.get('iv_waist', feat['iv'])
+    return feat['iv']
+
+
+def _check_feature_match_rate(
+    features: List[Dict],
+    df: pd.DataFrame,
+    is_using_default: bool,
+    verbose: bool = True,
+) -> None:
+    """检查 features 与宽表的列匹配率；用默认值且匹配率过低时抛 RuntimeError。"""
+    n_total = len(features)
+    if n_total == 0:
+        return
+    matched = [f for f in features if f['source_col'] in df.columns]
+    missing = [f for f in features if f['source_col'] not in df.columns]
+    rate = len(matched) / n_total
+
+    if verbose:
+        prefix = '[默认特征]' if is_using_default else '[自定义特征]'
+        print(f"{prefix} 共 {n_total} 个，宽表匹配 {len(matched)} 个 ({rate*100:.1f}%)")
+        if missing:
+            sample = [f['source_col'] for f in missing[:5]]
+            print(f"    缺失列示例: {sample}{'...' if len(missing) > 5 else ''}")
+
+    if is_using_default and rate < MIN_DEFAULT_FEATURE_MATCH_RATE:
+        sample = [f['source_col'] for f in missing[:5]]
+        raise RuntimeError(
+            f"默认特征 RISK_FEATURES_GSFC 与当前宽表不匹配："
+            f"{len(matched)}/{n_total} 列匹配 ({rate*100:.1f}%)，"
+            f"低于阈值 {MIN_DEFAULT_FEATURE_MATCH_RATE*100:.0f}%。\n"
+            f"  缺失列示例: {sample}\n"
+            f"  → 请通过 extract_triggers(features=...) 或 CLI --features-file 注入项目专属特征。"
+        )
 
 
 def compute_thresholds(
@@ -118,9 +204,8 @@ def evaluate_triggers(
         op_fn = _OPS.get(threshold_info['operator'])
         triggered = op_fn(values, threshold_info['value']) & values.notna() if op_fn else pd.Series(False, index=df.index)
 
-        # 腰部专项特征仅对腰部企业生效
-        if feat['scope'] == 'waist' and '是否腰部企业' in df.columns:
-            triggered = triggered & (df['是否腰部企业'] == 1)
+        # 应用 scope 维度筛选（'full' 全量 / 'waist' 腰部 / dict 通用维度）
+        triggered = triggered & _resolve_scope_mask(df, feat.get('scope', 'full'))
 
         result[f'{name}_触碰'] = triggered.astype(int).where(values.notna(), np.nan)
 
@@ -144,7 +229,7 @@ def evaluate_triggers(
         tc = f'{name}_触碰'
         if tc not in result.columns:
             continue
-        iv_val = feat.get('iv_waist', feat['iv']) if feat['scope'] == 'waist' else feat['iv']
+        iv_val = _get_feature_iv(feat)
         iv_score += result[tc].fillna(0) * iv_val
         total_iv += iv_val
     result['IV加权风险得分'] = (iv_score / total_iv * 100).round(2) if total_iv > 0 else 0.0
@@ -182,7 +267,7 @@ def evaluate_triggers(
         sub['特征类别'] = feat['category']
         sub['全量IV'] = feat['iv']
         sub['风险方向'] = '正向(值越大风险越高)' if feat['risk_direction'] == 'positive' else '负向(值越小风险越高)'
-        sub['适用范围'] = '全量' if feat['scope'] == 'full' else '腰部企业'
+        sub['适用范围'] = _format_scope_label(feat.get('scope', 'full'))
         t = thresholds.get(name, {})
         sub['触碰阈值'] = f"{t.get('operator', '')}{t.get('value', '')}"
         sub['阈值来源'] = t.get('source', '')
@@ -204,7 +289,7 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
             '特征类别': feat['category'],
             '全量IV': feat['iv'],
             '风险方向': '正向' if feat['risk_direction'] == 'positive' else '负向',
-            '适用范围': '全量' if feat['scope'] == 'full' else '腰部企业',
+            '适用范围': _format_scope_label(feat.get('scope', 'full')),
         }
         if t is None:
             base.update({'触碰条件': '(列不存在)', '阈值来源': '-', '好客户均值': '-', '坏客户均值': '-'})
@@ -246,8 +331,9 @@ def extract_triggers(
         df_long      : 长表（仅触碰记录）
         df_threshold : 阈值说明表
     """
+    is_using_default = features is None
     if features is None:
-        features = RISK_FEATURES
+        features = RISK_FEATURES_GSFC
 
     if output_dir is None:
         from risk_pipeline.paths import output_dir as _output_dir_for
@@ -262,14 +348,8 @@ def extract_triggers(
         n_bad = int(df[target_col].sum()) if target_col in df.columns else 0
         print(f"[INFO] 宽表: {len(df)} 行, {len(df.columns)} 列  坏客户: {n_bad} ({n_bad/len(df)*100:.2f}%)")
 
-    # 检查特征可用性
-    missing = [f['report_name'] for f in features if f['source_col'] not in df.columns]
-    if missing and verbose:
-        print(f"[WARN] 以下特征列在宽表中缺失，将跳过: {missing}")
-
-    if verbose:
-        available = len(features) - len(missing)
-        print(f"[INFO] 特征可用: {available}/{len(features)}")
+    # 检查特征匹配率：默认特征 + 匹配率 < MIN_DEFAULT_FEATURE_MATCH_RATE → 抛 RuntimeError
+    _check_feature_match_rate(features, df, is_using_default=is_using_default, verbose=verbose)
 
     # 计算阈值
     thresholds = compute_thresholds(df, features, target_col=target_col)
