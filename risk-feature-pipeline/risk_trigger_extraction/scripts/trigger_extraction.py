@@ -305,6 +305,31 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
     return pd.DataFrame(rows)
 
 
+_INFO_COLS_FULL = (
+    '所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
+    '企业规模', '客户分层', '赛道', '是否腰部企业',
+)
+
+
+def _slim_wide_for_export(
+    df_wide: pd.DataFrame,
+    id_col: str,
+    target_col: str,
+    keep_metadata_cols: Optional[List[str]],
+) -> pd.DataFrame:
+    """从 df_wide 中剔除会与 prepared.csv 撞列的业务元信息列与 target_col。
+
+    默认 keep_metadata_cols=None → 全部剔除（仅保留 id + 触碰列 + 汇总列）。
+    用户显式声明保留时，按列表把它们重新插回紧跟 id_col 后面。
+    """
+    drop_candidates = list(_INFO_COLS_FULL) + [target_col]
+    keep = set(keep_metadata_cols or [])
+    drop_cols = [c for c in drop_candidates if c in df_wide.columns and c not in keep]
+    if not drop_cols:
+        return df_wide
+    return df_wide.drop(columns=drop_cols)
+
+
 def extract_triggers(
     df: pd.DataFrame,
     features: Optional[List[Dict]] = None,
@@ -313,6 +338,7 @@ def extract_triggers(
     project_name: str = '风险触碰分析',
     output_dir: Optional[str] = None,
     verbose: bool = True,
+    keep_metadata_cols: Optional[List[str]] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     主入口：对宽表执行风险特征触碰提取，并将结果落盘。
@@ -325,10 +351,13 @@ def extract_triggers(
         project_name: 输出文件名前缀
         output_dir  : 输出目录，None 时自动定位到 risk-feature-pipeline/output/
         verbose     : 是否打印过程日志
+        keep_metadata_cols : 要在宽表 CSV 中保留的元信息列（如 ['企业规模', '所属行业']）。
+                              默认 None = 全部剔除（避免与 prepared.csv merge 时撞列冲突，
+                              业务字段统一通过 prepared.csv 关联）。
 
     返回:
-        df_wide      : 宽表（每行一客户）
-        df_long      : 长表（仅触碰记录）
+        df_wide      : 宽表（每行一客户）；已按 keep_metadata_cols 瘦身，与落盘 CSV 对齐
+        df_long      : 长表（仅触碰记录；保留业务列以便审计）
         df_threshold : 阈值说明表
     """
     is_using_default = features is None
@@ -354,11 +383,24 @@ def extract_triggers(
     # 计算阈值
     thresholds = compute_thresholds(df, features, target_col=target_col)
 
-    # 评估触碰
-    df_wide, df_long = evaluate_triggers(df, features, thresholds, id_col=id_col, target_col=target_col)
+    # 评估触碰（df_wide_full 含 info_cols + target_col，便于 _print_summary 计算坏客户触碰率）
+    df_wide_full, df_long = evaluate_triggers(df, features, thresholds, id_col=id_col, target_col=target_col)
 
     # 构建阈值说明表
     df_threshold = build_threshold_table(features, thresholds)
+
+    # _print_summary 必须用 full 版（依赖 target_col）
+    if verbose:
+        _print_summary(df_wide_full, features, target_col)
+
+    # B6：宽表瘦身——剔除业务元信息列 + target_col，避免与 prepared.csv merge 撞列
+    df_wide = _slim_wide_for_export(df_wide_full, id_col, target_col, keep_metadata_cols)
+    if verbose:
+        dropped = set(df_wide_full.columns) - set(df_wide.columns)
+        if dropped:
+            print(f"[INFO] 宽表 CSV 已剔除元信息列（防 merge 冲突）：{sorted(dropped)}")
+            if keep_metadata_cols is None:
+                print(f"       如需保留某些列做后处理，请传 keep_metadata_cols=['企业规模', ...]")
 
     # 落盘
     wide_path = os.path.join(output_dir, f'{project_name}_风险触碰明细_宽表.csv')
@@ -375,8 +417,6 @@ def extract_triggers(
         print(f"         至少触碰1个特征: {n_triggered} 户 ({n_triggered/len(df_wide)*100:.1f}%)")
         print(f"[OUTPUT] 长表: {long_path}  ({len(df_long)} 条触碰记录)")
         print(f"[OUTPUT] 阈值说明: {thr_path}")
-
-        _print_summary(df_wide, features, target_col)
 
     return df_wide, df_long, df_threshold
 

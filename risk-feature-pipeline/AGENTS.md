@@ -191,8 +191,27 @@ python -m risk_pipeline analyze \
 python -m risk_pipeline export --project <项目名>
 ```
 
-**带规则挖掘 + 可视化的全套路径**（决策树/组合图必须的前置）：
+**带规则挖掘的全流程一把梭**（推荐；run 内部已串好 prepare→analyze→export）：
 ```bash
+python -m risk_pipeline run --pipeline generic \
+  --wide data/raw/<宽表>.csv \
+  --bad-customer data/raw/<坏客户清单>.csv \
+  --id-col 客户编号 --target-col is_bad \
+  --project <项目名> \
+  --steps univariate,iv,lr,rules \
+  --confirmed-new-dataset
+
+# 出图（可视化是独立 Level-1-后步骤，不在 run 中）
+python -m risk_pipeline visualize --project <项目名>
+```
+
+**何时不用 `run` 一把梭，而拆三步**：
+- 想在 analyze 跑完后人工核对 `_intermediate/` 里的 IV/LR 中间结果再决定是否 export
+- 想换不同 `--category-dims` / `--qual-dims` 反复 analyze（数据已 prepare 过一次）
+- prepare 阶段 filter 复杂，需要分阶段调试
+
+```bash
+# 拆三步版本（分阶段调试用）
 python -m risk_pipeline analyze \
   --project <项目名> \
   --steps univariate,iv,lr,rules \

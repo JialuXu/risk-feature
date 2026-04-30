@@ -669,6 +669,10 @@ def cmd_trigger(args) -> int:
 
     verbose = _is_verbose(args) and not _is_quiet(args)
 
+    keep_metadata_cols = None
+    if getattr(args, 'keep_metadata_cols', None):
+        keep_metadata_cols = [c.strip() for c in args.keep_metadata_cols.split(',') if c.strip()]
+
     df_wide, df_long, df_threshold = extract_triggers(
         df=df,
         features=features,
@@ -677,6 +681,7 @@ def cmd_trigger(args) -> int:
         project_name=project,
         output_dir=output_dir,
         verbose=verbose,
+        keep_metadata_cols=keep_metadata_cols,
     )
 
     used_default = bool(args.use_default_features)

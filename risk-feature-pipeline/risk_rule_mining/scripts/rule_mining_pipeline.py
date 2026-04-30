@@ -16,6 +16,7 @@ import pandas as pd
 from .config import (
     SAMPLE_THRESHOLDS,
     FINAL_OUTPUT_DIR,
+    STABILITY_CV_STABLE,
 )
 from .rule_extraction import mine_rules
 from .rule_evaluation import evaluate_rules, attach_suggestion
@@ -172,7 +173,40 @@ def export_rules(
 
     df_export.to_csv(out_path, index=False, encoding='utf-8-sig')
     print(f"[导出] 规则表 → {out_path} ({len(df_export)} 条)")
+
+    # B8: 不稳定规则 stdout 警示（CV 折数 < 3 / 稳定性等级 = 不稳定）
+    _warn_unstable_rules(df_export)
+
     return out_path
+
+
+def _warn_unstable_rules(df_export: pd.DataFrame) -> None:
+    """对稳定性等级为「不稳定」的规则给出可见警告，避免 agent 直接照抄写进政策。"""
+    if df_export.empty or '稳定性等级' not in df_export.columns:
+        return
+    unstable_mask = df_export['稳定性等级'].astype(str).str.strip() == '不稳定'
+    if not unstable_mask.any():
+        return
+    n_unstable = int(unstable_mask.sum())
+    n_total = len(df_export)
+    print(
+        f"\n⚠️  [规则稳定性] {n_total} 条规则中 {n_unstable} 条标注「不稳定」"
+        f"（5 折 CV 坏账率离散系数 > {STABILITY_CV_STABLE:.2f}），建议人工复核后再写入政策："
+    )
+    sub = df_export.loc[unstable_mask].copy()
+    seg_dim_col = '分群维度' if '分群维度' in sub.columns else None
+    seg_val_col = '分群名称' if '分群名称' in sub.columns else (
+        '分群值' if '分群值' in sub.columns else None
+    )
+    rule_id_col = '规则编号' if '规则编号' in sub.columns else None
+    folds_col = 'CV有效折数' if 'CV有效折数' in sub.columns else None
+    for _, r in sub.head(5).iterrows():
+        seg = f"{r.get(seg_dim_col, '?')}.{r.get(seg_val_col, '?')}" if seg_dim_col and seg_val_col else '全样本'
+        rule = r.get(rule_id_col, '?') if rule_id_col else '?'
+        folds = r.get(folds_col, '?') if folds_col else '?'
+        print(f"     - {seg}.rule_{rule}: CV={folds}/5")
+    if n_unstable > 5:
+        print(f"     ... 其余 {n_unstable - 5} 条详见规则表 CSV「稳定性等级」列")
 
 
 def build_llm_rules_payload(rules_df: pd.DataFrame) -> List[Dict]:
