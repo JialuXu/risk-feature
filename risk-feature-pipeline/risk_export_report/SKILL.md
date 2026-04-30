@@ -111,7 +111,7 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 通过统一管线执行（推荐）：
 
 ```python
-from shared.pipeline import run_generic_pipeline
+from risk_pipeline.pipeline import run_generic_pipeline
 
 run_generic_pipeline(
     df=df, feature_cols=feature_cols, target_col='is_bad',
