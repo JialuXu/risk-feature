@@ -137,6 +137,9 @@ def _build_parser() -> argparse.ArgumentParser:
     grp.add_argument('--features-file', default=None, help='项目专属特征列表 JSON')
     p.add_argument('--id-col', default=None, help='默认从 features.json 读取')
     p.add_argument('--target-col', default=None, help='默认从 features.json 读取')
+    p.add_argument('--keep-metadata-cols', default=None,
+                   help='宽表 CSV 中要保留的元信息列（逗号分隔），如 "企业规模,所属行业"。'
+                        '默认全部剔除以避免与 prepared.csv merge 撞列冲突')
     p.add_argument('--confirmed', action='store_true',
                    help='[阻断节点 2] 必传：确认 features 配置正确')
 

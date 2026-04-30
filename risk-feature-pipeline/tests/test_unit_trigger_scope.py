@@ -142,3 +142,67 @@ def test_extract_triggers_default_features_on_unrelated_widetable_raises(tmp_pat
             output_dir=str(tmp_path),
             verbose=False,
         )
+
+
+# ---------- B6: 宽表瘦身 ----------
+
+def _trigger_min_features():
+    return [
+        {'report_name': 'feat_x', 'source_col': 'feat_x',
+         'risk_direction': 'positive', 'iv': 0.4,
+         'category': 'test', 'scope': 'full'},
+    ]
+
+
+def _trigger_min_df():
+    return pd.DataFrame({
+        '客户编号': ['A', 'B', 'C'],
+        'is_bad':   [0, 1, 0],
+        '企业规模': ['大', '小', '大'],
+        '所属行业': ['金融', '制造', '金融'],
+        'feat_x':   [0.1, 0.9, 0.5],
+    })
+
+
+def test_extract_triggers_default_drops_metadata_cols(tmp_path):
+    """B6: 默认 keep_metadata_cols=None → 宽表 CSV 剔除 is_bad/企业规模/所属行业。"""
+    df = _trigger_min_df()
+    df_wide, _, _ = extract_triggers(
+        df=df, features=_trigger_min_features(),
+        project_name='b6_drop', output_dir=str(tmp_path), verbose=False,
+    )
+    assert 'is_bad' not in df_wide.columns
+    assert '企业规模' not in df_wide.columns
+    assert '所属行业' not in df_wide.columns
+    # id + 触碰 + 汇总仍在
+    assert '客户编号' in df_wide.columns
+    assert 'feat_x_值' in df_wide.columns
+    assert 'feat_x_触碰' in df_wide.columns
+    assert '触碰特征总数' in df_wide.columns
+    assert 'IV加权风险得分' in df_wide.columns
+
+
+def test_extract_triggers_keep_metadata_cols_opt_in(tmp_path):
+    """B6: keep_metadata_cols=['企业规模'] → 该列保留，其它仍剔除。"""
+    df = _trigger_min_df()
+    df_wide, _, _ = extract_triggers(
+        df=df, features=_trigger_min_features(),
+        project_name='b6_keep', output_dir=str(tmp_path), verbose=False,
+        keep_metadata_cols=['企业规模'],
+    )
+    assert '企业规模' in df_wide.columns
+    assert 'is_bad' not in df_wide.columns
+    assert '所属行业' not in df_wide.columns
+
+
+def test_extract_triggers_long_table_keeps_metadata(tmp_path):
+    """B6: 长表（df_long）仍保留业务列，便于审计。"""
+    df = _trigger_min_df()
+    _, df_long, _ = extract_triggers(
+        df=df, features=_trigger_min_features(),
+        project_name='b6_long', output_dir=str(tmp_path), verbose=False,
+    )
+    if not df_long.empty:
+        # 至少触碰了一条，长表应保留业务列
+        assert '企业规模' in df_long.columns
+        assert 'is_bad' in df_long.columns
