@@ -16,6 +16,7 @@ from risk_pipeline.paths import (
     get_project_root,
     output_dir,
     results_dir,
+    unified_results_dir,
 )
 
 
@@ -182,3 +183,22 @@ def test_config_constants_relative_without_env(monkeypatch):
     importlib.reload(cfg_mod)
     assert not os.path.isabs(cfg_mod.OUTPUT_DIR_CREDIT)
     assert cfg_mod.OUTPUT_DIR_CREDIT == 'output/征信'
+
+
+# B10: unified_results_dir 辅助
+def test_unified_results_dir_default_level1(tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_OUTPUT_ROOT, str(tmp_path))
+    p = unified_results_dir('foo')
+    assert p == os.path.join(str(tmp_path), 'data', 'results', 'foo', 'level1')
+
+
+def test_unified_results_dir_level2(tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_OUTPUT_ROOT, str(tmp_path))
+    p = unified_results_dir('foo', 'level2')
+    assert p == os.path.join(str(tmp_path), 'data', 'results', 'foo', 'level2')
+
+
+def test_unified_results_dir_invalid_level_raises(monkeypatch, tmp_path):
+    monkeypatch.setenv(ENV_OUTPUT_ROOT, str(tmp_path))
+    with pytest.raises(ValueError, match='level1'):
+        unified_results_dir('foo', 'level99')

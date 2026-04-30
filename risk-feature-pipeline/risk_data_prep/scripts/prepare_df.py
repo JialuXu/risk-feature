@@ -59,8 +59,18 @@ def prepare_df(
         id_col: 宽表与坏客户清单共用的主键（默认 `客户编号`）。
         target_col: 生成/校验的目标列名（默认 `is_bad`）。
         bad_id_col: 坏客户清单中的主键列；默认与 id_col 相同。
-        filter: 运行前过滤，形如：
-                {'企业规模': {'exclude': ['0']}, '行业': {'include': ['制造业']}}
+        filter: 运行前过滤，每列接受以下规则键（可联用，按顺序应用）：
+                  - exclude: list  排除的取值（按字符串比较）
+                  - include: list  仅保留的取值（按字符串比较）
+                  - min: number    保留 col >= min 的行（数值列）
+                  - max: number    保留 col <= max 的行（数值列）
+                  - range: [lo,hi] 等价同时设 min=lo, max=hi
+                  - drop_na: bool  丢弃该列为空的行
+                示例：
+                  {'企业规模': {'exclude': ['0']},
+                   '行业': {'include': ['制造业']},
+                   '非银机构占比': {'range': [0, 1]},
+                   '资产负债率': {'max': 1.0, 'drop_na': True}}
         exclude_features: 不参与分析的业务列（如金融敞口类）。
         extra_exclude_cols: 额外排除的非特征列；id_col 与 target_col 自动加入。
         min_std: 特征最小标准差（默认 0，即仅剔除完全常数列）。
@@ -96,6 +106,26 @@ def prepare_df(
                 df = df[~df[col].astype(str).isin([str(v) for v in rule['exclude']])]
             if 'include' in rule:
                 df = df[df[col].astype(str).isin([str(v) for v in rule['include']])]
+            # 数值范围过滤（强制 to_numeric，非数值会变 NaN 而被自动过滤掉）
+            if any(k in rule for k in ('min', 'max', 'range')):
+                numeric = pd.to_numeric(df[col], errors='coerce')
+                lo = rule.get('min')
+                hi = rule.get('max')
+                if 'range' in rule:
+                    rng = rule['range']
+                    if not (isinstance(rng, (list, tuple)) and len(rng) == 2):
+                        raise ValueError(
+                            f"filter[{col!r}].range 必须是 [min, max] 形式的二元数组，实际：{rng!r}"
+                        )
+                    lo = rng[0] if lo is None else lo
+                    hi = rng[1] if hi is None else hi
+                if lo is not None:
+                    df = df[numeric >= lo]
+                    numeric = numeric.loc[df.index]
+                if hi is not None:
+                    df = df[numeric <= hi]
+            if rule.get('drop_na'):
+                df = df[df[col].notna()]
 
     excluded = {id_col, target_col}
     if extra_exclude_cols:

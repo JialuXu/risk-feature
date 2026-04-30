@@ -215,7 +215,10 @@ python -m risk_pipeline visualize --project 我的项目  # → output/我的项
                                                    #     指标组合 / 特征共现网络
 
 python -m risk_pipeline trigger \
-  --project 我的项目 --use-default-features  # 客户级触碰
+  --project 我的项目 --use-default-features --confirmed  # 客户级触碰
+                                                         # 默认特征 RISK_FEATURES_GSFC 仅适配工商财务主题宽表
+                                                         # 其它主题（征信/舆情/generic）须用 --features-file 注入项目专属配置
+                                                         # 否则匹配率 < 50% 时会 RuntimeError 阻断
 
 python -m risk_pipeline report \
   --project 我的项目 \
@@ -254,13 +257,14 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 
 | 组件 | 关键依赖 |
 |---|---|
-| ① `risk-feature-pipeline` | Python 3.10+；`pandas` `numpy` `scipy` `scikit-learn` `pyyaml` |
+| ① `risk-feature-pipeline` | Python 3.10+；核心 `pandas` `numpy` `scipy` `scikit-learn` `pyyaml`。可视化 `[viz] extras`：`matplotlib` `seaborn`（B7：`pip install -e .[viz]`） |
 | ② `risk-indicator-agent` | Python 3.10+；`anthropic` `rapidfuzz`；SQLite；需 `ANTHROPIC_API_KEY` |
 | ③ `risk_feature_MCPServer` | Python 3.10+；`mcp>=1.0.0`；继承 ① 的依赖 |
 | ④ `handbook` | Node.js + `honkit`；可选：Calibre（PDF）、pandoc（DOCX） |
 | ⑤ `uci_acceptance_test` | 仅依赖 ①；UCI Credit Card 数据 |
 
-> 各组件的精确依赖见各自的 `requirements.txt` / `pyproject.toml` / `package.json`。
+> 各组件的精确依赖见各自的 `requirements.txt` / `pyproject.toml` / `package.json`。  
+> ① 提供 `[viz]` / `[tree]` / `[dev]` / `[all]` 四组 extras，按需选装；PEP 668 锁定环境（部分 macOS / CI）请先 `python -m venv .venv` 或加 `--break-system-packages`。
 
 ---
 
@@ -287,6 +291,8 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 | 核心管线总览 | `risk-feature-pipeline/README.md` |
 | 核心管线调度规则 | `risk-feature-pipeline/SKILL.md` |
 | 各步骤 Skill 文档 | `risk-feature-pipeline/<step>/SKILL.md` |
+| 产物列字典权威来源（A4 后） | `risk-feature-pipeline/docs/SCHEMA.md` |
+| 术语统一表（dim/group/scope/coverage + 列名跨表对照） | `risk-feature-pipeline/docs/GLOSSARY.md` |
 | 列名 / 查询配方 / 文件布局 | `risk-feature-pipeline/risk_result_query/references/` |
 | 可视化图表说明（10 种图、解读、常见误读） | `risk-feature-pipeline/risk_visualization/SKILL.md` + `references/chart_types.md` |
 | LLM Agent 总览 | `risk-indicator-agent/README.md` |

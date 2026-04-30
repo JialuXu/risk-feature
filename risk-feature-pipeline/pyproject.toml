@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-feature-pipeline"
+version = "0.3.0"
+description = "企业征信风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰扫描 / Word 报告）"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "JialuXu" },
+]
+license = { text = "Internal" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Financial and Insurance Industry",
+]
+
+# 核心依赖：管线运行 + 数据处理
+dependencies = [
+    "pandas>=1.5",
+    "numpy>=1.23",
+    "scikit-learn>=1.1",
+    "scipy>=1.9",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# 可视化子 Skill（risk_visualization）
+viz = [
+    "matplotlib>=3.6",
+    "seaborn>=0.12",
+]
+# 决策树规则挖掘的可视化（plot_tree 在 sklearn 自带；如需 graphviz 渲染则装下面）
+tree = [
+    "graphviz>=0.20",
+]
+# 开发依赖
+dev = [
+    "pytest>=7.0",
+    "pytest-mock>=3.10",
+    "pytest-cov>=4.0",
+]
+# 一次装满
+all = [
+    "matplotlib>=3.6",
+    "seaborn>=0.12",
+    "graphviz>=0.20",
+    "pytest>=7.0",
+    "pytest-mock>=3.10",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+risk-pipeline = "risk_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+include = [
+    "risk_pipeline*",
+    "shared*",
+    "risk_data_prep*",
+    "risk_feature_engineering*",
+    "risk_segment_univariate*",
+    "risk_iv_diagnosis*",
+    "risk_logistic_regression*",
+    "risk_rule_mining*",
+    "risk_export_report*",
+    "risk_result_query*",
+    "risk_trigger_extraction*",
+    "risk_docx_report*",
+    "risk_visualization*",
+]
+exclude = [
+    "tests*",
+    "data*",
+    "output*",
+    "skills*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"

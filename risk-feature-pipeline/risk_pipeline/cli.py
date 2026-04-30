@@ -76,13 +76,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--target-col', required=True, help='目标列名（无默认，必填）')
     p.add_argument('--bad-id-col', default=None, help='坏客户清单主键列名（默认与 --id-col 同）')
     p.add_argument('--filter-file', default=None,
-                   help='filter 规则 JSON 文件，格式: {"企业规模": {"exclude": ["0"]}}')
+                   help='filter 规则 JSON。规则键: exclude/include(类别) | min/max/range(数值) | drop_na(布尔)。'
+                        '示例: {"企业规模": {"exclude": ["0"]}, "非银机构占比": {"range": [0, 1]}, '
+                        '"资产负债率": {"max": 1.0, "drop_na": true}}')
     p.add_argument('--exclude-features-file', default=None,
                    help='不参与分析的特征 JSON 数组')
     p.add_argument('--project', '--project-name', dest='project', required=True,
                    help='项目名（用作输出目录前缀）')
     p.add_argument('--confirmed-new-dataset', action='store_true',
-                   help='[阻断节点 1] 首次使用新数据集时必传')
+                   help='[阻断节点 1] 首次使用新数据集时必传（一键确认）')
+    # C15：拆分版确认 flag——三项全填 + 与 --id-col/--target-col 一致才视为确认通过
+    p.add_argument('--confirmed-id-col', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明确认的主键列名（须与 --id-col 一致）')
+    p.add_argument('--confirmed-target-col', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明确认的目标列名（须与 --target-col 一致）')
+    p.add_argument('--confirmed-target-positive', default=None,
+                   help='[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit')
 
     # ----- analyze -----
     p = sub.add_parser('analyze', parents=[global_parent],
@@ -133,6 +142,9 @@ def _build_parser() -> argparse.ArgumentParser:
     grp.add_argument('--features-file', default=None, help='项目专属特征列表 JSON')
     p.add_argument('--id-col', default=None, help='默认从 features.json 读取')
     p.add_argument('--target-col', default=None, help='默认从 features.json 读取')
+    p.add_argument('--keep-metadata-cols', default=None,
+                   help='宽表 CSV 中要保留的元信息列（逗号分隔），如 "企业规模,所属行业"。'
+                        '默认全部剔除以避免与 prepared.csv merge 撞列冲突')
     p.add_argument('--confirmed', action='store_true',
                    help='[阻断节点 2] 必传：确认 features 配置正确')
 

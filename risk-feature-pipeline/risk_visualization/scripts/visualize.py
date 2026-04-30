@@ -19,14 +19,27 @@ if _SKILL_ROOT not in sys.path:
 
 from risk_result_query.scripts.results_loader import load_results, Results
 
-from . import style  # 触发字体配置（必须先于 chart_* import）
-from .chart_iv import chart_iv_full, chart_iv_heatmap
-from .chart_corr import chart_corr, chart_corr_heatmap
-from .chart_lr import chart_lr_coef, chart_lr_heatmap, chart_lr_auc
-from .chart_segment import chart_segment_profile
-from .chart_tree import chart_tree
-from .chart_rules import chart_rules_scatter
-from .chart_combinations import chart_combo_lift, chart_combo_network
+# matplotlib / seaborn 是可视化的硬依赖；缺失时给出可执行的安装提示，
+# 避免用户面对一大堆 traceback 不知道该装什么。
+try:
+    from . import style  # 触发字体配置（必须先于 chart_* import）
+    from .chart_iv import chart_iv_full, chart_iv_heatmap
+    from .chart_corr import chart_corr, chart_corr_heatmap
+    from .chart_lr import chart_lr_coef, chart_lr_heatmap, chart_lr_auc
+    from .chart_segment import chart_segment_profile
+    from .chart_tree import chart_tree
+    from .chart_rules import chart_rules_scatter
+    from .chart_combinations import chart_combo_lift, chart_combo_network
+except ModuleNotFoundError as _viz_import_err:
+    if _viz_import_err.name in ('matplotlib', 'seaborn', 'matplotlib.pyplot'):
+        raise ModuleNotFoundError(
+            f"可视化依赖缺失：{_viz_import_err.name} 未安装。\n"
+            f"  解决：pip install matplotlib seaborn\n"
+            f"  或安装项目时启用 [viz] extras：pip install -e .[viz]\n"
+            f"  PEP 668 锁定环境（部分 macOS / CI）请先 `python -m venv .venv && source .venv/bin/activate`，"
+            f"或加 `--break-system-packages`。"
+        ) from None
+    raise
 
 
 ALL_KINDS = (

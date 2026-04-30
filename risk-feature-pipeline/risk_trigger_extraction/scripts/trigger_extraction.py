@@ -11,12 +11,98 @@
     build_threshold_table(features, thresholds)  -> pd.DataFrame
 """
 import os
-from typing import List, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
-from .config import RISK_FEATURES
+from .config import (
+    RISK_FEATURES,
+    RISK_FEATURES_GSFC,
+    MIN_DEFAULT_FEATURE_MATCH_RATE,
+)
+
+
+def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> pd.Series:
+    """解析 feature 的 scope 字段，返回布尔掩码（True=该客户落入触发范围）。
+
+    支持 4 种形态：
+        'full' / None                          → 全量
+        'waist'                                → 等价 {"dim": "是否腰部企业", "value": 1}
+        {"dim": "X", "value": "Y"}             → df[X] == Y
+        {"dim": "X", "values": ["Y1","Y2"]}    → df[X].isin([...])
+    若 dim 不在宽表列中，返回全 True 并不阻断（与现状一致：当前 waist 写法在缺列时也是放行）。
+    """
+    if scope is None or scope == 'full':
+        return pd.Series(True, index=df.index)
+
+    if scope == 'waist':
+        scope = {'dim': '是否腰部企业', 'value': 1}
+
+    if isinstance(scope, dict):
+        dim = scope.get('dim')
+        if not dim or dim not in df.columns:
+            return pd.Series(True, index=df.index)
+        if 'values' in scope:
+            return df[dim].isin(scope['values'])
+        if 'value' in scope:
+            return df[dim] == scope['value']
+
+    return pd.Series(True, index=df.index)
+
+
+def _format_scope_label(scope: Union[str, Dict, None]) -> str:
+    """把 scope 字段格式化成人类可读的「适用范围」字符串。"""
+    if scope is None or scope == 'full':
+        return '全量'
+    if scope == 'waist':
+        return '腰部企业'
+    if isinstance(scope, dict):
+        dim = scope.get('dim', '?')
+        if 'values' in scope:
+            return f"{dim}∈{list(scope['values'])}"
+        if 'value' in scope:
+            return f"{dim}={scope['value']}"
+    return str(scope)
+
+
+def _get_feature_iv(feat: Dict[str, Any]) -> float:
+    """根据 scope 选择应使用的 IV 值。仅 scope='waist' 走 iv_waist 兼容分支。"""
+    if feat.get('scope') == 'waist':
+        return feat.get('iv_waist', feat['iv'])
+    return feat['iv']
+
+
+def _check_feature_match_rate(
+    features: List[Dict],
+    df: pd.DataFrame,
+    is_using_default: bool,
+    verbose: bool = True,
+) -> None:
+    """检查 features 与宽表的列匹配率；用默认值且匹配率过低时抛 RuntimeError。"""
+    n_total = len(features)
+    if n_total == 0:
+        return
+    matched = [f for f in features if f['source_col'] in df.columns]
+    missing = [f for f in features if f['source_col'] not in df.columns]
+    rate = len(matched) / n_total
+
+    if verbose:
+        prefix = '[默认特征]' if is_using_default else '[自定义特征]'
+        print(f"{prefix} 共 {n_total} 个，宽表匹配 {len(matched)} 个 ({rate*100:.1f}%)")
+        if missing:
+            sample = [f['source_col'] for f in missing[:5]]
+            print(f"    缺失列示例: {sample}{'...' if len(missing) > 5 else ''}")
+
+    if is_using_default and rate < MIN_DEFAULT_FEATURE_MATCH_RATE:
+        sample = [f['source_col'] for f in missing[:5]]
+        raise RuntimeError(
+            f"默认特征 RISK_FEATURES_GSFC 与当前宽表不匹配："
+            f"{len(matched)}/{n_total} 列匹配 ({rate*100:.1f}%)，"
+            f"低于阈值 {MIN_DEFAULT_FEATURE_MATCH_RATE*100:.0f}%。\n"
+            f"  缺失列示例: {sample}\n"
+            f"  → 请通过 extract_triggers(features=...) 或 CLI --features-file 注入项目专属特征。"
+        )
 
 
 def compute_thresholds(
@@ -74,25 +160,37 @@ def compute_thresholds(
     return thresholds
 
 
+_DEFAULT_INFO_COLS = (
+    '所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
+    '企业规模', '客户分层', '赛道', '是否腰部企业',
+)
+
+
 def evaluate_triggers(
     df: pd.DataFrame,
     features: List[Dict],
     thresholds: Dict,
     id_col: str = '客户编号',
     target_col: str = 'is_bad',
+    extra_info_cols: Optional[List[str]] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     对每个客户、每个特征评估是否触碰风险阈值。
+
+    Args:
+        extra_info_cols: 默认白名单之外的元信息列（用户通过 keep_metadata_cols
+            指定的非常规列，如 `内部评级`）；缺失自动跳过，不报错。
 
     返回:
       df_wide : 宽表（每行一客户）含特征值列、触碰标记列、汇总统计
       df_long : 长表（仅保留触碰记录，每行一条 客户-特征 记录）
     """
-    info_cols = [
-        c for c in ['所属分行', '客户性质', '控股类型', '所属行业', '行业大类',
-                    '企业规模', '客户分层', '赛道', '是否腰部企业']
-        if c in df.columns
-    ]
+    candidates = list(_DEFAULT_INFO_COLS)
+    if extra_info_cols:
+        for c in extra_info_cols:
+            if c not in candidates:
+                candidates.append(c)
+    info_cols = [c for c in candidates if c in df.columns]
 
     result = df[[id_col] + info_cols + [target_col]].copy()
 
@@ -118,9 +216,8 @@ def evaluate_triggers(
         op_fn = _OPS.get(threshold_info['operator'])
         triggered = op_fn(values, threshold_info['value']) & values.notna() if op_fn else pd.Series(False, index=df.index)
 
-        # 腰部专项特征仅对腰部企业生效
-        if feat['scope'] == 'waist' and '是否腰部企业' in df.columns:
-            triggered = triggered & (df['是否腰部企业'] == 1)
+        # 应用 scope 维度筛选（'full' 全量 / 'waist' 腰部 / dict 通用维度）
+        triggered = triggered & _resolve_scope_mask(df, feat.get('scope', 'full'))
 
         result[f'{name}_触碰'] = triggered.astype(int).where(values.notna(), np.nan)
 
@@ -144,7 +241,7 @@ def evaluate_triggers(
         tc = f'{name}_触碰'
         if tc not in result.columns:
             continue
-        iv_val = feat.get('iv_waist', feat['iv']) if feat['scope'] == 'waist' else feat['iv']
+        iv_val = _get_feature_iv(feat)
         iv_score += result[tc].fillna(0) * iv_val
         total_iv += iv_val
     result['IV加权风险得分'] = (iv_score / total_iv * 100).round(2) if total_iv > 0 else 0.0
@@ -182,7 +279,7 @@ def evaluate_triggers(
         sub['特征类别'] = feat['category']
         sub['全量IV'] = feat['iv']
         sub['风险方向'] = '正向(值越大风险越高)' if feat['risk_direction'] == 'positive' else '负向(值越小风险越高)'
-        sub['适用范围'] = '全量' if feat['scope'] == 'full' else '腰部企业'
+        sub['适用范围'] = _format_scope_label(feat.get('scope', 'full'))
         t = thresholds.get(name, {})
         sub['触碰阈值'] = f"{t.get('operator', '')}{t.get('value', '')}"
         sub['阈值来源'] = t.get('source', '')
@@ -204,7 +301,7 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
             '特征类别': feat['category'],
             '全量IV': feat['iv'],
             '风险方向': '正向' if feat['risk_direction'] == 'positive' else '负向',
-            '适用范围': '全量' if feat['scope'] == 'full' else '腰部企业',
+            '适用范围': _format_scope_label(feat.get('scope', 'full')),
         }
         if t is None:
             base.update({'触碰条件': '(列不存在)', '阈值来源': '-', '好客户均值': '-', '坏客户均值': '-'})
@@ -220,6 +317,25 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
     return pd.DataFrame(rows)
 
 
+def _slim_wide_for_export(
+    df_wide: pd.DataFrame,
+    id_col: str,
+    target_col: str,
+    keep_metadata_cols: Optional[List[str]],
+) -> pd.DataFrame:
+    """从 df_wide 中剔除会与 prepared.csv 撞列的业务元信息列与 target_col。
+
+    默认 keep_metadata_cols=None → 全部剔除（仅保留 id + 触碰列 + 汇总列）。
+    用户显式声明保留时，按列表把它们重新插回紧跟 id_col 后面。
+    """
+    drop_candidates = list(_DEFAULT_INFO_COLS) + [target_col]
+    keep = set(keep_metadata_cols or [])
+    drop_cols = [c for c in drop_candidates if c in df_wide.columns and c not in keep]
+    if not drop_cols:
+        return df_wide
+    return df_wide.drop(columns=drop_cols)
+
+
 def extract_triggers(
     df: pd.DataFrame,
     features: Optional[List[Dict]] = None,
@@ -228,6 +344,7 @@ def extract_triggers(
     project_name: str = '风险触碰分析',
     output_dir: Optional[str] = None,
     verbose: bool = True,
+    keep_metadata_cols: Optional[List[str]] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     主入口：对宽表执行风险特征触碰提取，并将结果落盘。
@@ -240,14 +357,18 @@ def extract_triggers(
         project_name: 输出文件名前缀
         output_dir  : 输出目录，None 时自动定位到 risk-feature-pipeline/output/
         verbose     : 是否打印过程日志
+        keep_metadata_cols : 要在宽表 CSV 中保留的元信息列（如 ['企业规模', '所属行业']）。
+                              默认 None = 全部剔除（避免与 prepared.csv merge 时撞列冲突，
+                              业务字段统一通过 prepared.csv 关联）。
 
     返回:
-        df_wide      : 宽表（每行一客户）
-        df_long      : 长表（仅触碰记录）
+        df_wide      : 宽表（每行一客户）；已按 keep_metadata_cols 瘦身，与落盘 CSV 对齐
+        df_long      : 长表（仅触碰记录；保留业务列以便审计）
         df_threshold : 阈值说明表
     """
+    is_using_default = features is None
     if features is None:
-        features = RISK_FEATURES
+        features = RISK_FEATURES_GSFC
 
     if output_dir is None:
         from risk_pipeline.paths import output_dir as _output_dir_for
@@ -262,23 +383,42 @@ def extract_triggers(
         n_bad = int(df[target_col].sum()) if target_col in df.columns else 0
         print(f"[INFO] 宽表: {len(df)} 行, {len(df.columns)} 列  坏客户: {n_bad} ({n_bad/len(df)*100:.2f}%)")
 
-    # 检查特征可用性
-    missing = [f['report_name'] for f in features if f['source_col'] not in df.columns]
-    if missing and verbose:
-        print(f"[WARN] 以下特征列在宽表中缺失，将跳过: {missing}")
-
-    if verbose:
-        available = len(features) - len(missing)
-        print(f"[INFO] 特征可用: {available}/{len(features)}")
+    # 检查特征匹配率：默认特征 + 匹配率 < MIN_DEFAULT_FEATURE_MATCH_RATE → 抛 RuntimeError
+    _check_feature_match_rate(features, df, is_using_default=is_using_default, verbose=verbose)
 
     # 计算阈值
     thresholds = compute_thresholds(df, features, target_col=target_col)
 
-    # 评估触碰
-    df_wide, df_long = evaluate_triggers(df, features, thresholds, id_col=id_col, target_col=target_col)
+    # 评估触碰（df_wide_full 含 info_cols + target_col，便于 _print_summary 计算坏客户触碰率）
+    # 把 keep_metadata_cols 透传为 extra_info_cols：让用户指定的非默认元信息列
+    # （如 `内部评级`）能被带进 result，否则后续 _slim_wide_for_export 也无从保留
+    df_wide_full, df_long = evaluate_triggers(
+        df, features, thresholds,
+        id_col=id_col, target_col=target_col,
+        extra_info_cols=keep_metadata_cols,
+    )
+
+    # 警示：keep_metadata_cols 中明确请求保留但宽表里根本不存在的列
+    if keep_metadata_cols and verbose:
+        missing = [c for c in keep_metadata_cols if c not in df.columns]
+        if missing:
+            print(f"[WARN] keep_metadata_cols 指定的列在宽表中不存在，已忽略：{missing}")
 
     # 构建阈值说明表
     df_threshold = build_threshold_table(features, thresholds)
+
+    # _print_summary 必须用 full 版（依赖 target_col）
+    if verbose:
+        _print_summary(df_wide_full, features, target_col)
+
+    # B6：宽表瘦身——剔除业务元信息列 + target_col，避免与 prepared.csv merge 撞列
+    df_wide = _slim_wide_for_export(df_wide_full, id_col, target_col, keep_metadata_cols)
+    if verbose:
+        dropped = set(df_wide_full.columns) - set(df_wide.columns)
+        if dropped:
+            print(f"[INFO] 宽表 CSV 已剔除元信息列（防 merge 冲突）：{sorted(dropped)}")
+            if keep_metadata_cols is None:
+                print(f"       如需保留某些列做后处理，请传 keep_metadata_cols=['企业规模', ...]")
 
     # 落盘
     wide_path = os.path.join(output_dir, f'{project_name}_风险触碰明细_宽表.csv')
@@ -295,8 +435,6 @@ def extract_triggers(
         print(f"         至少触碰1个特征: {n_triggered} 户 ({n_triggered/len(df_wide)*100:.1f}%)")
         print(f"[OUTPUT] 长表: {long_path}  ({len(df_long)} 条触碰记录)")
         print(f"[OUTPUT] 阈值说明: {thr_path}")
-
-        _print_summary(df_wide, features, target_col)
 
     return df_wide, df_long, df_threshold
 

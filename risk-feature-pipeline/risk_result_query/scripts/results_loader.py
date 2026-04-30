@@ -74,10 +74,37 @@ def _read_csv_if_exists(path: str) -> Optional[pd.DataFrame]:
         return None
     for enc in ('utf-8-sig', 'utf-8', 'gbk'):
         try:
-            return pd.read_csv(path, encoding=enc)
+            df = pd.read_csv(path, encoding=enc)
+            return _normalize_legacy_cols(df)
         except UnicodeDecodeError:
             continue
     return None
+
+
+def _read_csv_with_fallback(*paths: str) -> Optional[pd.DataFrame]:
+    """按顺序尝试多个候选路径，命中第一个存在的；用于 A5 文件改名后的兼容读取。"""
+    for p in paths:
+        df = _read_csv_if_exists(p)
+        if df is not None:
+            return df
+    return None
+
+
+# A4 后对外列名标准化为：特征 / 分群维度 / 分群名称
+# 历史 CSV 可能存在以下旧列名，读取时统一改名（仅修改返回的 DataFrame，不改盘上文件）
+_LEGACY_COL_RENAMES = {
+    '特征名称': '特征',
+    '分群值': '分群名称',
+}
+
+
+def _normalize_legacy_cols(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    if df is None or df.empty:
+        return df
+    rename = {old: new for old, new in _LEGACY_COL_RENAMES.items() if old in df.columns}
+    if rename:
+        df = df.rename(columns=rename)
+    return df
 
 
 def _read_json_if_exists(path: str) -> Optional[dict]:
@@ -209,8 +236,15 @@ def load_results(project_name: str,
     def _po(name: str) -> str:
         return os.path.join(out_dir, f'{project_name}_{name}')
 
-    r.iv_full = _read_csv_if_exists(_p('IV分析结果.csv'))
-    r.iv_group_all = _read_csv_if_exists(_p('IV值分析.csv'))
+    # A5 文件改名：优先读新名（_全量 / _分群），回退到旧名
+    r.iv_full = _read_csv_with_fallback(
+        _p('IV分析结果_全量.csv'),
+        _p('IV分析结果.csv'),
+    )
+    r.iv_group_all = _read_csv_with_fallback(
+        _p('IV分析结果_分群.csv'),
+        _p('IV值分析.csv'),
+    )
     r.comprehensive = _read_csv_if_exists(_p('综合特征分析结果.csv'))
     r.reliability_summary = _read_csv_if_exists(_p('IV可信度诊断.csv'))
     r.iv_pivot = _read_csv_if_exists(_p('IV值透视表.csv'))
@@ -258,6 +292,14 @@ def top_features(results: Results,
         已按相应指标降序、head(n) 后的 DataFrame。
     """
     if kind == 'iv':
+        if dim or group:
+            import warnings
+            warnings.warn(
+                f"kind='iv' 走全量 IV 表，不接受 dim/group 参数（dim={dim!r}, group={group!r} 已被忽略）。"
+                f"如需分群 IV top-N，请改用 kind='iv_group'。",
+                UserWarning,
+                stacklevel=2,
+            )
         df = results.iv_full
         if df is None or df.empty:
             return pd.DataFrame()
