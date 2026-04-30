@@ -128,7 +128,7 @@ python -m risk_pipeline analyze --project <项目名> \
 # 只读已有结果
 python -m risk_pipeline query --project <项目名> --kind iv --top 15
 
-# 客户级触碰提取
+# 客户级触碰提取（默认特征仅 GSFC 主题适用；征信/舆情等用 --features-file）
 python -m risk_pipeline trigger --project <项目名> \
   --use-default-features --confirmed
 

@@ -117,7 +117,10 @@ df_wide, df_long, df_threshold = extract_triggers(
 from risk_trigger_extraction.scripts.trigger_extraction import (
     compute_thresholds, evaluate_triggers, build_threshold_table
 )
-from risk_trigger_extraction.scripts.config import RISK_FEATURES
+# A1 后默认特征改名为 RISK_FEATURES_GSFC（仅工商财务主题适用）；
+# RISK_FEATURES 保留为向后兼容 alias，下面两种 import 等价：
+from risk_trigger_extraction.scripts.config import RISK_FEATURES_GSFC as RISK_FEATURES
+# 或者：from risk_trigger_extraction.scripts.config import RISK_FEATURES
 
 thresholds = compute_thresholds(df, RISK_FEATURES)
 df_wide, df_long = evaluate_triggers(df, RISK_FEATURES, thresholds)
