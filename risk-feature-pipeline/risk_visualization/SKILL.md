@@ -9,6 +9,7 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 2. **结果不存在时报错而非静默**：用 `load_results(project_name)` 找不到目录会抛 `FileNotFoundError`，由调用方决定要不要先跑 export
 3. **决策树两条路**：优先读 `_intermediate/rule_tree_*.pkl`（用 `sklearn.tree.plot_tree` 出真树），找不到时自动降级为按规则文本反推的"规则路径图"
 4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 只 warn 不报错（fallback 渲染 CJK 会变方框）
+5. **依赖隔离**：matplotlib / seaborn 是本 Skill 的**硬依赖**但**不在核心管线依赖**里——B7 起 `visualize.py` 顶部 try-import，缺失时给出可执行的安装命令（`pip install -e .[viz]` 或 `pip install matplotlib seaborn`），不再抛一坨 traceback
 
 ## 前置条件
 
@@ -46,7 +47,7 @@ python -m risk_pipeline visualize --project 舆情特征分析 \
 
 | `kinds=` | 图表 | 输入 | 数量 |
 |---|---|---|---|
-| `iv` | 全量 IV 横向条形图（top-N，按预测能力着色） | `_IV分析结果.csv` | 1 |
+| `iv` | 全量 IV 横向条形图（top-N，按预测能力着色） | `_IV分析结果_全量.csv`（A5 新名；旧名 `_IV分析结果.csv` 兼容副本仍可读） | 1 |
 | `iv_heatmap` | **分群 × 特征 IV 热力图**（行=分群、列=特征 top-N，不可信单元打 ✗） | `_IV值透视表.csv` + `_IV可信度透视表.csv` | 1 |
 | `corr` | 分群相关系数条形图（每分群一张，正负双色） | `_特征风险相关性.csv` | N（分群数） |
 | `corr_heatmap` | **分群 × 特征 相关系数热力图**（行=分群、列=特征 top-N，发散色以 0 为中心） | `_特征风险相关性.csv` | M（分群维度数） |

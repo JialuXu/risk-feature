@@ -58,6 +58,41 @@ def _err(msg: str, exit_code: int = 1):
     sys.exit(exit_code)
 
 
+def _validate_split_confirmation(args) -> Optional[bool]:
+    """C15: 校验拆分版确认 flag。
+
+    Returns:
+        True  — 三项全填且都与 args.id_col / args.target_col 一致 → 视为确认通过
+        None  — 三项全空 → 未启用拆分版（调用方应回退到 --confirmed-new-dataset）
+    Raises:
+        SystemExit — 部分填或值不匹配
+    """
+    cid = getattr(args, 'confirmed_id_col', None)
+    ctc = getattr(args, 'confirmed_target_col', None)
+    ctp = getattr(args, 'confirmed_target_positive', None)
+    provided = [v for v in (cid, ctc, ctp) if v is not None]
+    if not provided:
+        return None
+    if len(provided) < 3:
+        _err(
+            '[阻断节点 1 / 拆分版] --confirmed-id-col / --confirmed-target-col / '
+            '--confirmed-target-positive 必须三项一起传，部分填会让确认动作残缺。\n'
+            '  当前已填: '
+            f'id_col={cid!r}, target_col={ctc!r}, target_positive={ctp!r}'
+        )
+    mismatches = []
+    if cid != args.id_col:
+        mismatches.append(f"--confirmed-id-col={cid!r} 与 --id-col={args.id_col!r} 不一致")
+    if ctc != args.target_col:
+        mismatches.append(f"--confirmed-target-col={ctc!r} 与 --target-col={args.target_col!r} 不一致")
+    if mismatches:
+        _err(
+            '[阻断节点 1 / 拆分版] 拆分确认值与主参数不匹配（怀疑手抖打错）：\n  - '
+            + '\n  - '.join(mismatches)
+        )
+    return True
+
+
 def _is_quiet(args) -> bool:
     return bool(getattr(args, 'quiet', False))
 
@@ -95,6 +130,9 @@ def cmd_prepare(args) -> int:
             _err(f'[prepare] --filter-file 不存在: {args.filter_file}')
         with open(args.filter_file, 'r', encoding='utf-8') as f:
             filter_dict = json.load(f)
+        if not _is_quiet(args):
+            summary = ', '.join(f'{c}: {sorted(r.keys())}' for c, r in filter_dict.items())
+            print(f'[prepare] filter 规则 {len(filter_dict)} 列 → {summary}')
 
     exclude_features = None
     if args.exclude_features_file:
@@ -105,8 +143,13 @@ def cmd_prepare(args) -> int:
 
     state = load_state(project, state_dir=_state_dir(args))
 
-    # 阻断节点 1：首次新数据集必须显式确认
-    if not state.is_known_dataset(wide) and not getattr(args, 'confirmed_new_dataset', False):
+    # 阻断节点 1：首次新数据集必须显式确认（C15：支持拆分版 + 一键版）
+    is_known = state.is_known_dataset(wide)
+    confirmed_legacy = bool(getattr(args, 'confirmed_new_dataset', False))
+    confirmed_split = _validate_split_confirmation(args)  # 全填 + 一致 → True；任一不一致 → 抛错；全空 → None
+    confirmed = confirmed_legacy or (confirmed_split is True)
+
+    if not is_known and not confirmed:
         _err(
             f'⚠️ [阻断节点 1] 检测到首次使用的数据集: {wide}\n'
             f'  原因：id_col/target_col/坏客户定义跑错会污染后续 8 张 CSV，无法从结果层面发现。\n'
@@ -114,7 +157,11 @@ def cmd_prepare(args) -> int:
             f'    1. 主键字段名 = {args.id_col!r}\n'
             f'    2. 目标列名 = {args.target_col!r}（1=坏客户）\n'
             f'    3. filter 排除规则是否正确（当前: {filter_dict}）\n'
-            f'  若确认无误，重新执行并加 `--confirmed-new-dataset`。'
+            f'  确认方式（任选其一）：\n'
+            f'    a) 一键确认：加 `--confirmed-new-dataset`\n'
+            f'    b) 拆分确认（推荐，留审计痕迹）：\n'
+            f'       --confirmed-id-col {args.id_col!r} --confirmed-target-col {args.target_col!r} '
+            f'--confirmed-target-positive 1'
         )
 
     df, feature_cols = prepare_df(
@@ -133,6 +180,12 @@ def cmd_prepare(args) -> int:
     df.to_csv(prepared_path, index=False, encoding='utf-8-sig')
 
     n_bad = int(df[args.target_col].sum()) if args.target_col in df.columns else 0
+    confirmation = {
+        'mode': 'split' if confirmed_split is True else ('legacy' if confirmed_legacy else 'known_dataset'),
+        'id_col': getattr(args, 'confirmed_id_col', None),
+        'target_col': getattr(args, 'confirmed_target_col', None),
+        'target_positive': getattr(args, 'confirmed_target_positive', None),
+    }
     info = {
         'feature_cols': feature_cols,
         'id_col': args.id_col,
@@ -146,6 +199,7 @@ def cmd_prepare(args) -> int:
         'n_bad': n_bad,
         'n_features': len(feature_cols),
         'created_at': cli_io.utc_now_iso(),
+        'confirmation': confirmation,
     }
     cli_io.write_features_json(features_path, info)
 
@@ -389,6 +443,84 @@ def _run_rule_mining_step(
 
 # ===== export =====
 
+def _write_audit_json(
+    *,
+    project: str,
+    results_dir: str,
+    rules_csv_path,
+    n_exported: int,
+    level: str,
+) -> None:
+    """C12: 落盘 <project>_audit.json，agent 报回前 cat 这个文件做机器可读自检。
+
+    包含：IV>2.0 过拟合嫌疑特征、不稳定规则列表、文件数、当前 Level。
+    自检失败时本函数本身不阻断，仅 stderr 警告——audit 是辅助工具不是关键路径。
+    """
+    audit = {
+        'project_name': project,
+        'level': level,
+        'created_at': cli_io.utc_now_iso(),
+        'n_exported': n_exported,
+        'iv_overfit_features': [],
+        'unstable_rules': [],
+    }
+
+    # 扫 IV 过拟合嫌疑（读已落盘的 _IV分析结果_全量.csv，保证与导出一致）
+    try:
+        iv_full_path = None
+        for fn in (f'{project}_IV分析结果_全量.csv', f'{project}_IV分析结果.csv'):
+            cand = os.path.join(results_dir, fn)
+            if os.path.isfile(cand):
+                iv_full_path = cand
+                break
+        if iv_full_path:
+            iv_df = pd.read_csv(iv_full_path, encoding='utf-8-sig')
+            if 'IV值' in iv_df.columns:
+                feat_col = '特征' if '特征' in iv_df.columns else (
+                    '特征名称' if '特征名称' in iv_df.columns else None
+                )
+                overfit = iv_df[pd.to_numeric(iv_df['IV值'], errors='coerce') > 2.0]
+                if feat_col is not None and not overfit.empty:
+                    audit['iv_overfit_features'] = [
+                        {'特征': row[feat_col], 'IV值': float(row['IV值'])}
+                        for _, row in overfit.iterrows()
+                    ]
+    except Exception as e:  # noqa: BLE001
+        print(f'  [audit 警告] 扫 IV 过拟合特征失败: {e}', file=sys.stderr)
+
+    # 扫规则不稳定（读规则表）
+    try:
+        if rules_csv_path is not None:
+            rules_df = pd.read_csv(str(rules_csv_path), encoding='utf-8-sig')
+            if '稳定性等级' in rules_df.columns:
+                unstable = rules_df[rules_df['稳定性等级'].astype(str).str.strip() == '不稳定']
+                seg_dim = '分群维度' if '分群维度' in unstable.columns else None
+                seg_val = '分群名称' if '分群名称' in unstable.columns else (
+                    '分群值' if '分群值' in unstable.columns else None
+                )
+                rule_id = '规则编号' if '规则编号' in unstable.columns else None
+                folds = 'CV有效折数' if 'CV有效折数' in unstable.columns else None
+                for _, row in unstable.iterrows():
+                    entry = {
+                        '分群': f"{row.get(seg_dim, '?')}.{row.get(seg_val, '?')}" if seg_dim and seg_val else '全样本',
+                        '规则编号': str(row.get(rule_id, '')) if rule_id else '',
+                        'CV有效折数': int(row[folds]) if folds and pd.notna(row[folds]) else None,
+                    }
+                    audit['unstable_rules'].append(entry)
+    except Exception as e:  # noqa: BLE001
+        print(f'  [audit 警告] 扫规则稳定性失败: {e}', file=sys.stderr)
+
+    audit_path = os.path.join(results_dir, f'{project}_audit.json')
+    try:
+        with open(audit_path, 'w', encoding='utf-8') as f:
+            json.dump(audit, f, ensure_ascii=False, indent=2)
+        print(f'  -> {os.path.basename(audit_path)} '
+              f'(IV>2 过拟合={len(audit["iv_overfit_features"])} | '
+              f'不稳定规则={len(audit["unstable_rules"])})')
+    except Exception as e:  # noqa: BLE001
+        print(f'  [audit 警告] 写 audit.json 失败: {e}', file=sys.stderr)
+
+
 def _maybe_export_rules_csv(
     *, inter_dir: str, project: str, output_subdir: str, project_root: str,
 ):
@@ -508,13 +640,25 @@ def cmd_export(args) -> int:
     }, new_level='Level 1')
     state.save()
 
+    # C12: 写 _audit.json，机器可读自检入口（agent 报回前 cat 这个文件比照 checklist）
+    # 注意：必须在 state.append_history(..., new_level='Level 1') 之后写，audit.level 才反映正确层级
+    _write_audit_json(
+        project=project,
+        results_dir=os.path.join(project_root, 'data', 'results', output_subdir),
+        rules_csv_path=rules_csv,
+        n_exported=len(exported),
+        level=state.current_level,
+    )
+
+    abs_results_dir = os.path.join(project_root, 'data', 'results', output_subdir)
+    abs_output_dir = os.path.join(project_root, 'output', output_subdir)
     _print_stamp(
         format_status_stamp(
             'export', project, state.current_level,
             inputs=[f'{inter_dir}/'],
             outputs=[
-                f'data/results/{output_subdir}/',
-                f'output/{output_subdir}/',
+                f'{abs_results_dir}/  ← Level 1 分析产物（IV/LR/规则）',
+                f'{abs_output_dir}/   ← LLM JSON / 分群画像',
             ],
             extras=[f'{len(exported)} 个文件已落盘'],
         ),
@@ -687,6 +831,10 @@ def cmd_trigger(args) -> int:
 
     verbose = _is_verbose(args) and not _is_quiet(args)
 
+    keep_metadata_cols = None
+    if getattr(args, 'keep_metadata_cols', None):
+        keep_metadata_cols = [c.strip() for c in args.keep_metadata_cols.split(',') if c.strip()]
+
     df_wide, df_long, df_threshold = extract_triggers(
         df=df,
         features=features,
@@ -695,6 +843,7 @@ def cmd_trigger(args) -> int:
         project_name=project,
         output_dir=output_dir,
         verbose=verbose,
+        keep_metadata_cols=keep_metadata_cols,
     )
 
     used_default = bool(args.use_default_features)

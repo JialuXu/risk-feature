@@ -2,8 +2,11 @@
 """
 风险触碰提取模块 - 本地配置
 
-RISK_FEATURES 是默认特征列表，来源于分析报告中筛选出的有效特征。
-调用 extract_triggers() 时可通过 features= 参数传入自定义列表覆盖。
+⚠️  默认特征 RISK_FEATURES_GSFC 仅适配 GSFC（工商财务）主题宽表；
+    其他主题（征信、舆情、generic）请通过 extract_triggers(features=...) 或
+    CLI `--features-file` 参数注入项目专属特征列表。
+    若使用默认特征但宽表匹配率 < MIN_DEFAULT_FEATURE_MATCH_RATE，
+    extract_triggers 会抛 RuntimeError 阻断（避免输出全 0 名单）。
 
 每条记录字段说明：
   report_name        : 报告展示名称
@@ -12,8 +15,13 @@ RISK_FEATURES 是默认特征列表，来源于分析报告中筛选出的有效
   iv                 : 全量IV值
   category           : 业务类别（用于汇总统计）
   explicit_threshold : 可选，报告中明确给出的阈值，格式 (operator, value)，优先于数据计算
-  scope              : 'full'（全量）或 'waist'（仅腰部企业，需宽表有"是否腰部企业"列）
-  iv_waist           : 腰部企业IV（scope='waist'时用于加权得分）
+  scope              : 触发范围，支持 4 种形态：
+                         'full'                                # 全量（默认）
+                         'waist'                               # 仅腰部企业（兼容旧写法，等价于
+                                                               #   {"dim": "是否腰部企业", "value": 1}）
+                         {"dim": "X", "value": "Y"}            # 单值维度筛选
+                         {"dim": "X", "values": ["Y1","Y2"]}   # 多值维度筛选
+  iv_waist           : 腰部企业IV（scope='waist' 时用于加权得分；通用 scope 无此字段，统一用 iv）
 """
 import sys
 from pathlib import Path
@@ -30,10 +38,15 @@ from risk_pipeline.config import (  # noqa: F401
     MIN_BAD_SAMPLES,
 )
 
+# 默认特征匹配率阈值：使用 RISK_FEATURES 默认值时，若宽表匹配率低于此值，
+# extract_triggers 会抛 RuntimeError 而非静默跑出全 0 名单。
+MIN_DEFAULT_FEATURE_MATCH_RATE = 0.5
+
 # ---------------------------------------------------------------------------
-# 默认风险特征配置（可在调用时通过 features= 参数整体替换）
+# 默认风险特征配置（GSFC 主题：工商变更 + 财务 + 授信匹配度 + 数据完整度）
+# 调用 extract_triggers() 时可通过 features= 参数整体替换为项目专属配置。
 # ---------------------------------------------------------------------------
-RISK_FEATURES = [
+RISK_FEATURES_GSFC = [
     # =========================================================
     # 一、工商变更特征
     # =========================================================
@@ -364,3 +377,6 @@ RISK_FEATURES = [
         'scope': 'waist',
     },
 ]
+
+# 向后兼容别名：旧代码 / 旧测试用例 import RISK_FEATURES 仍可用
+RISK_FEATURES = RISK_FEATURES_GSFC

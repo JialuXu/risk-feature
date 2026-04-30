@@ -4,13 +4,17 @@
 
 ## ⚠️ 宽表 vs 长表：必读
 
-**磁盘上的原始 CSV（`_逻辑回归系数.csv` / `_特征风险相关性.csv` / `_IV值分析.csv`）是宽格式**：
+**磁盘上的原始 CSV（`_逻辑回归系数.csv` / `_特征风险相关性.csv` / `_IV分析结果_分群.csv`）是宽格式**：
 - 行 = 分群，列 = 特征名，值 = 系数/相关系数/IV
 - 不存在 `系数` / `相关系数` / `IV值` 这些列
 
 `load_results()` 会自动把宽表 `melt` 为长格式并挂到 `r.lr_coef_long` / `r.corr_long` / `r.iv_group_all`。
 
 **结论：永远用 `load_results()` + `r.xxx` 读结果，不要直接 `pd.read_csv` 原始 CSV 后套用长格式列名。**
+
+> **A4/A5 后产物列名/文件名统一**（旧版本仍兼容读取）：
+> - 列：`特征` / `分群维度` / `分群名称`（旧 `特征名称` / `分群值` 在读取时自动 rename）
+> - 文件：`_IV分析结果_全量.csv` / `_IV分析结果_分群.csv`（旧 `_IV分析结果.csv` / `_IV值分析.csv` 仍写一份兼容副本）
 
 ---
 
@@ -78,7 +82,7 @@
 
 | 列 | 类型 | 说明 |
 |---|---|---|
-| `特征名称` | str | 特征列名（**不是** `特征`） |
+| `特征` | str | 特征列名（A4 后已统一；旧 CSV 中可能叫 `特征名称`，读取时自动 rename） |
 | `iv_all` | float | 全量 IV 值（**不是** `IV值`） |
 | `IV可信度` | str | 可信 / 参考 / 不可信-* |
 | `预测能力` | str | 强 / 中 / 弱 / 无（iv_all 衍生） |
@@ -92,7 +96,7 @@
 **正确用法**：
 ```python
 top = r.comprehensive.head(15)
-cols = [c for c in ['特征名称', 'iv_all', 'IV可信度', '预测能力'] if c in top.columns]
+cols = [c for c in ['特征', 'iv_all', 'IV可信度', '预测能力'] if c in top.columns]
 print(top[cols].to_string(index=False))
 ```
 

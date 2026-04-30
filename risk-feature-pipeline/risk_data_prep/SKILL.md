@@ -55,7 +55,11 @@ df, feature_cols = prepare_df(
     wide_path='/path/to/your/宽表.csv',          # 任意路径
     bad_customer_path='/path/to/坏客户标记.csv', # 已有 is_bad 列时可省略此参数
     id_col='客户编号', target_col='is_bad',
-    filter={'企业规模': {'exclude': ['0']}},      # 可选过滤
+    filter={
+        '企业规模': {'exclude': ['0']},            # 类别排除
+        '非银机构占比': {'range': [0, 1]},         # A3：数值范围（同时设 min/max）
+        '资产负债率': {'max': 1.0, 'drop_na': True},  # A3：数值上限 + 丢空值
+    },
     exclude_features={'授信总金额', '表内授信余额'},  # 业务列排除
 )
 # 直接喂给下游：
@@ -63,6 +67,13 @@ df, feature_cols = prepare_df(
 ```
 
 `prepare_df` 做的事：打 `is_bad` 标签 → 可选过滤 → 自动挑数值型非零方差特征列。**不要每个 agent 手抄一遍这三步**。
+
+**filter 规则键（A3 后扩展）**：
+- `exclude` / `include` — 类别值列表（按字符串比较）
+- `min` / `max` / `range: [lo,hi]` — 数值范围（自动 `pd.to_numeric` 强转）
+- `drop_na: true` — 丢弃该列为空的行
+
+CLI 等价：`--filter-file filter.json`。
 
 **内置参考实现（企业信贷常见：多源合并）**：
 
