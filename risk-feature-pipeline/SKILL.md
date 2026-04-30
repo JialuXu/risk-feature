@@ -136,7 +136,7 @@ python -m risk_pipeline trigger --project <项目名> \
 python -m risk_pipeline report --project <项目名> \
   --report-markdown <md报告>.md --purpose internal
 
-# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr,lr,auc,segment,tree,rules,combos,combo_network）
+# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr,corr_heatmap,lr,lr_heatmap,auc,segment,tree,rules,combos,combo_network）
 python -m risk_pipeline visualize --project <项目名>
 ```
 
@@ -174,7 +174,7 @@ python -m risk_pipeline visualize --project <项目名>
 
 ## 调试顺序
 
-1. 看错误在 `shared/pipeline.py` 哪个阶段
+1. 看错误在 `risk_pipeline/pipeline.py` 哪个阶段
 2. 确认下游函数签名与透传参数是否一致
 3. 检查目标列、主键列、分群列是否真实存在（读 `df.columns`，不猜）
 4. 常见错误：`KeyError: 'is_bad'`、`unexpected keyword argument 'target'`、分群字段不存在

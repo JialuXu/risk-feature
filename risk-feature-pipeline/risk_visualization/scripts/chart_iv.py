@@ -95,14 +95,19 @@ def chart_iv_heatmap(
     top_n: int = 15,
     dpi: int = 300,
 ) -> List[Path]:
-    """分群 IV 热力图（行=特征 top-N，列=分群）。可信度不足单元用 ✗ 叠加。"""
+    """分群 IV 热力图。
+
+    朝向：**行=分群（纵轴），列=特征（横轴）**。
+    一行就是一个分群（如 `企业规模 = 小型企业`）的 IV 横向画像，从左到右依次是
+    全量 IV top-N 的特征。可信度不足的单元用 ✗ 文字覆盖。
+    """
     import matplotlib.pyplot as plt
 
     if iv_pivot is None or iv_pivot.empty:
         return []
 
     df = iv_pivot.copy()
-    # 透视表两种合法朝向：
+    # 透视表两种合法朝向（落盘端不固定）：
     #   A. index=特征, columns=分群 (set_index('特征') 后)
     #   B. index=分群, columns=特征 (CSV 第一列 '分群名称' / '分群')
     # 用 iv_full.特征 与两轴的交集大小判断
@@ -118,22 +123,27 @@ def chart_iv_heatmap(
 
     overlap_index = len(feat_universe & set(map(str, df.index))) if feat_universe else 0
     overlap_cols = len(feat_universe & set(map(str, df.columns))) if feat_universe else 0
-    if overlap_cols > overlap_index and overlap_cols > 0:
-        # 朝向 B：转置成「特征=行，分群=列」
+    # 目标朝向：行=分群、列=特征
+    # 当特征在 index 上时（朝向 A），转置；当特征已在 columns 上（朝向 B），保持
+    if overlap_index > overlap_cols and overlap_index > 0:
         df = df.T
+    elif overlap_index == 0 and overlap_cols == 0:
+        # 完全无法判断时，启发式：分群名通常较短且数量少，特征数量多 → 取较多者放列
+        if df.shape[0] > df.shape[1]:
+            df = df.T
 
-    # 选 top-N 特征：优先按全量 IV 排，否则按行均值
+    # 选 top-N 特征列：优先按全量 IV 排，否则按列均值（跨分群平均 IV）
     if feat_universe:
         order = (iv_full[['特征', 'IV值']].dropna()
                  .sort_values('IV值', ascending=False)['特征'].astype(str).tolist())
-        keep = [f for f in order if f in df.index][:top_n]
+        keep = [f for f in order if f in df.columns][:top_n]
     else:
-        keep = df.mean(axis=1).sort_values(ascending=False).head(top_n).index.tolist()
-    df = df.loc[keep]
+        keep = df.mean(axis=0).sort_values(ascending=False).head(top_n).index.tolist()
+    df = df.loc[:, keep]
     if df.empty:
         return []
 
-    # 可信度 mask（同样自适应朝向）
+    # 可信度 mask（同样对齐到「行=分群、列=特征」）
     rel = None
     if reliability_pivot is not None and not reliability_pivot.empty:
         rel = reliability_pivot.copy()
@@ -141,12 +151,18 @@ def chart_iv_heatmap(
             if col_name in rel.columns:
                 rel = rel.set_index(col_name)
                 break
-        # 与 df 对齐朝向
-        if not set(df.index).issubset(set(rel.index)):
+        # 把 rel 拉到与 df 同朝向：行=分群、列=特征
+        if not set(df.columns).issubset(set(rel.columns)):
             rel = rel.T
         rel = rel.reindex(index=df.index, columns=df.columns)
 
-    fig, ax = plt.subplots(figsize=FIGSIZE_HEATMAP)
+    # 高度按分群数自适应（行少时不要硬撑成 8 寸）
+    n_rows, n_cols = df.shape
+    base_w, base_h = FIGSIZE_HEATMAP
+    height = max(3.0, min(base_h, 0.55 * n_rows + 2.0))
+    width = max(base_w, 0.55 * n_cols + 4.0)
+
+    fig, ax = plt.subplots(figsize=(width, height))
     data = df.values.astype(float)
 
     vmax = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 1.0
@@ -157,6 +173,8 @@ def chart_iv_heatmap(
     ax.set_xticklabels(df.columns, rotation=30, ha='right', fontsize=9)
     ax.set_yticks(range(len(df.index)))
     ax.set_yticklabels(df.index, fontsize=9)
+    ax.set_xlabel('特征指标')
+    ax.set_ylabel('分群')
 
     # 文本叠加：IV 值 + 可信度 ✗
     for i in range(data.shape[0]):
@@ -174,7 +192,7 @@ def chart_iv_heatmap(
                     ax.text(j, i + 0.28, 'X', ha='center', va='center',
                             fontsize=10, color='#7B241C', fontweight='bold')
 
-    ax.set_title(f'分群 IV 热力图（top-{top_n} 特征；X = 不可信）')
+    ax.set_title(f'分群 × 特征 IV 热力图（top-{top_n} 特征；X = 不可信）')
     fig.colorbar(im, ax=ax, label='IV 值', shrink=0.8)
 
     out_dir.mkdir(parents=True, exist_ok=True)

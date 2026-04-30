@@ -30,8 +30,6 @@ if _MY_SKILLS_ROOT not in sys.path:
 def _make_global_parent() -> argparse.ArgumentParser:
     """返回一个含全局 flag 的 parent parser，让每个子命令都接受这些 flag。"""
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument('--config', default=None, help='用户 yaml（覆盖 default.yaml）')
-    p.add_argument('--columns-file', default=None, help='column mapping yaml 覆盖')
     p.add_argument('--state-dir', default=None, help='自定义 state.json 目录（默认随 project）')
     p.add_argument('-q', '--quiet', action='store_true', help='静默')
     p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志')
@@ -171,10 +169,10 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='生成 IV/相关性/LR/分群/规则/组合可视化（→ output/<project>/charts/）')
     p.add_argument('--project', required=True)
     p.add_argument('--kinds', default=None,
-                   help='逗号分隔: iv,iv_heatmap,corr,lr,auc,segment,tree,rules,combos,combo_network'
-                        '（默认全部）')
+                   help='逗号分隔: iv,iv_heatmap,corr,corr_heatmap,lr,lr_heatmap,'
+                        'auc,segment,tree,rules,combos,combo_network（默认全部）')
     p.add_argument('--dim', default=None,
-                   help='限定单一分群维度，如 企业规模（仅 corr/lr/auc 生效）')
+                   help='限定单一分群维度，如 企业规模（对 corr/corr_heatmap/lr/lr_heatmap/auc 生效）')
     p.add_argument('--top', type=int, default=15, help='top-N 条形图截断（默认 15）')
     p.add_argument('--out-dir', default=None,
                    help='输出目录，默认 output/<project>/charts/')
