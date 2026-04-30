@@ -488,13 +488,15 @@ def cmd_export(args) -> int:
     }, new_level='Level 1')
     state.save()
 
+    abs_results_dir = os.path.join(project_root, 'data', 'results', output_subdir)
+    abs_output_dir = os.path.join(project_root, 'output', output_subdir)
     _print_stamp(
         format_status_stamp(
             'export', project, state.current_level,
             inputs=[f'{inter_dir}/'],
             outputs=[
-                f'data/results/{output_subdir}/',
-                f'output/{output_subdir}/',
+                f'{abs_results_dir}/  ← Level 1 分析产物（IV/LR/规则）',
+                f'{abs_output_dir}/   ← LLM JSON / 分群画像',
             ],
             extras=[f'{len(exported)} 个文件已落盘'],
         ),
