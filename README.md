@@ -61,13 +61,13 @@ risk-feature-pipeline/                # 仓库根
                                     │ 标准 CSV + LLM JSON
         ┌───────────────────────────┼───────────────────────────┐
         ▼                           ▼                           ▼
-┌─────────────────┐      ┌─────────────────────┐      ┌─────────────────┐
-│ ③ MCP Server     │      │ ② indicator-agent    │      │ ④ handbook       │
-│ 把 ① 包装成      │      │ 5 步 LLM 流水线 →    │      │ 聚合所有 README   │
-│ MCP 工具，供     │      │ 衍生指标提案 →       │      │ / SKILL.md，可    │
-│ Claude/Cursor    │      │ 元表注册（SCD2）     │      │ 本地浏览/导出     │
-│ 等客户端调用     │      │                      │      │ PDF / DOCX       │
-└─────────────────┘      └──────────┬──────────┘      └─────────────────┘
+ ┌─────────────────┐      ┌─────────────────────┐      ┌─────────────────┐
+ │ ③ MCP Server     │      │ ② indicator-agent    │      │ ④ handbook       │
+ │ 把 ① 包装成      │      │ 5 步 LLM 流水线 →    │      │ 聚合所有 README   │
+ │ MCP 工具，供     │      │ 衍生指标提案 →       │      │ / SKILL.md，可    │
+ │ Claude/Cursor    │      │ 元表注册（SCD2）     │      │ 本地浏览/导出     │
+ │ 等客户端调用     │      │                      │      │ PDF / DOCX       │
+ └─────────────────┘      └──────────┬──────────┘      └─────────────────┘
                                     │ 元表（SQLite + CSV）
                                     ▼
                           下次特征分析回写 IV → 触发优先级升降
@@ -288,7 +288,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 |---|---|
 | 顶层综述（本文件） | `README.md` |
 | 项目级 Claude Code 规约 | `CLAUDE.md` |
-| 核心管线总览 | `risk-feature-pipeline/README.md` |
+| 核���管线总览 | `risk-feature-pipeline/README.md` |
 | 核心管线调度规则 | `risk-feature-pipeline/SKILL.md` |
 | 各步骤 Skill 文档 | `risk-feature-pipeline/<step>/SKILL.md` |
 | 产物列字典权威来源（A4 后） | `risk-feature-pipeline/docs/SCHEMA.md` |
@@ -330,3 +330,21 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 - 新增 MCP 工具：在 `risk_feature_MCPServer/tools/` 加文件，再去 `server.py` 注册 `@mcp.tool()`
 
 > 提交代码前请同步更新对应目录的 `SKILL.md` / `README.md`，否则 `handbook/` 聚合后会缺章。
+
+---
+
+## 十二、许可证
+
+本项目采用 **MIT License**。详见 [`LICENSE`](LICENSE) 文件。
+
+MIT License 允许任何人自由使用、修改、分发本代码，只需在软件副本或主要部分中保留原始许可证和版权声明。
+
+**简要条款**：
+- ✅ 商业使用
+- ✅ 修改代码
+- ✅ 分发代码
+- ✅ 私有使用
+- ❌ 不提供担保
+- ❌ 不承担责任
+
+---
