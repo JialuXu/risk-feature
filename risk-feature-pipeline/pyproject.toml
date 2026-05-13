@@ -26,6 +26,7 @@ dependencies = [
     "scikit-learn>=1.1",
     "scipy>=1.9",
     "pyyaml>=6.0",
+    "optbinning>=0.19",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +73,7 @@ include = [
     "risk_trigger_extraction*",
     "risk_docx_report*",
     "risk_visualization*",
+    "risk_threshold_explore*",
 ]
 exclude = [
     "tests*",

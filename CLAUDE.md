@@ -29,7 +29,7 @@ risk-feature-pipeline/
 ├── risk_pipeline/             # 共享模块 + 统一 CLI 入口
 │   ├── __init__.py
 │   ├── __main__.py            # python -m risk_pipeline 执行入口
-│   ├── cli.py                 # 7 子命令解析（prepare/analyze/export/query/trigger/report/visualize/run）
+│   ├── cli.py                 # 8 子命令解析（prepare/analyze/export/query/trigger/report/visualize/explore_thresholds/run）
 │   ├── cli_commands.py        # 子命令实现（薄壳 wrap 现有 Python API + state 推进）
 │   ├── cli_io.py              # _intermediate/ 落盘与重建、features.json、数据集指纹
 │   ├── pipeline_state.py      # .pipeline_state.json：Level 推进 + 历史追加 + 阻断节点
@@ -79,6 +79,13 @@ risk-feature-pipeline/
 │       ├── config.py          # RISK_FEATURES_GSFC 默认特征配置（GSFC 主题；RISK_FEATURES 为兼容 alias）
 │       └── trigger_extraction.py  # extract_triggers / compute_thresholds / evaluate_triggers
 │
+├── risk_threshold_explore/    # ⭐ 候选规则阈值探索：单变量 optbinning + 业务级判定
+│   ├── SKILL.md
+│   └── scripts/
+│       ├── config.py          # 五道门槛默认值 + OPTBIN_PARAMS
+│       ├── threshold_explore.py  # explore_thresholds 核心 API
+│       └── io_utils.py        # pair-list 读 + 候选阈值表写 + audit 节点追加
+│
 ├── risk_docx_report/          # 交付型子 Skill：LLM JSON → 正式 Word 报告
 │   └── scripts/
 │       ├── build_prompt_bundle.py     # 打包 report-prompt.md + LLM JSON
@@ -98,7 +105,8 @@ risk-feature-pipeline/
         ├── chart_segment.py           # 分群画像（坏客户率柱图）
         ├── chart_tree.py              # 决策树（pkl 真树 / 规则反推）
         ├── chart_rules.py             # 规则 lift × coverage 散点
-        └── chart_combinations.py      # 指标组合 + 特征共现网络
+        ├── chart_combinations.py      # 指标组合 + 特征共现网络
+        └── chart_threshold.py         # 候选阈值分箱坏率图 + 风险倍数对比图
 ```
 
 ### Skill 分工概览
@@ -115,6 +123,7 @@ risk-feature-pipeline/
 | `risk_export_report` | 8 CSV + LLM JSON + 分群画像 | "导出结果"、"生成 LLM JSON" |
 | `risk_result_query` | **只读磁盘已有结果**，不重跑 | "查/看/top X"、"解读已有分析" |
 | `risk_trigger_extraction` | 把风险结论落到每个客户（触碰 + IV 加权得分） | "哪些客户触碰了风险阈值"、"生成风险预警名单"、"客户级风险扫描" |
+| `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning + 风险倍数 + 卡方 p） | "候选阈值/单变量阈值评审/这几个 (分群,特征) 跑一下" |
 | `risk_docx_report` | LLM JSON → `.docx` | "生成 Word 报告"、"正式报告" |
 | `risk_visualization` | IV/相关性/LR/分群/决策树/指标组合 PNG 图表（Level 1 后只读出图） | "画图/可视化/IV 条形图/决策树图/指标组合图" |
 
@@ -192,7 +201,7 @@ from risk_export_report.scripts.report_analysis import export_results, build_llm
 
 ### CLI Entry (risk_pipeline)
 
-7 子命令，每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
+8 子命令（含 `explore_thresholds`），每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
 
 ```bash
 cd risk-feature-pipeline
@@ -219,6 +228,7 @@ python -m risk_pipeline export --project xxx
 python -m risk_pipeline query --project xxx --kind iv --top 15
 python -m risk_pipeline visualize --project xxx
 python -m risk_pipeline trigger --project xxx --use-default-features --confirmed
+python -m risk_pipeline explore_thresholds --project xxx --pairs-file pairs.csv
 python -m risk_pipeline report --project xxx \
     --report-markdown report.md --purpose internal
 
