@@ -15,6 +15,7 @@
 | "查/读/看/解读/top X/已有结果" | `python -m risk_pipeline query` | 重跑管线 |
 | 提供宽表路径 + 坏客户路径 | `python -m risk_pipeline prepare` | 手写合并代码 / 在 Bash 里手抄 Python |
 | "哪些客户触碰阈值/风险预警名单/客户级扫描" | `python -m risk_pipeline trigger` | 自行写阈值判断逻辑 |
+| "候选阈值/单变量阈值评审/给这几个 (分群,特征) 探阈值" | `python -m risk_pipeline explore_thresholds --pairs-file ...` | 手写 optbinning / 在 notebook 里散落跑 |
 | "生成 Word/正式报告" | `python -m risk_pipeline report` | 直接输出 Markdown |
 | 任何 IV > 2.0 的特征 | 标记"过拟合嫌疑"并强制排除出结论推荐 | 正常纳入结论 |
 

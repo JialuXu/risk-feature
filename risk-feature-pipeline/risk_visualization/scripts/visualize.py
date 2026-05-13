@@ -30,6 +30,7 @@ try:
     from .chart_tree import chart_tree
     from .chart_rules import chart_rules_scatter
     from .chart_combinations import chart_combo_lift, chart_combo_network
+    from .chart_threshold import chart_threshold_binning, chart_threshold_summary
 except ModuleNotFoundError as _viz_import_err:
     if _viz_import_err.name in ('matplotlib', 'seaborn', 'matplotlib.pyplot'):
         raise ModuleNotFoundError(
@@ -48,6 +49,7 @@ ALL_KINDS = (
     'lr', 'lr_heatmap', 'auc',
     'segment',
     'tree', 'rules', 'combos', 'combo_network',
+    'thresholds',
 )
 
 
@@ -63,6 +65,22 @@ def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
         if not base:
             continue
         path = os.path.join(base, f'{results.project_name}_风险规则表.csv')
+        if os.path.isfile(path):
+            for enc in ('utf-8-sig', 'utf-8', 'gbk'):
+                try:
+                    return pd.read_csv(path, encoding=enc)
+                except UnicodeDecodeError:
+                    continue
+    return None
+
+
+def _load_csv_by_suffix(results: Results, suffix: str) -> Optional[pd.DataFrame]:
+    """通用：按 `{project}_{suffix}.csv` 在 results_dir / output_dir 找并读取。"""
+    fname = f'{results.project_name}_{suffix}.csv'
+    for base in (results.results_dir, results.output_dir):
+        if not base:
+            continue
+        path = os.path.join(base, fname)
         if os.path.isfile(path):
             for enc in ('utf-8-sig', 'utf-8', 'gbk'):
                 try:
@@ -173,6 +191,16 @@ def generate_charts(
         _record('combos', chart_combo_lift(rules_df, chart_dir, top_n=top_n, dpi=dpi))
     if 'combo_network' in kinds:
         _record('combo_network', chart_combo_network(rules_df, chart_dir, dpi=dpi))
+    if 'thresholds' in kinds:
+        thr_summary = _load_csv_by_suffix(r, '候选阈值表')
+        thr_detail = _load_csv_by_suffix(r, '候选阈值_分箱明细')
+        if thr_summary is not None and thr_detail is not None:
+            bin_paths = chart_threshold_binning(thr_detail, thr_summary, chart_dir, dpi=dpi)
+            sum_paths = chart_threshold_summary(thr_summary, chart_dir, dpi=dpi)
+            all_paths = list(bin_paths) + list(sum_paths)
+            if all_paths:
+                # 合并为单一 key 'thresholds'，stamp 用此 key 跟 kinds 集合对齐
+                out['thresholds'] = [str(p) for p in all_paths]
 
     return out
 

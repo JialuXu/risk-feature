@@ -29,6 +29,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 |---|---|
 | "查/读/看/解读/top X/已有结果" | `risk_result_query`（模板 B），**不重跑管线** |
 | "哪些客户触碰/风险预警名单" | `risk_trigger_extraction`（模板 C），先过阻断节点 2 |
+| "候选阈值/单变量阈值评审/这几个 (分群,特征) 跑一下" | `risk_threshold_explore`（CLI `explore_thresholds`），Level 1 后只读后置；不推进 level |
 | "生成 Word/正式报告" | `risk_docx_report`，先过阻断节点 3 |
 | 全流程分析 / 单维快路径 | 选管线（见下），走模板 A |
 
@@ -159,6 +160,7 @@ python -m risk_pipeline visualize --project <项目名>
 | `risk_export_report` | 标准 CSV 导出、LLM JSON、分群画像 | **→ Level 1** |
 | `risk_result_query` | **只读**已有结果（top-N、分群查询） | Level 1 后 |
 | `risk_trigger_extraction` | 把风险结论落到每个客户（触碰+得分） | **→ Level 2** |
+| `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning + 业务级判定） | Level 1 后 |
 | `risk_docx_report` | LLM JSON → 正式 Word 报告 | **→ Level 3** |
 | `risk_visualization` | Level 1 后，IV/相关性/LR/分群/决策树/指标组合 PNG 图表 | Level 1 后 |
 
