@@ -5,14 +5,15 @@
   python -m risk_pipeline <subcommand> [args]
 
 子命令：
-  prepare   构建 prepared.csv + features.json（前置态）
-  analyze   跑 univariate/iv/lr/rules 子集 → _intermediate/（过渡态）
-  export    重建结果 → 8 张 CSV + LLM JSON（→ Level 1）
-  query     只读已有结果，top-N / 分群查询（不改 level）
-  trigger   客户级触碰提取 → 三张表（→ Level 2）
-  report    LLM JSON → docx（→ Level 3）
-  visualize 生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
-  run       便捷组合：generic 走 prepare→analyze→export；credit/gsfc 转发现有管线
+  prepare            构建 prepared.csv + features.json（前置态）
+  analyze            跑 univariate/iv/lr/rules 子集 → _intermediate/（过渡态）
+  export             重建结果 → 8 张 CSV + LLM JSON（→ Level 1）
+  query              只读已有结果，top-N / 分群查询（不改 level）
+  trigger            客户级触碰提取 → 三张表（→ Level 2）
+  report             LLM JSON → docx（→ Level 3）
+  visualize          生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
+  explore_thresholds 候选规则阈值探索：optbinning 单变量最优切点 + 业务级判定（Level 1 后；不改 level）
+  run                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 转发现有管线
 """
 from __future__ import annotations
 
@@ -60,6 +61,9 @@ def _build_parser() -> argparse.ArgumentParser:
   report:   python -m risk_pipeline report --project xxx \\
               --report-markdown report.md --purpose internal
   visualize: python -m risk_pipeline visualize --project xxx
+  explore_thresholds:
+            python -m risk_pipeline explore_thresholds --project xxx \\
+              --pairs-file path/to/pairs.csv
   run:      python -m risk_pipeline run --pipeline generic \\
               --wide data/raw/x.csv --id-col 客户编号 --target-col is_bad \\
               --project xxx
@@ -177,6 +181,31 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--out-dir', default=None,
                    help='输出目录，默认 output/<project>/charts/')
     p.add_argument('--dpi', type=int, default=300)
+
+    # ----- explore_thresholds -----
+    p = sub.add_parser('explore_thresholds', parents=[global_parent],
+                        help='候选规则阈值探索（optbinning 最优切点 + 业务级有效性判定）')
+    p.add_argument('--project', required=True)
+    p.add_argument('--prepared', default=None, help='默认 data/processed/{project}/prepared.csv')
+    p.add_argument('--pairs-file', required=True,
+                   help='pair-list 文件（.csv 或 .json）：列 分群维度,分群名称,特征')
+    p.add_argument('--target-col', default=None, help='默认从 features.json 读取')
+    p.add_argument('--results-subdir', default=None,
+                   help='结果子目录名，默认与 --project 同；产物落在 data/results/<subdir>/')
+    p.add_argument('--min-risk-ratio', type=float, default=None,
+                   help='风险倍数下限（默认 2.0）')
+    p.add_argument('--max-p', type=float, default=None,
+                   help='卡方 p 值上限（默认 0.05）')
+    p.add_argument('--min-bad-high', type=int, default=None,
+                   help='高风险侧坏客户数下限（默认 10）')
+    p.add_argument('--alert-rate-min', type=float, default=None,
+                   help='触警率下限（默认 0.01）')
+    p.add_argument('--alert-rate-max', type=float, default=None,
+                   help='触警率上限（默认 0.30）')
+    p.add_argument('--min-iv', type=float, default=None,
+                   help='参考 IV 下限（默认 0.02 = IV_THRESHOLD.weak；优先取分群 IV，缺失回落全样本）')
+    p.add_argument('--min-bin-size', type=float, default=None,
+                   help='optbinning min_bin_size（默认 0.05；zero-inflated 数据可降到 0.02-0.03）')
 
     # ----- run -----
     p = sub.add_parser('run', parents=[global_parent],
