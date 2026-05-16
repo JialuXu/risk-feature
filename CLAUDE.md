@@ -29,7 +29,7 @@ risk-feature-pipeline/
 ├── risk_pipeline/             # 共享模块 + 统一 CLI 入口
 │   ├── __init__.py
 │   ├── __main__.py            # python -m risk_pipeline 执行入口
-│   ├── cli.py                 # 8 子命令解析（prepare/analyze/export/query/trigger/report/visualize/explore_thresholds/run）
+│   ├── cli.py                 # 9 子命令解析（prepare/analyze/export/query/visualize/trigger/explore_thresholds/report/run）
 │   ├── cli_commands.py        # 子命令实现（薄壳 wrap 现有 Python API + state 推进）
 │   ├── cli_io.py              # _intermediate/ 落盘与重建、features.json、数据集指纹
 │   ├── pipeline_state.py      # .pipeline_state.json：Level 推进 + 历史追加 + 阻断节点
@@ -144,6 +144,10 @@ risk_data_prep → risk_feature_engineering → risk_segment_univariate
 
           可视化路径（Level 1 后；不触发上面任一步骤）：
           已导出 CSV → risk_visualization.generate_charts() → output/<project>/charts/*.png
+
+          阈值探索路径（Level 1 后；不推进 level）：
+          已导出 CSV + 人工 pair 清单 → risk_threshold_explore.explore_thresholds()
+                                       → 候选阈值表 + 分箱明细 + audit 追加节点
 ```
 
 ### Key Entry Points
@@ -201,7 +205,7 @@ from risk_export_report.scripts.report_analysis import export_results, build_llm
 
 ### CLI Entry (risk_pipeline)
 
-8 子命令（含 `explore_thresholds`），每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
+9 子命令（含 `visualize` / `explore_thresholds` / `run`），每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
 
 ```bash
 cd risk-feature-pipeline
