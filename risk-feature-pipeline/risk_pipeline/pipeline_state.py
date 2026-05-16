@@ -20,10 +20,36 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from .cli_io import dataset_fingerprint, utc_now_iso
+from .cli_io import dataset_fingerprint, now_iso
 
 
 _LEVEL_ORDER = ['前置', '过渡态', 'Level 1', 'Level 2', 'Level 3']
+
+
+def _fingerprint_matches(stored: dict, current: dict, path: str) -> bool:
+    """比对一条已存指纹与当前文件指纹是否相同；兼容新/老两种格式。
+
+    - 新格式（schema_version=2，sha256_head + sha256_tail + size + mtime）：4 字段全等
+    - 老格式（仅 sha256_first_1mb + size_bytes）：临时重算前 1MB 哈希做兼容比对，
+      让既有 .pipeline_state.json 升级无痛迁移
+    """
+    if stored.get('schema_version') == 2 or 'sha256_head' in stored:
+        return (
+            stored.get('sha256_head') == current.get('sha256_head')
+            and stored.get('sha256_tail') == current.get('sha256_tail')
+            and stored.get('size_bytes') == current.get('size_bytes')
+            and stored.get('mtime') == current.get('mtime')
+        )
+    if 'sha256_first_1mb' in stored:
+        import hashlib as _h
+        with open(path, 'rb') as f:
+            chunk = f.read(1024 * 1024)
+        legacy_head = _h.sha256(chunk).hexdigest()
+        return (
+            stored.get('sha256_first_1mb') == legacy_head
+            and stored.get('size_bytes') == current.get('size_bytes')
+        )
+    return False
 
 
 class PipelineLevelError(Exception):
@@ -69,10 +95,7 @@ class PipelineState:
     def is_known_dataset(self, path: str) -> bool:
         fp = dataset_fingerprint(path)
         for ds in self.known_datasets:
-            if (
-                ds.get('sha256_first_1mb') == fp['sha256_first_1mb']
-                and ds.get('size_bytes') == fp['size_bytes']
-            ):
+            if _fingerprint_matches(ds, fp, path):
                 return True
         return False
 
@@ -80,7 +103,7 @@ class PipelineState:
         if self.is_known_dataset(path):
             return
         fp = dataset_fingerprint(path)
-        fp['first_seen'] = utc_now_iso()
+        fp['first_seen'] = now_iso()
         self._data.setdefault('known_datasets', []).append(fp)
 
     # ---- Level 守护 ----
@@ -99,14 +122,14 @@ class PipelineState:
 
     # ---- 历史追加 ----
     def append_history(self, entry: dict, *, new_level: Optional[str] = None) -> None:
-        entry.setdefault('ts', utc_now_iso())
+        entry.setdefault('ts', now_iso())
         self._data.setdefault('history', []).append(entry)
         self._maybe_promote(new_level)
         # level_after 始终落真实的 post-promotion level；若调用方传了旧值，这里会覆盖。
         # 这样 partial 步骤（如 run --pipeline credit --steps data_prep）不会再把 level
         # 谎报为 Level 1。
         entry['level_after'] = self.current_level
-        self._data['updated_at'] = utc_now_iso()
+        self._data['updated_at'] = now_iso()
 
     # ---- 持久化 ----
     def save(self) -> None:
@@ -175,7 +198,7 @@ def load_state(
             'current_level': '前置',
             'known_datasets': [],
             'history': [],
-            'created_at': utc_now_iso(),
+            'created_at': now_iso(),
         }
 
     return PipelineState(state_path, data)
