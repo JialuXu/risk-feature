@@ -85,6 +85,42 @@ def test_analyze_rejects_export_in_steps(project_workdir, capsys):
     assert '禁止' in err
 
 
+def test_rules_only_rejects_new_category_dim(project_workdir, capsys):
+    """rules-only 跑时若 --category-dims 引入 manifest 没有的维度，应报错。
+
+    覆盖之前的静默失效路径：rules-only 分支直接采纳 CLI 传入的 category_dims，
+    但下游 cmd_export 读旧 manifest，导致新维度悄悄失效。修复后应直接拦截。
+    """
+    project = 'p_rules_dim'
+    # 1) prepare
+    cli.main([
+        'prepare',
+        '--wide', project_workdir['wide'],
+        '--bad-customer', project_workdir['bad'],
+        '--id-col', '客户编号',
+        '--target-col', 'is_bad',
+        '--project', project,
+        '--confirmed-new-dataset',
+    ])
+    # 2) 前置 analyze 只跑了 企业规模 一个维度
+    rc = cli.main([
+        'analyze', '--project', project,
+        '--steps', 'univariate,iv,lr',
+        '--category-dims', '企业规模',
+        '--quiet',
+    ])
+    assert rc == 0
+    # 3) rules-only 时传入未在 manifest 中的维度 → 拦截
+    code, _, err = _run([
+        'analyze', '--project', project,
+        '--steps', 'rules',
+        '--category-dims', '行业',  # 没出现在前置 manifest
+    ], capsys)
+    assert code == 1
+    assert '不在前置维度中' in err
+    assert '行业' in err
+
+
 def test_trigger_requires_level1(project_workdir, capsys):
     """没跑 export 就直接 trigger，应被 Level 守护拦下。"""
     cli.main([

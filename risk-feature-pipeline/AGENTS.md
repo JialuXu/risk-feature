@@ -86,7 +86,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 | 工具 | 雷区 |
 |---|---|
 | `prepare` | `--id-col`/`--target-col` 传错会静默通过但目标列语义错误；`--filter-file` 的 `exclude`/`include` 逻辑相反；首次新数据集**必须传 `--confirmed-new-dataset`**（阻断节点 1） |
-| `analyze` | CLI 强制按 `univariate→iv→lr→rules` 排序；禁止 `--steps export`（export 是独立子命令）；落产物到 `data/processed/{project}/_intermediate/`（过渡态）。**要做决策树/规则/指标组合可视化，必须 `--steps univariate,iv,lr,rules`** —— rules 步骤会拟合树并把 pkl + 规则 pkl 落 `_intermediate/`，`export` 阶段会自动把规则表写到 `data/results/<project>/<project>_风险规则表.csv` |
+| `analyze` | CLI 强制按 `univariate→iv→lr→rules` 排序；禁止 `--steps export`（export 是独立子命令）；落产物到 `data/processed/{project}/_intermediate/`（过渡态）。**要做决策树/规则/指标组合可视化，必须 `--steps univariate,iv,lr,rules`** —— rules 步骤会拟合树并把 pkl + 规则 pkl 落 `_intermediate/`，`export` 阶段会自动把规则表写到 `data/results/<project>/<project>_风险规则表.csv`。**`--steps rules` 单跑时 `--category-dims` 必须是前置 analyze 已用维度的子集**（不允许引入新维度，否则与 `_intermediate/` 中已落盘的 corr/iv_group/lr 维度错位，CLI 会直接 SystemExit 并提示"不在前置维度中"） |
 | `export` | 必须先有 `_intermediate/`；产出 8 张 CSV + LLM JSON + 推进到 Level 1 |
 | `query` | 读的是**磁盘快照**——上游重跑后若不重新跑，查询到的是旧结果；`--sign positive` 在坏客户定义反转的项目中方向反转 |
 | `trigger` | **必须传 `--confirmed`**（阻断节点 2）；`--use-default-features` 是通用配置，项目专属特征必须 `--features-file` |
@@ -226,6 +226,16 @@ python -m risk_pipeline prepare --wide ... --bad-customer ... \
   --confirmed-new-dataset
 ```
 
+同一组 `--filter-file / --exclude-features-file / --bad-id-col` 以及 C15 拆分确认三件套（`--confirmed-id-col / --confirmed-target-col / --confirmed-target-positive`）也可直接传给 `python -m risk_pipeline run --pipeline generic`，不必拆成 prepare→analyze→export 三步：
+```bash
+python -m risk_pipeline run --pipeline generic \
+  --wide data/raw/<宽表>.csv --bad-customer data/raw/<坏客户清单>.csv \
+  --id-col 客户编号 --target-col is_bad --project <项目名> \
+  --filter-file /tmp/filter.json \
+  --exclude-features-file /tmp/exclude.json \
+  --confirmed-new-dataset
+```
+
 ### 模板 B — 读已有结果（不重跑管线）
 
 ```bash
@@ -310,7 +320,7 @@ python -m risk_pipeline report --project <项目名> \
 
 - [ ] 已声明本次目标 Level（1 / 2 / 3）
 - [ ] 用了 `python -m risk_pipeline <子命令>` 而非 Bash 里 import 模块手抄
-- [ ] `prepare` 首次新数据集是否传了 `--confirmed-new-dataset`（或 C15 拆分版三件套 `--confirmed-id-col / --confirmed-target-col / --confirmed-target-positive`）
+- [ ] `prepare` 或 `run --pipeline generic` 首次新数据集是否传了 `--confirmed-new-dataset`（或 C15 拆分版三件套 `--confirmed-id-col / --confirmed-target-col / --confirmed-target-positive`）
 - [ ] `trigger` 是否传了 `--confirmed`（默认/自定义 features 都要；默认 features 仅 GSFC 主题适用，其它主题用 `--features-file`）
 - [ ] `report --purpose external` 是否传了 `--confirmed-final-version`
 - [ ] **C12: `cat data/results/<project>/<project>_audit.json` 比照机器可读自检**：
