@@ -33,9 +33,16 @@ from .pipeline_state import (
 
 
 # ===== 路径 helpers =====
+#
+# 所有 prepare/analyze 中间产物（prepared.csv / features.json / _intermediate/）
+# 都通过 _project_processed_dir 派生；该函数走 paths.get_output_root()，让
+# RISK_OUTPUT_ROOT 在 prepare/analyze 阶段也生效（修复之前"export 走环境变量、
+# prepare 不走"的不对称）。未设 env 时 get_output_root() 回退到 get_project_root()，
+# 行为与旧版相同。
 
 def _project_processed_dir(project: str) -> str:
-    return os.path.join('data', 'processed', project)
+    from .paths import get_output_root
+    return os.path.join(get_output_root(), 'data', 'processed', project)
 
 
 def _intermediate_dir(project: str) -> str:
@@ -51,8 +58,16 @@ def _features_json_path(project: str) -> str:
 
 
 def _project_root() -> str:
+    """读源数据用（data/raw/...）；遵循 RISK_PROJECT_ROOT。"""
     from .paths import get_project_root
     return get_project_root()
+
+
+def _output_root() -> str:
+    """写产物 / 读产物链路用（data/processed, data/results, output）；
+    遵循 RISK_OUTPUT_ROOT，未设时回退到 get_project_root（行为与旧版兼容）。"""
+    from .paths import get_output_root
+    return get_output_root()
 
 
 def _err(msg: str, exit_code: int = 1):
@@ -726,7 +741,7 @@ def cmd_export(args) -> int:
         except Exception as e:
             print(f'  [警告] LLM 报告数据构建失败: {e}', file=sys.stderr)
 
-    project_root = _project_root()
+    project_root = _output_root()  # export 写产物 → output_root
     exported = export_results(
         project_root, results,
         project_name=project,
@@ -838,7 +853,7 @@ def cmd_visualize(args) -> int:
             out_dir=args.out_dir,
             dim=args.dim,
             dpi=args.dpi,
-            project_root=_project_root(),
+            project_root=_output_root(),  # visualize 读产物 CSV + 写 charts/
         )
     except FileNotFoundError as e:
         _err(f'[visualize] {e}')
@@ -944,7 +959,7 @@ def cmd_trigger(args) -> int:
     id_col = args.id_col or info.get('id_col', '客户编号')
     target_col = args.target_col or info.get('target_col', 'is_bad')
 
-    output_dir = os.path.join(_project_root(), 'output', project)
+    output_dir = os.path.join(_output_root(), 'output', project)  # trigger 写三件套
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     verbose = _is_verbose(args) and not _is_quiet(args)
@@ -1053,7 +1068,7 @@ def cmd_explore_thresholds(args) -> int:
     df = pd.read_csv(prepared, encoding='utf-8-sig')
 
     try:
-        results = load_results(project, project_root=_project_root())
+        results = load_results(project, project_root=_output_root())  # 读 export 写过的产物
     except FileNotFoundError:
         # Level 1 已确认但 load_results 仍找不到（自定义 subdir 等）；以 None 继续，
         # 风险方向将回落到 bin_jump
@@ -1083,7 +1098,7 @@ def cmd_explore_thresholds(args) -> int:
         results_dir = results.results_dir
     else:
         subdir = args.results_subdir or project
-        results_dir = os.path.join(_project_root(), 'data', 'results', subdir)
+        results_dir = os.path.join(_output_root(), 'data', 'results', subdir)  # 候选阈值表写 output_root
 
     paths = write_threshold_outputs(
         outcome.summary_df, outcome.detail_df,
@@ -1163,11 +1178,11 @@ def cmd_report(args) -> int:
     started = time.time()
     project = args.project
     llm_json_path = args.llm_json or os.path.join(
-        _project_root(), 'output', project, f'{project}_LLM报告数据.json',
+        _output_root(), 'output', project, f'{project}_LLM报告数据.json',
     )
     report_md_path = args.report_markdown
     out_path = args.output or os.path.join(
-        _project_root(), 'output', project, f'{project}.docx',
+        _output_root(), 'output', project, f'{project}.docx',
     )
 
     if not os.path.isfile(llm_json_path):
@@ -1249,7 +1264,7 @@ def cmd_run(args) -> int:
         # credit 用 'credit' 作为 project，state 写入 data/results/征信/credit/
         project = args.project or 'credit'
         state_dir = _state_dir(args) or os.path.join(
-            _project_root(), 'data', 'results', '征信', project,
+            _output_root(), 'data', 'results', '征信', project,
         )
         state = load_state(project, state_dir=state_dir)
         # 只有 export 真的跑了才推进到 Level 1；steps=None 表示全跑（含 export）
@@ -1273,7 +1288,7 @@ def cmd_run(args) -> int:
         run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
         project = args.project or 'gsfc'
         state_dir = _state_dir(args) or os.path.join(
-            _project_root(), 'data', 'results', '工商财务', project,
+            _output_root(), 'data', 'results', '工商财务', project,
         )
         state = load_state(project, state_dir=state_dir)
         has_export = steps is None or 'export' in steps
