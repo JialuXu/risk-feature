@@ -220,6 +220,20 @@ def _build_parser() -> argparse.ArgumentParser:
                    help='credit/gsfc 步骤透传；generic 透传给 analyze')
     p.add_argument('--confirmed-new-dataset', action='store_true',
                    help='[阻断节点 1] 首次使用新数据集时必传')
+    # generic 路径透传给 cmd_prepare 的参数（原 cmd_run 硬编码 None 导致这些功能不可用）
+    p.add_argument('--bad-id-col', default=None,
+                   help='[generic] 同 prepare --bad-id-col；坏客户清单主键列名')
+    p.add_argument('--filter-file', default=None,
+                   help='[generic] 同 prepare --filter-file；filter 规则 JSON')
+    p.add_argument('--exclude-features-file', default=None,
+                   help='[generic] 同 prepare --exclude-features-file；'
+                        '不参与分析的特征 JSON 数组')
+    p.add_argument('--confirmed-id-col', default=None,
+                   help='[generic / 阻断节点 1 拆分版] 同 prepare --confirmed-id-col')
+    p.add_argument('--confirmed-target-col', default=None,
+                   help='[generic / 阻断节点 1 拆分版] 同 prepare --confirmed-target-col')
+    p.add_argument('--confirmed-target-positive', default=None,
+                   help='[generic / 阻断节点 1 拆分版] 同 prepare --confirmed-target-positive')
 
     return parser
 
