@@ -48,7 +48,7 @@
 | # | 模块 | 业务定位 | Level 推进 |
 |---|---|---|---|
 | 0 | 顶层 `SKILL.md` + `AGENTS.md` | 总控调度 / Agent 行为规则 | — |
-| 1 | `risk_pipeline/` | 7 子命令 + 状态机 + 配置加载 | 编排 |
+| 1 | `risk_pipeline/` | 9 子命令 + 状态机 + 配置加载 | 编排 |
 | 2 | `risk_data_prep/` | 多表合并、坏客户打标、宽表构建 | 前置 |
 | 3 | `risk_feature_engineering/` | 比率/占比/效率类衍生特征 | 前置 |
 | 4 | `risk_segment_univariate/` | 分群相关性、均值差、T 检验、箱形图 | 过渡态 |
@@ -857,17 +857,25 @@ cat data/results/新行业_v1/新行业_v1_audit.json
 
 > 我们行的字段命名跟默认不一样，主键叫"客户号"、目标列叫"是否不良"。
 
+**CLI 路径（推荐）**：直接覆盖 `config/column_mapping.yaml` / `config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
+
 ```yaml
-# 写一份 config/my_bank.yaml
-column_mapping:
-  required:
-    customer_id: "客户号"
-    target: "是否不良"
+# 直接编辑 config/column_mapping.yaml
+required:
+  customer_id: "客户号"
+  target: "是否不良"
+
+# 或编辑 config/default.yaml
 thresholds:
   min_samples: 30
 ```
 
+prepare 阶段除阻断节点 1 之外，还会做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` / `credit_category_dims` 在宽表中完全缺失，CLI 会硬错并列出实际列名，避免下游分群分析全空跑。
+
+**Python API 路径（高级用法）**：当不走 CLI、直接在 notebook 调研时，可以传入自定义路径深度合并：
+
 ```python
+# 仅 Python API 可用；CLI 入口不接受 --config，请走上方"CLI 路径"
 from risk_pipeline.config_loader import load_config
 config = load_config("config/my_bank.yaml")  # 自动深度合并默认值
 ```

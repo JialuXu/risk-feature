@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-"""7 子命令实现：薄壳 wrap 现有 Python API + state.json 状态管理。
+"""9 子命令实现：薄壳 wrap 现有 Python API + state.json 状态管理。
 
-- prepare: 调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
-- analyze: 调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
-- export:  读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
-- query:   调 risk_result_query.scripts.results_loader.load_results + top_features
-- trigger: 调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
-- report:  调 risk_docx_report.scripts.build_docx_report.build_docx_report
-- run:     便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
+- prepare:            调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
+- analyze:            调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
+- export:             读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
+- query:              调 risk_result_query.scripts.results_loader.load_results + top_features
+- visualize:          调 risk_visualization.scripts.visualize.generate_charts
+- trigger:            调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
+- explore_thresholds: 调 risk_threshold_explore.scripts.threshold_explore.explore_thresholds
+- report:             调 risk_docx_report.scripts.build_docx_report.build_docx_report
+- run:                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
 """
 from __future__ import annotations
 
@@ -110,6 +112,37 @@ def _print_stamp(stamp: str, args):
         print(stamp)
 
 
+# ===== 配置预检（Phase A） =====
+
+def _preflight_column_mapping(df, mapper) -> dict:
+    """检查 column_mapping.yaml 期望的列在实际宽表中存在多少。
+
+    返回 audit dict（会被写入 features.json），含三组列的 expected/actual/missing/hit_rate：
+      - segment_dims        通用 5 个分群维度（所属行业/客户性质/企业规模/控股类型/所属分行）
+      - credit_category_dims 征信 8 个分群维度
+      - amount_cols          金额清洗目标列（credit/gsfc 管线用）
+
+    审计本身不阻断 — 阻断决策在 cmd_prepare 里根据 hit_rate 做。
+    """
+    df_cols = set(df.columns)
+    groups = {
+        'segment_dims': mapper.segment_dims,
+        'credit_category_dims': mapper.credit_category_dims,
+        'amount_cols': mapper.amount_cols,
+    }
+    audit = {}
+    for name, expected in groups.items():
+        expected = list(expected or [])
+        actual = [c for c in expected if c in df_cols]
+        audit[name] = {
+            'expected': expected,
+            'actual': actual,
+            'missing': [c for c in expected if c not in df_cols],
+            'hit_rate': (len(actual) / len(expected)) if expected else 1.0,
+        }
+    return audit
+
+
 # ===== prepare =====
 
 def cmd_prepare(args) -> int:
@@ -174,6 +207,36 @@ def cmd_prepare(args) -> int:
         exclude_features=exclude_features,
     )
 
+    # 配置预检（Phase A）：把 YAML 期望列与实际 df.columns 对比
+    from .column_mapper import ColumnMapper
+    column_audit = _preflight_column_mapping(df, ColumnMapper())
+    seg_hit = column_audit['segment_dims']['hit_rate']
+    cred_hit = column_audit['credit_category_dims']['hit_rate']
+    skip_preflight = bool(getattr(args, 'skip_preflight', False))
+
+    # 硬错：两组分群维度均 0% 命中 → 字段彻底对不上 YAML，分群分析会全空跑
+    if seg_hit == 0 and cred_hit == 0 and not skip_preflight:
+        _err(
+            '⚠️ [配置预检] column_mapping.yaml 中所有分群维度字段在宽表中均不存在\n'
+            f'  期望 segment_dims:        {column_audit["segment_dims"]["expected"]}\n'
+            f'  期望 credit_category_dims: {column_audit["credit_category_dims"]["expected"]}\n'
+            f'  宽表实际可用列（前 20 个）: {list(df.columns)[:20]}\n'
+            '  原因：分群字段全军覆没意味着后续分群分析会全部空跑，结果只剩全样本 IV。\n'
+            '  处理方式：\n'
+            '    a) 编辑 config/column_mapping.yaml，把 segment_dims 改成实际列名后重跑\n'
+            '    b) 若有意只跑全样本（不分群），加 --skip-preflight'
+        )
+
+    # 软警告：>0 但 <30% 命中 → 不阻断，stderr 提示哪几个维度可用
+    if 0 < seg_hit < 0.3:
+        print(
+            f'⚠️ [配置预检] segment_dims 命中率 {seg_hit:.0%}'
+            f'（实际命中 {column_audit["segment_dims"]["actual"]} / '
+            f'期望 {column_audit["segment_dims"]["expected"]}）；'
+            '其余维度的分群分析将自动跳过。如需补全请编辑 config/column_mapping.yaml。',
+            file=sys.stderr,
+        )
+
     prepared_path = _prepared_csv_path(project)
     features_path = _features_json_path(project)
     Path(prepared_path).parent.mkdir(parents=True, exist_ok=True)
@@ -200,6 +263,8 @@ def cmd_prepare(args) -> int:
         'n_features': len(feature_cols),
         'created_at': cli_io.now_iso(),
         'confirmation': confirmation,
+        'column_mapping_audit': column_audit,
+        'preflight_skipped': skip_preflight,
     }
     cli_io.write_features_json(features_path, info)
 
@@ -281,6 +346,44 @@ def cmd_analyze(args) -> int:
         qual_dims = []
     else:
         qual_dims = [d.strip() for d in args.qual_dims.split(',') if d.strip()]
+
+    # Phase B：--category-dims 列存在性硬校验（避免下游 KeyError）
+    if category_dims is not None:
+        prepared_cols = pd.read_csv(prepared, nrows=0, encoding='utf-8-sig').columns.tolist()
+        invalid = [d for d in category_dims if d not in prepared_cols]
+        if invalid:
+            hint = ''
+            if os.path.isfile(features_path):
+                try:
+                    audit = cli_io.read_features_json(features_path).get(
+                        'column_mapping_audit', {}
+                    ).get('segment_dims', {})
+                    if audit.get('actual'):
+                        hint = f'\n  prepare 时检测到的可用分群维度: {audit["actual"]}'
+                except Exception:  # noqa: BLE001
+                    pass
+            _err(
+                f'[analyze] --category-dims 中以下列在 prepared.csv 不存在: {invalid}\n'
+                f'  prepared.csv 前 30 列: {prepared_cols[:30]}{hint}\n'
+                '  建议: 编辑 config/column_mapping.yaml 后重跑 prepare，或直接传实际列名'
+            )
+    else:
+        # 自动检测路径：若 prepare 阶段命中率为 0，提示用户分析会退化到全样本
+        if os.path.isfile(features_path):
+            try:
+                audit_seg = cli_io.read_features_json(features_path).get(
+                    'column_mapping_audit', {}
+                ).get('segment_dims', {})
+                if audit_seg and audit_seg.get('hit_rate', 1.0) == 0:
+                    print(
+                        '⚠️ [analyze] features.json 显示 segment_dims 自动检测为空；'
+                        '本次分析将仅在全样本范围进行，不会有分群对比。'
+                        '如需分群，请编辑 config/column_mapping.yaml 后重跑 prepare，'
+                        '或直接给 analyze 传 --category-dims <实际列名>。',
+                        file=sys.stderr,
+                    )
+            except Exception:  # noqa: BLE001
+                pass
 
     state = load_state(project, state_dir=_state_dir(args))
 
@@ -819,6 +922,8 @@ def cmd_trigger(args) -> int:
             f'  请确认：\n'
             f'    1. features 配置正确（report_name / source_col / risk_direction / iv 全部核对）\n'
             f'    2. 项目专属特征是否已对齐 prepared.csv 的实际列名\n'
+            f'  非 GSFC 数据集请走 --features-file，模板见：\n'
+            f'    risk_trigger_extraction/examples/features_template_generic.json\n'
             f'  若确认无误，重新执行并加 `--confirmed`。'
         )
 
@@ -1204,6 +1309,7 @@ def cmd_run(args) -> int:
         confirmed_id_col=getattr(args, 'confirmed_id_col', None),
         confirmed_target_col=getattr(args, 'confirmed_target_col', None),
         confirmed_target_positive=getattr(args, 'confirmed_target_positive', None),
+        skip_preflight=getattr(args, 'skip_preflight', False),
         quiet=_is_quiet(args), verbose=_is_verbose(args),
         state_dir=_state_dir(args),
     ))

@@ -42,7 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog='python -m risk_pipeline',
-        description='风险特征分析统一 CLI（7 子命令）',
+        description='风险特征分析统一 CLI（9 子命令）',
         parents=[global_parent],
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
@@ -96,6 +96,9 @@ def _build_parser() -> argparse.ArgumentParser:
                    help='[阻断节点 1 / 拆分版] 显式声明确认的目标列名（须与 --target-col 一致）')
     p.add_argument('--confirmed-target-positive', default=None,
                    help='[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit')
+    p.add_argument('--skip-preflight', action='store_true',
+                   help='跳过 column_mapping.yaml 与宽表的字段映射预检（仅当你确认只跑全样本、'
+                        '不需要分群分析时使用；否则建议先编辑 config/column_mapping.yaml）')
 
     # ----- analyze -----
     p = sub.add_parser('analyze', parents=[global_parent],
@@ -234,6 +237,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help='[generic / 阻断节点 1 拆分版] 同 prepare --confirmed-target-col')
     p.add_argument('--confirmed-target-positive', default=None,
                    help='[generic / 阻断节点 1 拆分版] 同 prepare --confirmed-target-positive')
+    p.add_argument('--skip-preflight', action='store_true',
+                   help='[generic] 同 prepare --skip-preflight；透传给 prepare 阶段')
 
     return parser
 

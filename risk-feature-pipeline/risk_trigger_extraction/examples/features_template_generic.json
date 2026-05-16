@@ -1,0 +1,39 @@
+[
+  {
+    "report_name": "示例-资产负债率过高",
+    "source_col": "资产负债率",
+    "risk_direction": "positive",
+    "iv": 0.45,
+    "category": "财务杠杆",
+    "scope": "full",
+    "_comment": "字段含义：report_name=报告里展示的中文名；source_col=宽表实际列名；risk_direction=positive(数值越大风险越高)/negative(数值越小风险越高)；iv 通常取 Level 1 导出的 _IV分析结果_全量.csv 同名特征的 IV 值；category 用于触碰表分组；scope 见下"
+  },
+  {
+    "report_name": "示例-营业收入同比下滑",
+    "source_col": "营业收入_yoy",
+    "risk_direction": "negative",
+    "iv": 0.32,
+    "category": "经营趋势",
+    "scope": "full"
+  },
+  {
+    "report_name": "示例-显式阈值-本行授信使用率",
+    "source_col": "本行授信使用率",
+    "risk_direction": "positive",
+    "iv": 0.55,
+    "category": "授信匹配度",
+    "explicit_threshold": [">", 0.7],
+    "scope": "full",
+    "_comment_threshold": "explicit_threshold=[运算符, 阈值] 写死阈值，覆盖自动算法；运算符: '>' / '<' / '>=' / '<='"
+  },
+  {
+    "report_name": "示例-腰部企业专项",
+    "source_col": "担保查询机构比",
+    "risk_direction": "positive",
+    "iv": 0.08,
+    "iv_waist": 0.95,
+    "category": "征信渠道-腰部专项",
+    "scope": "waist",
+    "_comment_scope": "scope 可选: 'full'(默认 全样本) / 'waist'(腰部企业，需宽表含 '是否腰部企业' 列) / {\"dim\": \"X\", \"value\": \"Y\"}(单值筛选) / {\"dim\": \"X\", \"values\": [\"Y1\",\"Y2\"]}(多值筛选)"
+  }
+]
