@@ -18,8 +18,12 @@ from typing import Optional, Tuple
 import pandas as pd
 
 
-def utc_now_iso() -> str:
-    """返回当前时间的本地时区 ISO 8601 字符串。"""
+def now_iso() -> str:
+    """返回当前时间的本地时区 ISO 8601 字符串。
+
+    历史命名 utc_now_iso 误导（函数名带 utc 但实际 .astimezone() 转为本地时区），
+    本轮统一改名为 now_iso；不再保留 utc_now_iso 兼容别名。
+    """
     return datetime.now(timezone.utc).astimezone().isoformat()
 
 
@@ -34,17 +38,37 @@ def read_features_json(path) -> dict:
         return json.load(f)
 
 
-def dataset_fingerprint(path: str) -> dict:
-    """返回 {path, sha256_first_1mb, size_bytes}。
+_FP_HEAD_BYTES = 256 * 1024
+_FP_TAIL_BYTES = 256 * 1024
 
-    只摘前 1MB 是为了避免大文件阻塞；前 1MB + 文件大小作为指纹足以区分典型变更。
+
+def dataset_fingerprint(path: str) -> dict:
+    """返回 头+尾 采样哈希 + size + mtime 的指纹（schema_version=2）。
+
+    设计：
+      - sha256_head: 前 256KB 哈希，捕获表头/前段 schema 变更
+      - sha256_tail: 尾 256KB 哈希，捕获"宽表追加新客户"场景（老实现只看前 1MB 时会漏判）
+      - size_bytes + mtime: 兜底
+      - schema_version=2: 与老格式（只含 sha256_first_1mb + size_bytes）区分，
+        pipeline_state._fingerprint_matches 据此选比对策略
     """
+    size = os.path.getsize(path)
+    mtime = os.path.getmtime(path)
     with open(path, 'rb') as f:
-        chunk = f.read(1024 * 1024)
+        head_chunk = f.read(_FP_HEAD_BYTES)
+        if size > _FP_HEAD_BYTES + _FP_TAIL_BYTES:
+            f.seek(-_FP_TAIL_BYTES, os.SEEK_END)
+            tail_chunk = f.read(_FP_TAIL_BYTES)
+        else:
+            # 文件 ≤ head+tail：尾部哈希会与头重叠，置空避免重复计算
+            tail_chunk = b''
     return {
+        'schema_version': 2,
         'path': str(path),
-        'sha256_first_1mb': hashlib.sha256(chunk).hexdigest(),
-        'size_bytes': os.path.getsize(path),
+        'sha256_head': hashlib.sha256(head_chunk).hexdigest(),
+        'sha256_tail': hashlib.sha256(tail_chunk).hexdigest(),
+        'size_bytes': size,
+        'mtime': mtime,
     }
 
 
@@ -124,7 +148,7 @@ def dump_intermediate(
             for _, k in _WIDE_DICT_KEYS
             for d in (results.get(k) or {}).keys()
         ])),
-        'created_at': utc_now_iso(),
+        'created_at': now_iso(),
     }
     with open(os.path.join(intermediate_dir, 'manifest.json'), 'w', encoding='utf-8') as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)

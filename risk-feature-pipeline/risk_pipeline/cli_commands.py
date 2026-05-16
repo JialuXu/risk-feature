@@ -198,7 +198,7 @@ def cmd_prepare(args) -> int:
         'n_rows': len(df),
         'n_bad': n_bad,
         'n_features': len(feature_cols),
-        'created_at': cli_io.utc_now_iso(),
+        'created_at': cli_io.now_iso(),
         'confirmation': confirmation,
     }
     cli_io.write_features_json(features_path, info)
@@ -324,10 +324,23 @@ def cmd_analyze(args) -> int:
             )
         with open(manifest_path, 'r', encoding='utf-8') as f:
             manifest = json.load(f)
-        effective_category_dims = (
-            category_dims if category_dims is not None
-            else manifest.get('category_dims', [])
-        )
+        manifest_dims = manifest.get('category_dims', [])
+        # rules-only 模式下 --category-dims 必须是 manifest 维度的子集；
+        # 凭空引入新维度会让 rules 与前置 corr/iv/lr 结果错位（下游 export 读旧 manifest）
+        if category_dims is not None:
+            invalid = [d for d in category_dims if d not in manifest_dims]
+            if invalid:
+                _err(
+                    f'[analyze] --steps rules 单跑时 --category-dims 必须是前置 analyze '
+                    f'已用维度的子集。\n'
+                    f'  前置维度（manifest）: {manifest_dims}\n'
+                    f'  CLI 传入但不在前置维度中: {invalid}\n'
+                    f'  原因：corr / iv_group / lr 已按 manifest 维度落盘到 _intermediate/；'
+                    f'新维度需先重跑 univariate,iv,lr 才能与 rules 对齐。'
+                )
+            effective_category_dims = category_dims
+        else:
+            effective_category_dims = manifest_dims
         results = {}  # 只是给后面 status stamp 用
 
     rules_summary = ''
@@ -459,7 +472,7 @@ def _write_audit_json(
     audit = {
         'project_name': project,
         'level': level,
-        'created_at': cli_io.utc_now_iso(),
+        'created_at': cli_io.now_iso(),
         'n_exported': n_exported,
         'iv_overfit_features': [],
         'unstable_rules': [],
@@ -989,7 +1002,7 @@ def cmd_explore_thresholds(args) -> int:
         candidates_payload = outcome.summary_df[avail].to_dict(orient='records')
 
     append_audit_node(audit_path, 'threshold_candidates', {
-        'created_at': cli_io.utc_now_iso(),
+        'created_at': cli_io.now_iso(),
         'n_pairs_input': len(pair_list),
         'n_pairs_evaluated': len(outcome.summary_df) if outcome.summary_df is not None else 0,
         'n_pairs_skipped': len(outcome.skipped),
@@ -1182,9 +1195,15 @@ def cmd_run(args) -> int:
     rc = cmd_prepare(_argparse.Namespace(
         wide=args.wide, bad_customer=args.bad_customer,
         id_col=args.id_col, target_col=args.target_col,
-        bad_id_col=None, filter_file=None, exclude_features_file=None,
+        bad_id_col=getattr(args, 'bad_id_col', None),
+        filter_file=getattr(args, 'filter_file', None),
+        exclude_features_file=getattr(args, 'exclude_features_file', None),
         project=args.project,
         confirmed_new_dataset=getattr(args, 'confirmed_new_dataset', False),
+        # C15 拆分确认 flag：原 cmd_run 漏传导致 run 路径仅支持一键确认
+        confirmed_id_col=getattr(args, 'confirmed_id_col', None),
+        confirmed_target_col=getattr(args, 'confirmed_target_col', None),
+        confirmed_target_positive=getattr(args, 'confirmed_target_positive', None),
         quiet=_is_quiet(args), verbose=_is_verbose(args),
         state_dir=_state_dir(args),
     ))
