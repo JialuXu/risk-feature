@@ -24,25 +24,25 @@ from risk_pipeline.config import (  # noqa: F401 (补充路径常量)
     RESULTS_DIR,        OUTPUT_DIR_GENERIC,
 )
 
-# 管线 A（征信）
+# 链路 A（征信）
 CREDIT_PIPELINE_PATHS = {
     'results_rel': RESULTS_DIR_CREDIT,
     'output_rel':  OUTPUT_DIR_CREDIT,
 }
 
-# 通用宽表管线（generic）
+# 通用宽表链路（generic）
 GENERIC_PIPELINE_PATHS = {
     'results_rel': RESULTS_DIR,
     'output_rel':  OUTPUT_DIR_GENERIC,
 }
 
-# 管线 A LLM JSON「报告目标」模板，{pname} 替换为 project_name
+# 链路 A LLM JSON「报告目标」模板，{pname} 替换为 project_name
 CREDIT_LLM_REPORT_GOAL_TEMPLATE = (
     '基于{pname}，识别与客户信用风险显著相关的特征信号，'
     '为授信审批和贷后监控提供数据依据'
 )
 
-# 管线 B（工商财务）结果导出：时间戳类文件前缀、综合表文件名、LLM 产物项目名
+# 链路 B（工商财务）结果导出：时间戳类文件前缀、综合表文件名、LLM 产物项目名
 GSFC_RESULTS_EXPORT_PREFIX = '风险分析'
 GSFC_COMPREHENSIVE_CSV_BASENAME = '风险特征分析综合结果'
 GSFC_IV_COMPARE_CSV_BASENAME = '风险特征分析_分群IV对比'

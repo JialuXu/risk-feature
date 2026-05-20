@@ -108,7 +108,7 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 
 ## 调用入口
 
-通过统一管线执行（推荐）：
+通过统一链路执行（推荐）：
 
 ```python
 from risk_pipeline.pipeline import run_generic_pipeline
@@ -150,4 +150,4 @@ exported = export_results(
 | 模块 | 作用 |
 |------|------|
 | `scripts/report_analysis.py` | 主路径：导出、综合表、LLM 数据、核心发现 |
-| `scripts/report_export.py` | 备用路径（工商财务旧管线）：`export_results`、`build_llm_report_data_gsfc` |
+| `scripts/report_export.py` | 备用路径（工商财务旧链路）：`export_results`、`build_llm_report_data_gsfc` |
