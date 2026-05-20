@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-"""7 子命令实现：薄壳 wrap 现有 Python API + state.json 状态管理。
+"""9 子命令实现：薄壳 wrap 现有 Python API + state.json 状态管理。
 
-- prepare: 调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
-- analyze: 调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
-- export:  读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
-- query:   调 risk_result_query.scripts.results_loader.load_results + top_features
-- trigger: 调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
-- report:  调 risk_docx_report.scripts.build_docx_report.build_docx_report
-- run:     便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
+- prepare:            调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
+- analyze:            调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
+- export:             读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
+- query:              调 risk_result_query.scripts.results_loader.load_results + top_features
+- visualize:          调 risk_visualization.scripts.visualize.generate_charts
+- trigger:            调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
+- explore_thresholds: 调 risk_threshold_explore.scripts.threshold_explore.explore_thresholds
+- report:             调 risk_docx_report.scripts.build_docx_report.build_docx_report
+- run:                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
 """
 from __future__ import annotations
 
@@ -31,9 +33,16 @@ from .pipeline_state import (
 
 
 # ===== 路径 helpers =====
+#
+# 所有 prepare/analyze 中间产物（prepared.csv / features.json / _intermediate/）
+# 都通过 _project_processed_dir 派生；该函数走 paths.get_output_root()，让
+# RISK_OUTPUT_ROOT 在 prepare/analyze 阶段也生效（修复之前"export 走环境变量、
+# prepare 不走"的不对称）。未设 env 时 get_output_root() 回退到 get_project_root()，
+# 行为与旧版相同。
 
 def _project_processed_dir(project: str) -> str:
-    return os.path.join('data', 'processed', project)
+    from .paths import get_output_root
+    return os.path.join(get_output_root(), 'data', 'processed', project)
 
 
 def _intermediate_dir(project: str) -> str:
@@ -49,8 +58,16 @@ def _features_json_path(project: str) -> str:
 
 
 def _project_root() -> str:
+    """读源数据用（data/raw/...）；遵循 RISK_PROJECT_ROOT。"""
     from .paths import get_project_root
     return get_project_root()
+
+
+def _output_root() -> str:
+    """写产物 / 读产物链路用（data/processed, data/results, output）；
+    遵循 RISK_OUTPUT_ROOT，未设时回退到 get_project_root（行为与旧版兼容）。"""
+    from .paths import get_output_root
+    return get_output_root()
 
 
 def _err(msg: str, exit_code: int = 1):
@@ -108,6 +125,37 @@ def _state_dir(args) -> Optional[str]:
 def _print_stamp(stamp: str, args):
     if not _is_quiet(args):
         print(stamp)
+
+
+# ===== 配置预检（Phase A） =====
+
+def _preflight_column_mapping(df, mapper) -> dict:
+    """检查 column_mapping.yaml 期望的列在实际宽表中存在多少。
+
+    返回 audit dict（会被写入 features.json），含三组列的 expected/actual/missing/hit_rate：
+      - segment_dims        通用 5 个分群维度（所属行业/客户性质/企业规模/控股类型/所属分行）
+      - credit_category_dims 征信 8 个分群维度
+      - amount_cols          金额清洗目标列（credit/gsfc 管线用）
+
+    审计本身不阻断 — 阻断决策在 cmd_prepare 里根据 hit_rate 做。
+    """
+    df_cols = set(df.columns)
+    groups = {
+        'segment_dims': mapper.segment_dims,
+        'credit_category_dims': mapper.credit_category_dims,
+        'amount_cols': mapper.amount_cols,
+    }
+    audit = {}
+    for name, expected in groups.items():
+        expected = list(expected or [])
+        actual = [c for c in expected if c in df_cols]
+        audit[name] = {
+            'expected': expected,
+            'actual': actual,
+            'missing': [c for c in expected if c not in df_cols],
+            'hit_rate': (len(actual) / len(expected)) if expected else 1.0,
+        }
+    return audit
 
 
 # ===== prepare =====
@@ -174,6 +222,36 @@ def cmd_prepare(args) -> int:
         exclude_features=exclude_features,
     )
 
+    # 配置预检（Phase A）：把 YAML 期望列与实际 df.columns 对比
+    from .column_mapper import ColumnMapper
+    column_audit = _preflight_column_mapping(df, ColumnMapper())
+    seg_hit = column_audit['segment_dims']['hit_rate']
+    cred_hit = column_audit['credit_category_dims']['hit_rate']
+    skip_preflight = bool(getattr(args, 'skip_preflight', False))
+
+    # 硬错：两组分群维度均 0% 命中 → 字段彻底对不上 YAML，分群分析会全空跑
+    if seg_hit == 0 and cred_hit == 0 and not skip_preflight:
+        _err(
+            '⚠️ [配置预检] column_mapping.yaml 中所有分群维度字段在宽表中均不存在\n'
+            f'  期望 segment_dims:        {column_audit["segment_dims"]["expected"]}\n'
+            f'  期望 credit_category_dims: {column_audit["credit_category_dims"]["expected"]}\n'
+            f'  宽表实际可用列（前 20 个）: {list(df.columns)[:20]}\n'
+            '  原因：分群字段全军覆没意味着后续分群分析会全部空跑，结果只剩全样本 IV。\n'
+            '  处理方式：\n'
+            '    a) 编辑 config/column_mapping.yaml，把 segment_dims 改成实际列名后重跑\n'
+            '    b) 若有意只跑全样本（不分群），加 --skip-preflight'
+        )
+
+    # 软警告：>0 但 <30% 命中 → 不阻断，stderr 提示哪几个维度可用
+    if 0 < seg_hit < 0.3:
+        print(
+            f'⚠️ [配置预检] segment_dims 命中率 {seg_hit:.0%}'
+            f'（实际命中 {column_audit["segment_dims"]["actual"]} / '
+            f'期望 {column_audit["segment_dims"]["expected"]}）；'
+            '其余维度的分群分析将自动跳过。如需补全请编辑 config/column_mapping.yaml。',
+            file=sys.stderr,
+        )
+
     prepared_path = _prepared_csv_path(project)
     features_path = _features_json_path(project)
     Path(prepared_path).parent.mkdir(parents=True, exist_ok=True)
@@ -200,6 +278,8 @@ def cmd_prepare(args) -> int:
         'n_features': len(feature_cols),
         'created_at': cli_io.now_iso(),
         'confirmation': confirmation,
+        'column_mapping_audit': column_audit,
+        'preflight_skipped': skip_preflight,
     }
     cli_io.write_features_json(features_path, info)
 
@@ -281,6 +361,44 @@ def cmd_analyze(args) -> int:
         qual_dims = []
     else:
         qual_dims = [d.strip() for d in args.qual_dims.split(',') if d.strip()]
+
+    # Phase B：--category-dims 列存在性硬校验（避免下游 KeyError）
+    if category_dims is not None:
+        prepared_cols = pd.read_csv(prepared, nrows=0, encoding='utf-8-sig').columns.tolist()
+        invalid = [d for d in category_dims if d not in prepared_cols]
+        if invalid:
+            hint = ''
+            if os.path.isfile(features_path):
+                try:
+                    audit = cli_io.read_features_json(features_path).get(
+                        'column_mapping_audit', {}
+                    ).get('segment_dims', {})
+                    if audit.get('actual'):
+                        hint = f'\n  prepare 时检测到的可用分群维度: {audit["actual"]}'
+                except Exception:  # noqa: BLE001
+                    pass
+            _err(
+                f'[analyze] --category-dims 中以下列在 prepared.csv 不存在: {invalid}\n'
+                f'  prepared.csv 前 30 列: {prepared_cols[:30]}{hint}\n'
+                '  建议: 编辑 config/column_mapping.yaml 后重跑 prepare，或直接传实际列名'
+            )
+    else:
+        # 自动检测路径：若 prepare 阶段命中率为 0，提示用户分析会退化到全样本
+        if os.path.isfile(features_path):
+            try:
+                audit_seg = cli_io.read_features_json(features_path).get(
+                    'column_mapping_audit', {}
+                ).get('segment_dims', {})
+                if audit_seg and audit_seg.get('hit_rate', 1.0) == 0:
+                    print(
+                        '⚠️ [analyze] features.json 显示 segment_dims 自动检测为空；'
+                        '本次分析将仅在全样本范围进行，不会有分群对比。'
+                        '如需分群，请编辑 config/column_mapping.yaml 后重跑 prepare，'
+                        '或直接给 analyze 传 --category-dims <实际列名>。',
+                        file=sys.stderr,
+                    )
+            except Exception:  # noqa: BLE001
+                pass
 
     state = load_state(project, state_dir=_state_dir(args))
 
@@ -623,7 +741,7 @@ def cmd_export(args) -> int:
         except Exception as e:
             print(f'  [警告] LLM 报告数据构建失败: {e}', file=sys.stderr)
 
-    project_root = _project_root()
+    project_root = _output_root()  # export 写产物 → output_root
     exported = export_results(
         project_root, results,
         project_name=project,
@@ -735,7 +853,7 @@ def cmd_visualize(args) -> int:
             out_dir=args.out_dir,
             dim=args.dim,
             dpi=args.dpi,
-            project_root=_project_root(),
+            project_root=_output_root(),  # visualize 读产物 CSV + 写 charts/
         )
     except FileNotFoundError as e:
         _err(f'[visualize] {e}')
@@ -819,6 +937,8 @@ def cmd_trigger(args) -> int:
             f'  请确认：\n'
             f'    1. features 配置正确（report_name / source_col / risk_direction / iv 全部核对）\n'
             f'    2. 项目专属特征是否已对齐 prepared.csv 的实际列名\n'
+            f'  非 GSFC 数据集请走 --features-file，模板见：\n'
+            f'    risk_trigger_extraction/examples/features_template_generic.json\n'
             f'  若确认无误，重新执行并加 `--confirmed`。'
         )
 
@@ -839,7 +959,7 @@ def cmd_trigger(args) -> int:
     id_col = args.id_col or info.get('id_col', '客户编号')
     target_col = args.target_col or info.get('target_col', 'is_bad')
 
-    output_dir = os.path.join(_project_root(), 'output', project)
+    output_dir = os.path.join(_output_root(), 'output', project)  # trigger 写三件套
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     verbose = _is_verbose(args) and not _is_quiet(args)
@@ -948,7 +1068,7 @@ def cmd_explore_thresholds(args) -> int:
     df = pd.read_csv(prepared, encoding='utf-8-sig')
 
     try:
-        results = load_results(project, project_root=_project_root())
+        results = load_results(project, project_root=_output_root())  # 读 export 写过的产物
     except FileNotFoundError:
         # Level 1 已确认但 load_results 仍找不到（自定义 subdir 等）；以 None 继续，
         # 风险方向将回落到 bin_jump
@@ -978,7 +1098,7 @@ def cmd_explore_thresholds(args) -> int:
         results_dir = results.results_dir
     else:
         subdir = args.results_subdir or project
-        results_dir = os.path.join(_project_root(), 'data', 'results', subdir)
+        results_dir = os.path.join(_output_root(), 'data', 'results', subdir)  # 候选阈值表写 output_root
 
     paths = write_threshold_outputs(
         outcome.summary_df, outcome.detail_df,
@@ -1058,11 +1178,11 @@ def cmd_report(args) -> int:
     started = time.time()
     project = args.project
     llm_json_path = args.llm_json or os.path.join(
-        _project_root(), 'output', project, f'{project}_LLM报告数据.json',
+        _output_root(), 'output', project, f'{project}_LLM报告数据.json',
     )
     report_md_path = args.report_markdown
     out_path = args.output or os.path.join(
-        _project_root(), 'output', project, f'{project}.docx',
+        _output_root(), 'output', project, f'{project}.docx',
     )
 
     if not os.path.isfile(llm_json_path):
@@ -1144,7 +1264,7 @@ def cmd_run(args) -> int:
         # credit 用 'credit' 作为 project，state 写入 data/results/征信/credit/
         project = args.project or 'credit'
         state_dir = _state_dir(args) or os.path.join(
-            _project_root(), 'data', 'results', '征信', project,
+            _output_root(), 'data', 'results', '征信', project,
         )
         state = load_state(project, state_dir=state_dir)
         # 只有 export 真的跑了才推进到 Level 1；steps=None 表示全跑（含 export）
@@ -1168,7 +1288,7 @@ def cmd_run(args) -> int:
         run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
         project = args.project or 'gsfc'
         state_dir = _state_dir(args) or os.path.join(
-            _project_root(), 'data', 'results', '工商财务', project,
+            _output_root(), 'data', 'results', '工商财务', project,
         )
         state = load_state(project, state_dir=state_dir)
         has_export = steps is None or 'export' in steps
@@ -1204,6 +1324,7 @@ def cmd_run(args) -> int:
         confirmed_id_col=getattr(args, 'confirmed_id_col', None),
         confirmed_target_col=getattr(args, 'confirmed_target_col', None),
         confirmed_target_positive=getattr(args, 'confirmed_target_positive', None),
+        skip_preflight=getattr(args, 'skip_preflight', False),
         quiet=_is_quiet(args), verbose=_is_verbose(args),
         state_dir=_state_dir(args),
     ))

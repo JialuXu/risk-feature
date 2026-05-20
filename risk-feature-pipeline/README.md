@@ -71,7 +71,7 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 ## 集成改造要点
 
-- 新银行或新数据源优先新增 YAML 覆盖配置，不直接改业务代码；字段映射优先级为 `--columns-file`、项目目录 `.risk_pipeline_columns.yaml`、`config/<bank>.yaml`、`config/default.yaml`。
+- 新银行或新数据源接入：直接编辑 `config/column_mapping.yaml`（字段映射）与 `config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
 - `prepare` 是数据进入管线的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
 - `trigger` 会进入客户级运营结果，必须在 Level 1 后执行，并显式确认 features 配置。

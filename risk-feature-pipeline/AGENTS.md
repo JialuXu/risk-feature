@@ -114,6 +114,11 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。需要调整阈值 / 字段映射 / IV 参数时，直接编辑 `config/default.yaml` 与 `config/column_mapping.yaml` 后重跑；prepare 时如有差异通过 `--id-col` / `--target-col` / `--bad-id-col` 直接传。
 
+新银行 / 新数据集接入时，prepare 阶段会自动做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` 与 `credit_category_dims` 在宽表中均 0% 命中，CLI 直接 exit 1 并列出实际列。处理方式（任选其一）：
+- 编辑 `config/column_mapping.yaml`，把 `segment_dims` 改成实际列名后重跑（最常用）
+- 显式给 `analyze` 传 `--category-dims <实际列名>`（仅本次有效）
+- 若有意只跑全样本（无任何分群对比），加 `--skip-preflight`
+
 如未来真要做多 YAML 切换，新加 flag 时务必同步在 `cli_commands.py` 里把它消费掉，不要再让"声明而不读"的 flag 静默吞用户输入。
 
 ---
