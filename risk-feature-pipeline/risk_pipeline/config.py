@@ -47,13 +47,13 @@ def _resolve_output_path(rel: str) -> str:
     return rel
 
 
-# 征信管线
+# 征信链路
 RESULTS_DIR_CREDIT = _resolve_output_path(_cfg['output']['results_credit'])
 OUTPUT_DIR_CREDIT  = _resolve_output_path(_cfg['output']['final_credit'])
-# 工商财务管线
+# 工商财务链路
 RESULTS_DIR_GSFC   = _resolve_output_path(_cfg['output']['results_gsfc'])
 OUTPUT_DIR_GSFC    = _resolve_output_path(_cfg['output']['final_gsfc'])
-# 通用管线
+# 通用链路
 RESULTS_DIR        = _resolve_output_path(_cfg['output'].get('results', 'data/results'))
 OUTPUT_DIR_GENERIC = _resolve_output_path(_cfg['output'].get('final', 'output'))
 

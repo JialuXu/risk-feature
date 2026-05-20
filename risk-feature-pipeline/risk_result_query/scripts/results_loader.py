@@ -25,7 +25,7 @@ if _SKILL_ROOT not in sys.path:
     sys.path.insert(0, _SKILL_ROOT)
 
 # 搜索顺序：generic → 征信(credit) → 工商财务(gsfc)
-# 优先匹配 generic 管线（run_generic_pipeline 导出到 data/results/<project>）
+# 优先匹配 generic 链路（run_generic_pipeline 导出到 data/results/<project>）
 # 若不存在则自动尝试旧有的业务类型子目录（向后兼容）
 _SEARCH_BASES = [
     ('data/results', 'output'),            # generic pipeline
@@ -178,7 +178,7 @@ def load_results(project_name: str,
     """读取已导出的分析结果。
 
     Args:
-        project_name:  跑管线时传入的 project_name
+        project_name:  跑链路时传入的 project_name
         subdir:        结果子目录名；默认等于 project_name
         project_root:  手动指定项目根（默认从 CWD 向上找 data/）
         results_base:  data/results 级别的相对路径；None = 自动按优先级搜索

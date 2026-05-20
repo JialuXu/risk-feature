@@ -43,7 +43,7 @@ _DEGENERATE_LABEL = '(数据不足)'
 
 
 def _configure_chinese_font_once() -> None:
-    """转发到管线级共享的字体配置入口（risk_pipeline.font_utils）。
+    """转发到链路级共享的字体配置入口（risk_pipeline.font_utils）。
 
     历史上这里调用过 `risk_visualization.scripts.font_utils`，但那条路径
     在 risk_visualization 没被加载时会静默失败，导致中文渲染成方框。

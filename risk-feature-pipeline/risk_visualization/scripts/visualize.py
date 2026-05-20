@@ -117,7 +117,7 @@ def generate_charts(
     """生成 PNG 图表集合。
 
     Args:
-        project_name: 跑管线时传入的 project_name
+        project_name: 跑链路时传入的 project_name
         kinds:        要画的图（见 ALL_KINDS），None = 全部
         top_n:        条形图 top-N
         out_dir:      输出目录，默认 <project_root>/output/<project>/charts/

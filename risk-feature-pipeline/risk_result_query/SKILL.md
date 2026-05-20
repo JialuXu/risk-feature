@@ -1,6 +1,6 @@
 ---
 name: risk_result_query
-description: 读取并查询 risk-feature-pipeline 已导出的风险特征分析结果（IV、LR、相关性、综合表、LLM JSON）。当用户说"查/读/解读/看 IV/LR/相关性/分群结果"、"top 特征"、"某分群表现"、"分析结果在哪"时触发。本 skill 只读文件、不重跑管线；需要新算结果才触发 risk-feature-pipeline 主 skill。
+description: 读取并查询 risk-feature-pipeline 已导出的风险特征分析结果（IV、LR、相关性、综合表、LLM JSON）。当用户说"查/读/解读/看 IV/LR/相关性/分群结果"、"top 特征"、"某分群表现"、"分析结果在哪"时触发。本 skill 只读文件、不重跑链路；需要新算结果才触发 risk-feature-pipeline 主 skill。
 ---
 
 ## 核心规矩

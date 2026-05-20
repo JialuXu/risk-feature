@@ -8,12 +8,12 @@
 
 ## 一、仓库定位
 
-本仓库不是单一管线，而是一个**通用的客户级风险特征工程生态**：
+本仓库不是单一链路，而是一个**通用的客户级风险特征工程生态**：
 
 - **数据形态无关**：支持任意客户宽表——征信 / 工商财务 / 舆情 / 行为 / 标签…只要满足"主键 + 二分类目标 + 数值特征列"即可
-- **核心**：模块化的风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰），内置 `credit` / `gsfc` / `generic` 三套预设管线，generic 适配自备宽表
+- **核心**：模块化的风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰），内置 `credit` / `gsfc` / `generic` 三套预设链路，generic 适配自备宽表
 - **上层**：基于 LLM 的衍生指标设计 Agent（把挖掘结果翻译成元表里的指标）
-- **接口**：MCP Server，把管线包装成异步工具供 LLM 客户端（Claude Desktop / Cursor 等）调用
+- **接口**：MCP Server，把链路包装成异步工具供 LLM 客户端（Claude Desktop / Cursor 等）调用
 - **文档**：HonKit 手册站点，把仓库内的 `README.md` / `SKILL.md` 聚合并导出 PDF / DOCX
 - **验收**：UCI Credit Card 数据集端到端测试剧本（同时也证明本工具不限于征信场景）
 
@@ -28,7 +28,7 @@ risk-feature-pipeline/                # 仓库根
 ├── CLAUDE.md                         # Claude Code 工作规约（项目级）
 ├── README.md                         # 本文件（顶层综述与引导）
 │
-├── risk-feature-pipeline/            # ① 核心管线（Skills 集合 + 统一 CLI）
+├── risk-feature-pipeline/            # ① 核心链路（Skills 集合 + 统一 CLI）
 ├── risk-indicator-agent/             # ② LLM 衍生指标 Agent（5 步流水线）
 ├── risk_feature_MCPServer/           # ③ MCP Server（异步工具封装）
 ├── handbook/                         # ④ HonKit 文档手册（聚合 + 导出）
@@ -37,9 +37,9 @@ risk-feature-pipeline/                # 仓库根
 
 | # | 目录 | 角色 | 入口 |
 |---|---|---|---|
-| ① | `risk-feature-pipeline/` | 风险特征挖掘核心管线 | `python -m risk_pipeline <子命令>` |
+| ① | `risk-feature-pipeline/` | 风险特征挖掘核心链路 | `python -m risk_pipeline <子命令>` |
 | ② | `risk-indicator-agent/` | LLM 把特征结果翻译成衍生指标 | `python -m indicator_pipeline --step N --batch-id X` |
-| ③ | `risk_feature_MCPServer/` | MCP 协议封装核心管线 | `python server.py`（stdio） |
+| ③ | `risk_feature_MCPServer/` | MCP 协议封装核心链路 | `python server.py`（stdio） |
 | ④ | `handbook/` | 本地文档站 + PDF/DOCX 导出 | `npm run serve` / `npm run pdf` |
 | ⑤ | `uci_acceptance_test/` | 公开数据集回归验证 | `source setup.sh` 后按 README 执行 |
 
@@ -87,16 +87,16 @@ risk-feature-pipeline/                # 仓库根
 | 已跑过一次，想看 IV / LR / 决策树 / 指标组合 PNG 图表 | `risk-feature-pipeline/risk_visualization/SKILL.md` | `python -m risk_pipeline visualize --project X` |
 | 跑分析时一并出决策树规则与可视化 | 见 §六 工作流 A | `python -m risk_pipeline analyze --steps univariate,iv,lr,rules ...` |
 | 把分析结果翻译成衍生指标设计稿 | `risk-indicator-agent/README.md` | `python -m indicator_pipeline --step 1 --batch-id YYYYMMDD_X` |
-| 在 Claude Desktop / Cursor 里调用管线 | `risk_feature_MCPServer/server.py` 顶部说明 | 配置 MCP server 后用 `run_pipeline` / `query_results` / `extract_triggers` |
+| 在 Claude Desktop / Cursor 里调用链路 | `risk_feature_MCPServer/server.py` 顶部说明 | 配置 MCP server 后用 `run_pipeline` / `query_results` / `extract_triggers` |
 | 本地浏览 / 导出全套文档 | `handbook/USAGE.txt` | `cd handbook && npm install && npm run serve` |
-| 验证管线是否在你的环境里能跑通 | `uci_acceptance_test/README.md` | `source setup.sh` 后按章节顺序执行 |
+| 验证链路是否在你的环境里能跑通 | `uci_acceptance_test/README.md` | `source setup.sh` 后按章节顺序执行 |
 | 适配新银行的字段名 | `risk-feature-pipeline/config/column_mapping.yaml` | 创建 `config/my_bank.yaml` 仅覆盖差异项 |
 
 ---
 
 ## 五、组件简介
 
-### ① `risk-feature-pipeline/` — 核心管线
+### ① `risk-feature-pipeline/` — 核心链路
 
 模块化的特征挖掘 Skills 集合，每一步都是一个独立的子目录（带 `SKILL.md` + `scripts/`）：
 
@@ -109,7 +109,7 @@ risk_logistic_regression → 标准化 + L2 的分群 LR
 risk_rule_mining         → 决策树多变量交互规则（通过 `analyze --steps univariate,iv,lr,rules` 触发；树 pkl 落 _intermediate/，规则表随 export 进 Level 1）
 risk_export_report       → 8 张标准 CSV + LLM 友好 JSON
 risk_trigger_extraction  → 客户级风险触碰（宽表/长表/阈值表）
-risk_result_query        → 只读已导出结果，不重跑管线
+risk_result_query        → 只读已导出结果，不重跑链路
 risk_visualization       → Level 1 后从 CSV 出 PNG 图表（IV / 相关性 / LR / 决策树 / 指标组合 / 共现网络等 10 类）
 risk_docx_report         → LLM JSON → 正式 Word 报告
 ```
@@ -245,7 +245,7 @@ touch data/processed/$BATCH/STEP5_APPROVED
 python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 ```
 
-### 工作流 C：在 LLM 客户端里直接驱动管线
+### 工作流 C：在 LLM 客户端里直接驱动链路
 
 1. 启动 ③ MCP Server，配置到 Claude Desktop / Cursor 的 MCP server 列表
 2. 在对话里直接说"用 `run_pipeline` 跑分析、用 `query_results` 看 top IV"
@@ -288,8 +288,8 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 |---|---|
 | 顶层综述（本文件） | `README.md` |
 | 项目级 Claude Code 规约 | `CLAUDE.md` |
-| 核���管线总览 | `risk-feature-pipeline/README.md` |
-| 核心管线调度规则 | `risk-feature-pipeline/SKILL.md` |
+| 核���链路总览 | `risk-feature-pipeline/README.md` |
+| 核心链路调度规则 | `risk-feature-pipeline/SKILL.md` |
 | 各步骤 Skill 文档 | `risk-feature-pipeline/<step>/SKILL.md` |
 | 产物列字典权威来源（A4 后） | `risk-feature-pipeline/docs/SCHEMA.md` |
 | 术语统一表（dim/group/scope/coverage + 列名跨表对照） | `risk-feature-pipeline/docs/GLOSSARY.md` |
@@ -305,7 +305,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 
 ## 十、常见问题
 
-**Q1：要不要每次都重跑管线才能看 top 特征？**
+**Q1：要不要每次都重跑链路才能看 top 特征？**
 不需要。`python -m risk_pipeline query --project X --kind iv --top 15` 直接读磁盘上的 CSV。
 
 **Q2：旧代码里 `from shared.pipeline import ...` 还能用吗？**
@@ -325,7 +325,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 ## 十一、贡献与扩展
 
 - 新增子 Skill：参考 `risk-feature-pipeline/<step>/SKILL.md` 结构（`SKILL.md` + `scripts/`）
-- 新增管线：在 `risk_pipeline/pipeline.py` 里加 `run_xxx_pipeline`，在 `risk_pipeline/cli.py` 里挂 `run --pipeline xxx`
+- 新增链路：在 `risk_pipeline/pipeline.py` 里加 `run_xxx_pipeline`，在 `risk_pipeline/cli.py` 里挂 `run --pipeline xxx`
 - 新增 LLM 步骤：参考 `risk-indicator-agent/step{N}_*/` 的 `SKILL.md` + `scripts/` + 闸口约定
 - 新增 MCP 工具：在 `risk_feature_MCPServer/tools/` 加文件，再去 `server.py` 注册 `@mcp.tool()`
 

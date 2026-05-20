@@ -5,7 +5,7 @@
     RISK_PIPELINE_ROOT=/path/to/risk-feature-pipeline python server.py
 
 环境变量：
-    RISK_PIPELINE_ROOT  管线根目录，默认为同级 ../risk-feature-pipeline/
+    RISK_PIPELINE_ROOT  链路根目录，默认为同级 ../risk-feature-pipeline/
 """
 import config
 
@@ -35,9 +35,9 @@ def run_pipeline(
     exclude_features: Optional[list[str]] = None,
     filter_json: str = "",
 ) -> str:
-    """异步运行风险特征分析管线，立即返回 job_id，后台跑完后产出标准 CSV + LLM JSON。
+    """异步运行风险特征分析链路，立即返回 job_id，后台跑完后产出标准 CSV + LLM JSON。
 
-    管线耗时通常 5-10 分钟，因此采用异步模式避免 MCP 调用超时。
+    链路耗时通常 5-10 分钟，因此采用异步模式避免 MCP 调用超时。
     调用后立即返回 job_id，用 get_job_status(job_id) 查询进度和结果。
 
     必填参数：
@@ -81,7 +81,7 @@ def query_results(
     group: str = "",
     sign: str = "",
 ) -> str:
-    """查询已有分析结果（不重跑管线），返回 top-N 特征。
+    """查询已有分析结果（不重跑链路），返回 top-N 特征。
 
     必填参数：
       project_name  项目名（与 run_pipeline 时一致）

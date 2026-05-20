@@ -71,7 +71,7 @@ corr_df, diff_df, pval_df, meta_df, skipped = univariate_by_group(
 
 ## 副产物：箱形图（顺手出图）
 
-跑 `'univariate'` 步骤时管线会自动调用 `boxplot.generate_boxplots_for_univariate(...)`，
+跑 `'univariate'` 步骤时链路会自动调用 `boxplot.generate_boxplots_for_univariate(...)`，
 渲染失败不影响主流程。生成的 PNG 落在 `output/<project>/charts/boxplots/`：
 
 | 文件名 | 朝向 | 业务用法 |
@@ -81,7 +81,7 @@ corr_df, diff_df, pval_df, meta_df, skipped = univariate_by_group(
 
 **为什么不放在 `risk_visualization`**：箱形图需要原始数值分布，
 而 `risk_visualization` 是只读 CSV 摘要的路径。把这两类图绑在 `univariate` 步骤后，
-管线自然在 `df` 还在内存里时把图出完，无须落 parquet 中转。
+链路自然在 `df` 还在内存里时把图出完，无须落 parquet 中转。
 
 **特征排序口径**：全样本按 `|点二列相关系数|` 与 `target` 排序后取 top-N（默认 12）。
 样本数 < 30 或常数列自动跳过；尾部按 0.5%/99.5% 分位裁剪以免极值把箱压成线段。
