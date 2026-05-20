@@ -35,8 +35,8 @@ description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 doc
 本 Skill 默认围绕以下三类输入工作：
 
 1. `risk_export_report` 导出的 LLM 结果
-   - 征信/通用管线常见为 `*_LLM报告数据.json`
-   - 工商财务管线常见为 `*_LLM报告数据.json`
+   - 征信/通用链路常见为 `*_LLM报告数据.json`
+   - 工商财务链路常见为 `*_LLM报告数据.json`
    - 结构上至少包含：
      - `分析概览`
      - `特征有效性汇总`

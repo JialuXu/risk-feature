@@ -13,7 +13,7 @@
   report             LLM JSON → docx（→ Level 3）
   visualize          生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
   explore_thresholds 候选规则阈值探索：optbinning 单变量最优切点 + 业务级判定（Level 1 后；不改 level）
-  run                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 转发现有管线
+  run                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 转发现有链路
 """
 from __future__ import annotations
 

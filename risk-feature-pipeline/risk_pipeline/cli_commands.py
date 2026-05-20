@@ -9,7 +9,7 @@
 - trigger:            调 risk_trigger_extraction.scripts.trigger_extraction.extract_triggers
 - explore_thresholds: 调 risk_threshold_explore.scripts.threshold_explore.explore_thresholds
 - report:             调 risk_docx_report.scripts.build_docx_report.build_docx_report
-- run:                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有管线
+- run:                便捷组合：generic 走 prepare→analyze→export；credit/gsfc 直接转发现有链路
 """
 from __future__ import annotations
 
@@ -135,7 +135,7 @@ def _preflight_column_mapping(df, mapper) -> dict:
     返回 audit dict（会被写入 features.json），含三组列的 expected/actual/missing/hit_rate：
       - segment_dims        通用 5 个分群维度（所属行业/客户性质/企业规模/控股类型/所属分行）
       - credit_category_dims 征信 8 个分群维度
-      - amount_cols          金额清洗目标列（credit/gsfc 管线用）
+      - amount_cols          金额清洗目标列（credit/gsfc 链路用）
 
     审计本身不阻断 — 阻断决策在 cmd_prepare 里根据 hit_rate 做。
     """

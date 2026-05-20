@@ -22,7 +22,7 @@ def execute_pipeline(
     exclude_features: list,
     filter_json: str,
 ) -> str:
-    """前台校验参数 → 后台异步跑管线 → 立即返回 job_id"""
+    """前台校验参数 → 后台异步跑链路 → 立即返回 job_id"""
     # ── 阻断节点 1：路径与参数校验（立即返回）──────────────────────────────
     if not Path(wide_path).exists():
         return _err(f"宽表文件不存在: {wide_path}")
@@ -63,8 +63,8 @@ def execute_pipeline(
             "job_id": job_id,
             "project_name": project_name,
             "message": (
-                f"管线已在后台启动。使用 get_job_status(job_id='{job_id}') "
-                f"查询进度；管线通常需 5-10 分钟完成。"
+                f"链路已在后台启动。使用 get_job_status(job_id='{job_id}') "
+                f"查询进度；链路通常需 5-10 分钟完成。"
             ),
         },
         ensure_ascii=False,
@@ -83,7 +83,7 @@ def _run_pipeline_blocking(
     exclude_features: list,
     filter_config: Optional[dict],
 ) -> dict:
-    """实际跑管线的阻塞函数，在后台线程里执行"""
+    """实际跑链路的阻塞函数，在后台线程里执行"""
     from risk_data_prep.scripts.prepare_df import prepare_df
     from shared.pipeline import run_generic_pipeline
 

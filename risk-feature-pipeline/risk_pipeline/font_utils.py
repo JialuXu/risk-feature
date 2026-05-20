@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""跨 OS 中文字体探测（管线级共享）。
+"""跨 OS 中文字体探测（链路级共享）。
 
 历史背景：原来这套代码只活在 `risk_visualization/scripts/font_utils.py`，
 当 `risk_segment_univariate.boxplot` 也要画中文图时，它没法再依赖
