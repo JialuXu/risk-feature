@@ -1,6 +1,6 @@
-# risk-feature-pipeline 核心管线
+# risk-feature-pipeline 核心链路
 
-`risk-feature-pipeline` 是客户级风险特征分析的核心管线，面向“主键 + 二分类目标 + 数值特征列”的宽表数据，统一通过 `python -m risk_pipeline <subcommand>` 完成数据准备、分群分析、IV/LR/规则挖掘、标准结果导出、客户级触碰、可视化和报告生成。
+`risk-feature-pipeline` 是客户级风险特征分析的核心链路，面向“主键 + 二分类目标 + 数值特征列”的宽表数据，统一通过 `python -m risk_pipeline <subcommand>` 完成数据准备、分群分析、IV/LR/规则挖掘、标准结果导出、客户级触碰、可视化和报告生成。
 
 ## 机制图
 
@@ -61,7 +61,7 @@ python -m risk_pipeline query --project 我的项目 --kind iv --top 15
 python -m risk_pipeline visualize --project 我的项目          # 需先装可视化依赖
 ```
 
-> **可视化依赖**：matplotlib / seaborn 不在核心管线依赖里。首次出图前需要安装：
+> **可视化依赖**：matplotlib / seaborn 不在核心链路依赖里。首次出图前需要安装：
 > ```bash
 > pip install -e .[viz]                    # 推荐：同时声明项目可被 import
 > # 或
@@ -72,7 +72,7 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 ## 集成改造要点
 
 - 新银行或新数据源接入：直接编辑 `config/column_mapping.yaml`（字段映射）与 `config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
-- `prepare` 是数据进入管线的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
+- `prepare` 是数据进入链路的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
 - `trigger` 会进入客户级运营结果，必须在 Level 1 后执行，并显式确认 features 配置。
 - `report` 面向正式交付，`purpose=external` 时必须确认当前结果是最终版本。
@@ -85,4 +85,4 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 |---|---|
 | [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源（A4 后统一列名、A5 后文件改名） |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | dim / group / scope / coverage 等术语统一表 + 列名跨表对照 + 阻断节点缩写 |
-| [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio) | 核心管线机制图源文件 |
+| [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio) | 核心链路机制图源文件 |

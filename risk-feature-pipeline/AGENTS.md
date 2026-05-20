@@ -12,7 +12,7 @@
 
 | 用户意图信号 | 必须触发 | 禁止替代 |
 |---|---|---|
-| "查/读/看/解读/top X/已有结果" | `python -m risk_pipeline query` | 重跑管线 |
+| "查/读/看/解读/top X/已有结果" | `python -m risk_pipeline query` | 重跑链路 |
 | 提供宽表路径 + 坏客户路径 | `python -m risk_pipeline prepare` | 手写合并代码 / 在 Bash 里手抄 Python |
 | "哪些客户触碰阈值/风险预警名单/客户级扫描" | `python -m risk_pipeline trigger` | 自行写阈值判断逻辑 |
 | "候选阈值/单变量阈值评审/给这几个 (分群,特征) 探阈值" | `python -m risk_pipeline explore_thresholds --pairs-file ...` | 手写 optbinning / 在 notebook 里散落跑 |
@@ -166,7 +166,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 ## 六、CLI 模板
 
-### 模板 A — 跑管线（全流程 / 单维快路径）
+### 模板 A — 跑链路（全流程 / 单维快路径）
 
 **全流程 generic（最常用）**：
 ```bash
@@ -241,7 +241,7 @@ python -m risk_pipeline run --pipeline generic \
   --confirmed-new-dataset
 ```
 
-### 模板 B — 读已有结果（不重跑管线）
+### 模板 B — 读已有结果（不重跑链路）
 
 ```bash
 # 全量 IV top 15

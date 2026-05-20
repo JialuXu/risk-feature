@@ -1,8 +1,8 @@
 # 文件落地位置
 
-## 各管线导出路径
+## 各链路导出路径
 
-| 管线 | results 目录 | output 目录 |
+| 链路 | results 目录 | output 目录 |
 |------|-------------|-------------|
 | `generic` (通用宽表) | `data/results/<project_name>/` | `output/<project_name>/` |
 | `credit` (征信) | `data/results/征信/<project_name>/` | `output/征信/<project_name>/` |

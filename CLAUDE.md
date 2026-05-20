@@ -22,7 +22,7 @@ A modular pipeline for mining risk characteristics across customer segments. Eac
 
 ```
 risk-feature-pipeline/
-├── SKILL.md                   # 顶层调度器（credit/gsfc/generic 三条管线的路由）
+├── SKILL.md                   # 顶层调度器（credit/gsfc/generic 三条链路的路由）
 ├── AGENTS.md                  # 本目录下 agent 的硬规矩（先查再跑、prepare_df、verbose=False 等）
 ├── report-prompt.md           # DOCX 报告写作约束（供 risk_docx_report 使用）
 │
@@ -113,7 +113,7 @@ risk-feature-pipeline/
 
 | Skill | 角色 | 典型触发语 |
 |---|---|---|
-| 顶层 `SKILL.md` | 总控调度（选管线 + 选深度） | "帮我做风险特征分析"、"分析这份宽表" |
+| 顶层 `SKILL.md` | 总控调度（选链路 + 选深度） | "帮我做风险特征分析"、"分析这份宽表" |
 | `risk_data_prep` | 宽表构建、打标、字段摸底 | "合并数据"、"打 is_bad 标签" |
 | `risk_feature_engineering` | 比率类衍生特征 | "做特征工程" |
 | `risk_segment_univariate` | 分群相关性/均值差/T 检验 | "分群单变量" |
@@ -162,7 +162,7 @@ df, feature_cols = prepare_df(
     exclude_features={'授信总金额', '表内授信余额'},
 )
 
-# ⭐ 统一管线执行
+# ⭐ 统一链路执行
 from shared.pipeline import (
     run_credit_pipeline, run_gsfc_pipeline, run_generic_pipeline,
 )
@@ -172,7 +172,7 @@ run_generic_pipeline(
     steps=['univariate', 'iv', 'lr', 'export'], verbose=False,
 )
 
-# ⭐ 查询已导出结果（不重跑管线）
+# ⭐ 查询已导出结果（不重跑链路）
 from risk_result_query.scripts import load_results, top_features
 r = load_results('舆情特征分析')          # 自动定位 data/results/征信/<project>/
 top_features(r, kind='iv', n=15)
@@ -205,7 +205,7 @@ from risk_export_report.scripts.report_analysis import export_results, build_llm
 
 ### CLI Entry (risk_pipeline)
 
-9 子命令（含 `visualize` / `explore_thresholds` / `run`），每条对应管线里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
+9 子命令（含 `visualize` / `explore_thresholds` / `run`），每条对应链路里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
 
 ```bash
 cd risk-feature-pipeline
@@ -215,7 +215,7 @@ python -m risk_pipeline run --pipeline generic \
     --wide data/raw/x.csv --id-col 客户编号 --target-col is_bad \
     --project xxx --confirmed-new-dataset
 
-# 也支持征信/工商财务老管线（数据路径走 config/ 默认值）
+# 也支持征信/工商财务老链路（数据路径走 config/ 默认值）
 python -m risk_pipeline run --pipeline credit
 python -m risk_pipeline run --pipeline gsfc --steps data_prep,iv
 python -m risk_pipeline run --pipeline credit --quiet
@@ -261,7 +261,7 @@ pytest tests/test_unit_paths.py::test_env_project_root_wins   # 单用例
 pytest -k smoke                                 # 仅 smoke
 ```
 
-- `test_smoke_*.py` — legacy / query / generic 管线 / trigger 的端到端冒烟。
+- `test_smoke_*.py` — legacy / query / generic 链路 / trigger 的端到端冒烟。
 - `test_unit_paths.py` — `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 优先级、`ensure_writable_dir` 友好报错。
 - `test_unit_state.py`、`test_unit_blocking.py`、`test_unit_validation.py` — pipeline_state / 阻断逻辑 / 入参校验。
 
@@ -336,7 +336,7 @@ A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本�
 
 在 `risk-feature-pipeline/` 下工作时，必须遵守 `AGENTS.md` 的硬规矩：
 
-1. **先查再跑**：用户说"查/读/解读/top X"时默认走 `risk_result_query`，不重跑管线
+1. **先查再跑**：用户说"查/读/解读/top X"时默认走 `risk_result_query`，不重跑链路
 2. **用 `prepare_df`**：不要手抄"读宽表 + 合并坏客户 + 选特征列"
 3. **单脚本 + `verbose=False` + `head(N)`**：Bash 之间不保留 Python 状态；大结果禁止整表打印
 

@@ -22,7 +22,7 @@
 
 - **覆盖全链路**：从多表合并 → 特征工程 → 多视角分析 → 结果导出 → 可视化 → 客户级触碰 → Word 报告交付。
 - **三种执行深度**：全流程 / 单维快路径 / 只读已有结果，按用户意图自动切换。
-- **三种主题管线**：`credit`（征信）、`gsfc`（工商财务）、`generic`（通用宽表）。
+- **三种主题链路**：`credit`（征信）、`gsfc`（工商财务）、`generic`（通用宽表）。
 - **四级成熟度状态**：前置 → Level 1 → Level 2 → Level 3，每一级对应明确的可交付物与不可逆性。
 - **三处阻断式确认**：首次新数据集、客户级触碰、对外报告，强制留下审计痕迹。
 
@@ -123,7 +123,7 @@
    - 单维快路径（"只看企业规模" / "对小型企业的分析"）
    - 只读已有结果（"查 / 读 / 看 top X"）
    - 客户级触碰 / 报告交付（"哪些客户触碰" / "生成 Word 报告"）
-2. **管线路由**：在全流程意图下选择 `credit` / `gsfc` / `generic` 三种主题管线之一。
+2. **链路路由**：在全流程意图下选择 `credit` / `gsfc` / `generic` 三种主题链路之一。
 3. **阻断守门**：在三个关键点强制让用户先确认（详见 §4.2）。
 4. **Agent 行为约束**：通过 `AGENTS.md` 强制要求："先查再跑"、"用 `prepare_df` 不手抄"、"单脚本 + verbose=False + head(N)"。
 
@@ -156,7 +156,7 @@
 | `visualize` | 渲染 12 类 PNG 图表 | 不改 Level |
 | `trigger` | 客户级触碰，阻断节点 2 守门 | Level 2 |
 | `report` | 渲染 .docx，阻断节点 3 守门 | Level 3 |
-| `run` | 一键组合：`generic` 走 `prepare→analyze→export`；`credit/gsfc` 转发既有管线 | — |
+| `run` | 一键组合：`generic` 走 `prepare→analyze→export`；`credit/gsfc` 转发既有链路 | — |
 
 横切机制：
 
@@ -589,7 +589,7 @@ Level 1 完成后，把 IV / 相关性 / LR / 分群画像 / 决策树 / 规则�
 | PNG 图集 | `output/<project>/charts/*.png` |
 
 **强制规范**：
-- 不重跑管线、不改 CSV、不改 Level。
+- 不重跑链路、不改 CSV、不改 Level。
 - PNG 是唯一形态，不出 HTML / 交互式图表。
 
 ---
@@ -811,7 +811,7 @@ python -m risk_pipeline query --project 新行业_v1 \
     --kind iv_group --dim 企业规模 --group 小型企业 --top 15
 ```
 
-→ 不重跑管线，0.5 秒内 stdout 出表。
+→ 不重跑链路，0.5 秒内 stdout 出表。
 
 ### 故事 C：报告交付人员出对外报告
 

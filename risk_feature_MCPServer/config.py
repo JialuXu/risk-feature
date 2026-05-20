@@ -19,7 +19,7 @@ PIPELINE_ROOT: Path = next(
     (p for p in _CANDIDATES if p is not None and p.exists()), Path("NOT_FOUND")
 )
 
-# 结果扫描路径：管线的 get_project_root() 可能定位到 PIPELINE_ROOT 或其父级
+# 结果扫描路径：链路的 get_project_root() 可能定位到 PIPELINE_ROOT 或其父级
 # 两处都扫描，避免漏检
 RESULT_SEARCH_ROOTS: list[Path] = [
     PIPELINE_ROOT,

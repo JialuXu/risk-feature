@@ -1,6 +1,6 @@
 ---
 name: risk_visualization
-description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相关性 / LR / 分群画像 / 决策树规则 / 指标组合）渲染成 PNG 图表。当用户说"画图/可视化/出图/IV 条形图/LR 系数图/决策树图/指标组合图"或在 query 之外要求"看图"时触发。本 skill 只读磁盘快照 + 出 PNG，不重跑管线、不改 CSV。
+description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相关性 / LR / 分群画像 / 决策树规则 / 指标组合）渲染成 PNG 图表。当用户说"画图/可视化/出图/IV 条形图/LR 系数图/决策树图/指标组合图"或在 query 之外要求"看图"时触发。本 skill 只读磁盘快照 + 出 PNG，不重跑链路、不改 CSV。
 ---
 
 ## 核心规矩
@@ -9,7 +9,7 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 2. **结果不存在时报错而非静默**：用 `load_results(project_name)` 找不到目录会抛 `FileNotFoundError`，由调用方决定要不要先跑 export
 3. **决策树两条路**：优先读 `_intermediate/rule_tree_*.pkl`（用 `sklearn.tree.plot_tree` 出真树），找不到时自动降级为按规则文本反推的"规则路径图"
 4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 只 warn 不报错（fallback 渲染 CJK 会变方框）
-5. **依赖隔离**：matplotlib / seaborn 是本 Skill 的**硬依赖**但**不在核心管线依赖**里——B7 起 `visualize.py` 顶部 try-import，缺失时给出可执行的安装命令（`pip install -e .[viz]` 或 `pip install matplotlib seaborn`），不再抛一坨 traceback
+5. **依赖隔离**：matplotlib / seaborn 是本 Skill 的**硬依赖**但**不在核心链路依赖**里——B7 起 `visualize.py` 顶部 try-import，缺失时给出可执行的安装命令（`pip install -e .[viz]` 或 `pip install matplotlib seaborn`），不再抛一坨 traceback
 
 ## 前置条件
 

@@ -2,9 +2,9 @@
 """
 风险特征分析一键执行入口
 
-支持两条管线：
-  - 征信管线 (credit)：征信数据 → 分群分析 → IV/LR → 导出
-  - 工商财务管线 (gsfc)：工商+财务数据 → 特征工程 → 分群分析 → IV/LR → 导出
+支持两条链路：
+  - 征信链路 (credit)：征信数据 → 分群分析 → IV/LR → 导出
+  - 工商财务链路 (gsfc)：工商+财务数据 → 特征工程 → 分群分析 → IV/LR → 导出
 
 使用方法：
 ---------
@@ -109,7 +109,7 @@ def _banner(step_num, title):
 
 
 # =========================================================================
-# 征信管线 (Pipeline A)
+# 征信链路 (Pipeline A)
 # =========================================================================
 
 def run_credit_pipeline(steps=None, verbose=True):
@@ -365,14 +365,14 @@ def run_credit_pipeline(steps=None, verbose=True):
 
     if verbose:
         print(f"\n{'=' * 60}")
-        print('征信管线分析完成')
+        print('征信链路分析完成')
         print('=' * 60)
 
     return results
 
 
 # =========================================================================
-# 工商财务管线 (Pipeline B)
+# 工商财务链路 (Pipeline B)
 # =========================================================================
 
 def run_gsfc_pipeline(steps=None, verbose=True):
@@ -587,14 +587,14 @@ def run_gsfc_pipeline(steps=None, verbose=True):
 
     if verbose:
         print(f"\n{'=' * 60}")
-        print('工商财务管线分析完成')
+        print('工商财务链路分析完成')
         print('=' * 60)
 
     return results
 
 
 # =========================================================================
-# 通用宽表管线 (Pipeline C)
+# 通用宽表链路 (Pipeline C)
 # =========================================================================
 
 def run_generic_pipeline(
@@ -801,7 +801,7 @@ def run_generic_pipeline(
             project_root, results,
             project_name=project_name,
             output_subdir=output_subdir,
-            results_base='data/results',   # generic 管线不加业务类型子目录
+            results_base='data/results',   # generic 链路不加业务类型子目录
             output_base='output',
         )
         results['exported_files'] = exported
@@ -814,7 +814,7 @@ def run_generic_pipeline(
 
     if verbose:
         print(f"\n{'=' * 60}")
-        print('通用宽表管线分析完成')
+        print('通用宽表链路分析完成')
         print('=' * 60)
 
     return results
@@ -899,8 +899,8 @@ def main():
   python -m shared.pipeline -p credit -s data_prep,iv
   python -m shared.pipeline -p generic --input data.csv --target is_bad --project-name 舆情特征分析
 
-征信管线可选步骤: data_prep, feature_engineering, univariate, iv, lr, export
-工商财务管线可选步骤: data_prep, feature_eng, univariate, iv, lr, export
+征信链路可选步骤: data_prep, feature_engineering, univariate, iv, lr, export
+工商财务链路可选步骤: data_prep, feature_eng, univariate, iv, lr, export
 通用宽表可选步骤: univariate, iv, lr, export
         """,
     )
@@ -908,7 +908,7 @@ def main():
         '--pipeline', '-p',
         choices=['credit', 'gsfc', 'generic'],
         required=True,
-        help='选择管线: credit(征信) 或 gsfc(工商财务) 或 generic(通用宽表)',
+        help='选择链路: credit(征信) 或 gsfc(工商财务) 或 generic(通用宽表)',
     )
     parser.add_argument('--input', '-i', default=None, help='宽表CSV路径（generic模式必填）')
     parser.add_argument('--target', default='is_bad', help='目标变量列名（默认 is_bad）')
