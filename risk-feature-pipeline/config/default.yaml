@@ -56,6 +56,11 @@ iv:
     weak: 0.02               # 弱预测能力下限
     medium: 0.1              # 中等预测能力下限
     strong: 0.3              # 强预测能力下限
+  credibility:               # IV 可信度分级阈值（_assess_iv_reliability 使用）
+    min_bad_strict: 20            # 坏客户数低于此值 → 走“样本不足”判定分支
+    unreliable_iv_if_low_bad: 0.5 # 低坏客户数下，IV 超此值判“不可信-样本不足”
+    low_sample_n: 200             # 有效样本低于此值 → 一律降级“参考”
+    reference_iv: 1.0             # IV 超此值（但 ≤ suspect_threshold）→ “参考”
 
 # ---- 授信分层配置（单位：元） ----
 credit_bins:

@@ -154,6 +154,13 @@ ADAPTIVE_BINS_MIN = _adaptive['min_bins']
 
 WOE_CAP = _cfg['iv']['woe_cap']
 
+# IV 可信度分级阈值（原散落在 risk_iv_diagnosis/scripts/config.py，现收敛到此单一源）
+_credibility = _cfg['iv'].get('credibility', {})
+IV_CREDIBILITY_MIN_BAD_STRICT = _credibility.get('min_bad_strict', 20)
+IV_CREDIBILITY_UNRELIABLE_IV_IF_LOW_BAD = _credibility.get('unreliable_iv_if_low_bad', 0.5)
+IV_CREDIBILITY_LOW_SAMPLE_N = _credibility.get('low_sample_n', 200)
+IV_CREDIBILITY_REFERENCE_IV = _credibility.get('reference_iv', 1.0)
+
 # =============================================================================
 # 规则挖掘配置（risk_rule_mining 专用）
 # =============================================================================
