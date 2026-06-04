@@ -161,6 +161,9 @@ IV_CREDIBILITY_UNRELIABLE_IV_IF_LOW_BAD = _credibility.get('unreliable_iv_if_low
 IV_CREDIBILITY_LOW_SAMPLE_N = _credibility.get('low_sample_n', 200)
 IV_CREDIBILITY_REFERENCE_IV = _credibility.get('reference_iv', 1.0)
 
+# 全量 IV「预测能力」分档：过强起点（原在 risk_iv_diagnosis/scripts/config.py，现收敛至此单一源）
+IV_PREDICTION_OVERSTRONG_MIN = _cfg['iv'].get('prediction_overstrong_min', 0.5)
+
 # =============================================================================
 # 规则挖掘配置（risk_rule_mining 专用）
 # =============================================================================
