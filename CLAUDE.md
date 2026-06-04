@@ -37,7 +37,10 @@ risk-feature-pipeline/
 │   ├── config.py              # 公共配置（从 YAML 加载）
 │   ├── config_loader.py       # YAML 加载器（支持深度合并）
 │   ├── column_mapper.py       # 字段映射器 ColumnMapper
-│   └── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
+│   ├── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
+│   └── analysis/              # ⭐ 共享分析内核（去重后单一实现）
+│       ├── __init__.py
+│       └── iv_core.py         # IV/WOE/自适应分箱/可信度：唯一实现（三个 Skill 的 iv_analysis.py 退化为 shim）
 │
 ├── shared/                    # ⚠️ 兼容 shim：转发到 risk_pipeline.*；下个版本会移除
 │
@@ -269,9 +272,9 @@ pytest -k smoke                                 # 仅 smoke
 
 All configuration is centralized and YAML-driven:
 
-- **唯一 Python 配置源**: `risk-feature-pipeline/shared/config.py` — 所有模块 `from shared.config import *`
-- **YAML 数据源**: `config/default.yaml` + `config/column_mapping.yaml`
-- **各子模块 `scripts/config.py`**: 仅 `from shared.config import *` + 模块专属常量
+- **唯一 Python 配置源**: `risk-feature-pipeline/risk_pipeline/config.py` — 所有模块 `from risk_pipeline.config import *`（旧 `shared/config.py` 已是转发 shim）
+- **YAML 数据源**: `config/default.yaml` + `config/column_mapping.yaml`（IV 可信度阈值见 `iv.credibility`）
+- **各子模块 `scripts/config.py`**: 仅 `from risk_pipeline.config import *` + 模块专属常量
 - **用户覆盖**: 只覆盖差异项的自定义 YAML；其余自动回退默认值
 
 ```python
