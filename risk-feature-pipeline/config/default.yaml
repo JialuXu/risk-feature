@@ -48,6 +48,7 @@ iv:
   suspect_threshold: 2.0     # IV 可疑阈值（超过视为过拟合嫌疑）
   woe_cap: 5.0               # WOE 截断绝对值上限
   select_threshold: 0.1      # IV 筛选阈值（中等预测性以上）
+  prediction_overstrong_min: 0.5  # 全量 IV「过强」分档起点（高于强预测能力，需复核）
   adaptive_bins:
     sample_threshold: 300    # 触发自适应分箱的总样本阈值
     bad_threshold: 30        # 触发自适应分箱的坏客户阈值

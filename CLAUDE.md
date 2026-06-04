@@ -40,7 +40,8 @@ risk-feature-pipeline/
 │   ├── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
 │   └── analysis/              # ⭐ 共享分析内核（去重后单一实现）
 │       ├── __init__.py
-│       └── iv_core.py         # IV/WOE/自适应分箱/可信度：唯一实现（三个 Skill 的 iv_analysis.py 退化为 shim）
+│       ├── iv_core.py         # IV/WOE/自适应分箱/可信度：唯一实现（三个 Skill 的 iv_analysis.py 退化为 shim）
+│       └── engine.py          # 分群 单变量/IV/LR 引擎：唯一实现（iv_group_diagnosis / group_logistic_regression 退化为 shim）
 │
 ├── shared/                    # ⚠️ 兼容 shim：转发到 risk_pipeline.*；下个版本会移除
 │
