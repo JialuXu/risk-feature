@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""IV 可视化：全量 IV 横向条形图 + 分群 IV 热力图。"""
+"""IV 可视化：全量 IV 横向条形图 + 分群 IV 热力图（每维度一张）。"""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -13,6 +14,10 @@ from .config import IV_LEVEL_BINS, IV_SUSPECT_THRESHOLD
 from .style import (
     IV_LEVEL_COLORS, FIGSIZE_BAR_TALL, FIGSIZE_HEATMAP, GRID_COLOR,
 )
+
+
+def _safe(name: str) -> str:
+    return re.sub(r'[\\/:*?"<>|\s]+', '_', str(name).strip()) or 'x'
 
 
 def _iv_level(iv: float) -> str:
@@ -88,116 +93,110 @@ def chart_iv_full(
 
 
 def chart_iv_heatmap(
-    iv_pivot: pd.DataFrame,
-    reliability_pivot: Optional[pd.DataFrame],
+    iv_group_all: pd.DataFrame,
     iv_full: Optional[pd.DataFrame],
     out_dir: Path,
     top_n: int = 15,
     dpi: int = 300,
 ) -> List[Path]:
-    """分群 IV 热力图。
+    """分群 × 特征 IV 热力图（**每个分群维度一张**）。
 
-    朝向：**行=分群（纵轴），列=特征（横轴）**。
-    一行就是一个分群（如 `企业规模 = 小型企业`）的 IV 横向画像，从左到右依次是
-    全量 IV top-N 的特征。可信度不足的单元用 ✗ 文字覆盖。
+    与 corr_heatmap / lr_heatmap 同口径：
+    - **横轴（列）= 特征指标**（取全量 IV top-N，跨维度统一顺序）
+    - **纵轴（行）= 同一维度下的各分群**（如 `企业规模` → 大型/中型/小型/微型企业）
+    - 每个 `分群维度` 单独出一张图，避免不同维度的分群混排在一张表里
+    - 可信度为「不可信」的单元用 `X` 覆盖（取自 `IV可信度` 列）
     """
     import matplotlib.pyplot as plt
 
-    if iv_pivot is None or iv_pivot.empty:
+    if iv_group_all is None or iv_group_all.empty:
+        return []
+    needed = {'分群维度', '分群名称', '特征', 'IV值'}
+    if not needed.issubset(iv_group_all.columns):
         return []
 
-    df = iv_pivot.copy()
-    # 透视表两种合法朝向（落盘端不固定）：
-    #   A. index=特征, columns=分群 (set_index('特征') 后)
-    #   B. index=分群, columns=特征 (CSV 第一列 '分群名称' / '分群')
-    # 用 iv_full.特征 与两轴的交集大小判断
-    feat_universe = set()
-    if iv_full is not None and not iv_full.empty and '特征' in iv_full.columns:
-        feat_universe = set(iv_full['特征'].dropna().astype(str))
-
-    for col_name in ('特征', '分群名称', '分群'):
-        if col_name in df.columns:
-            df = df.set_index(col_name)
-            break
-    df = df.apply(pd.to_numeric, errors='coerce')
-
-    overlap_index = len(feat_universe & set(map(str, df.index))) if feat_universe else 0
-    overlap_cols = len(feat_universe & set(map(str, df.columns))) if feat_universe else 0
-    # 目标朝向：行=分群、列=特征
-    # 当特征在 index 上时（朝向 A），转置；当特征已在 columns 上（朝向 B），保持
-    if overlap_index > overlap_cols and overlap_index > 0:
-        df = df.T
-    elif overlap_index == 0 and overlap_cols == 0:
-        # 完全无法判断时，启发式：分群名通常较短且数量少，特征数量多 → 取较多者放列
-        if df.shape[0] > df.shape[1]:
-            df = df.T
-
-    # 选 top-N 特征列：优先按全量 IV 排，否则按列均值（跨分群平均 IV）
-    if feat_universe:
-        order = (iv_full[['特征', 'IV值']].dropna()
-                 .sort_values('IV值', ascending=False)['特征'].astype(str).tolist())
-        keep = [f for f in order if f in df.columns][:top_n]
-    else:
-        keep = df.mean(axis=0).sort_values(ascending=False).head(top_n).index.tolist()
-    df = df.loc[:, keep]
+    df = iv_group_all.copy()
+    df['IV值'] = pd.to_numeric(df['IV值'], errors='coerce')
+    df = df.dropna(subset=['IV值'])
     if df.empty:
         return []
 
-    # 可信度 mask（同样对齐到「行=分群、列=特征」）
-    rel = None
-    if reliability_pivot is not None and not reliability_pivot.empty:
-        rel = reliability_pivot.copy()
-        for col_name in ('特征', '分群名称', '分群'):
-            if col_name in rel.columns:
-                rel = rel.set_index(col_name)
-                break
-        # 把 rel 拉到与 df 同朝向：行=分群、列=特征
-        if not set(df.columns).issubset(set(rel.columns)):
-            rel = rel.T
-        rel = rel.reindex(index=df.index, columns=df.columns)
+    # 特征列顺序：优先按全量 IV 降序（跨维度统一），否则各维度内按平均 IV
+    feat_order: Optional[List[str]] = None
+    if iv_full is not None and not iv_full.empty and {'特征', 'IV值'}.issubset(iv_full.columns):
+        ivf = iv_full[['特征', 'IV值']].copy()
+        ivf['IV值'] = pd.to_numeric(ivf['IV值'], errors='coerce')
+        feat_order = (ivf.dropna(subset=['IV值'])
+                      .sort_values('IV值', ascending=False)['特征'].astype(str).tolist())
 
-    # 高度按分群数自适应（行少时不要硬撑成 8 寸）
-    n_rows, n_cols = df.shape
-    base_w, base_h = FIGSIZE_HEATMAP
-    height = max(3.0, min(base_h, 0.55 * n_rows + 2.0))
-    width = max(base_w, 0.55 * n_cols + 4.0)
-
-    fig, ax = plt.subplots(figsize=(width, height))
-    data = df.values.astype(float)
-
-    vmax = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 1.0
-    vmax = min(max(vmax, 0.3), IV_SUSPECT_THRESHOLD)  # 过拟合嫌疑值不主导色阶
-    im = ax.imshow(data, aspect='auto', cmap='RdBu_r', vmin=0, vmax=vmax)
-
-    ax.set_xticks(range(len(df.columns)))
-    ax.set_xticklabels(df.columns, rotation=30, ha='right', fontsize=9)
-    ax.set_yticks(range(len(df.index)))
-    ax.set_yticklabels(df.index, fontsize=9)
-    ax.set_xlabel('特征指标')
-    ax.set_ylabel('分群')
-
-    # 文本叠加：IV 值 + 可信度 ✗
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            v = data[i, j]
-            if np.isnan(v):
-                continue
-            txt = f'{v:.2f}'
-            color = 'white' if v > vmax * 0.6 else '#2C3E50'
-            ax.text(j, i, txt, ha='center', va='center', fontsize=8, color=color)
-
-            if rel is not None:
-                rv = rel.iloc[i, j] if (i < rel.shape[0] and j < rel.shape[1]) else None
-                if isinstance(rv, str) and rv.startswith('不可信'):
-                    ax.text(j, i + 0.28, 'X', ha='center', va='center',
-                            fontsize=10, color='#7B241C', fontweight='bold')
-
-    ax.set_title(f'分群 × 特征 IV 热力图（top-{top_n} 特征；X = 不可信）')
-    fig.colorbar(im, ax=ax, label='IV 值', shrink=0.8)
-
+    has_rel = 'IV可信度' in df.columns
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f'iv_heatmap_top{top_n}.png'
-    fig.tight_layout()
-    fig.savefig(path, dpi=dpi, bbox_inches='tight')
-    plt.close(fig)
-    return [path]
+    paths: List[Path] = []
+
+    for d, sub in df.groupby('分群维度'):
+        feats_here = set(sub['特征'].astype(str))
+        if feat_order:
+            keep = [f for f in feat_order if f in feats_here][:top_n]
+        else:
+            keep = (sub.groupby('特征')['IV值'].mean()
+                    .sort_values(ascending=False).head(top_n).index.astype(str).tolist())
+        if not keep:
+            continue
+
+        sub2 = sub[sub['特征'].astype(str).isin(keep)]
+        pivot = sub2.pivot_table(
+            index='分群名称', columns='特征', values='IV值', aggfunc='mean',
+        )
+        pivot = pivot.reindex(columns=keep)
+        pivot = pivot.reindex(index=sorted(pivot.index, key=lambda x: str(x)))
+        if pivot.empty:
+            continue
+
+        rel_pivot = None
+        if has_rel:
+            rel_pivot = (sub2.pivot_table(
+                index='分群名称', columns='特征', values='IV可信度', aggfunc='first')
+                .reindex(index=pivot.index, columns=pivot.columns))
+
+        n_rows, n_cols = pivot.shape
+        base_w, base_h = FIGSIZE_HEATMAP
+        height = max(3.0, min(base_h, 0.55 * n_rows + 2.0))
+        width = max(base_w, 0.55 * n_cols + 4.0)
+
+        fig, ax = plt.subplots(figsize=(width, height))
+        data = pivot.values.astype(float)
+
+        vmax = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 1.0
+        vmax = min(max(vmax, 0.3), IV_SUSPECT_THRESHOLD)  # 过拟合嫌疑值不主导色阶
+        im = ax.imshow(data, aspect='auto', cmap='RdBu_r', vmin=0, vmax=vmax)
+
+        ax.set_xticks(range(n_cols))
+        ax.set_xticklabels(pivot.columns, rotation=30, ha='right', fontsize=9)
+        ax.set_yticks(range(n_rows))
+        ax.set_yticklabels(pivot.index, fontsize=9)
+        ax.set_xlabel('特征指标')
+        ax.set_ylabel(f'分群（{d}）')
+        ax.set_title(f'分群 × 特征 IV 热力图 | {d}（top-{top_n}；X = 不可信）')
+
+        for i in range(n_rows):
+            for j in range(n_cols):
+                v = data[i, j]
+                if np.isnan(v):
+                    continue
+                color = 'white' if v > vmax * 0.6 else '#2C3E50'
+                ax.text(j, i, f'{v:.2f}', ha='center', va='center', fontsize=8, color=color)
+                if rel_pivot is not None:
+                    rv = rel_pivot.iloc[i, j]
+                    if isinstance(rv, str) and rv.startswith('不可信'):
+                        ax.text(j, i + 0.28, 'X', ha='center', va='center',
+                                fontsize=10, color='#7B241C', fontweight='bold')
+
+        fig.colorbar(im, ax=ax, label='IV 值', shrink=0.8)
+
+        path = out_dir / f'iv_heatmap_{_safe(d)}_top{top_n}.png'
+        fig.tight_layout()
+        fig.savefig(path, dpi=dpi, bbox_inches='tight')
+        plt.close(fig)
+        paths.append(path)
+
+    return paths

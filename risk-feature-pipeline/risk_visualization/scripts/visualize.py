@@ -144,8 +144,9 @@ def generate_charts(
     if 'iv' in kinds:
         _record('iv', chart_iv_full(r.iv_full, chart_dir, top_n=top_n, dpi=dpi))
     if 'iv_heatmap' in kinds:
+        # 每个分群维度一张（行=该维度各分群、列=特征），与 corr/lr 热力图同口径
         _record('iv_heatmap', chart_iv_heatmap(
-            r.iv_pivot, r.reliability_pivot, r.iv_full,
+            r.iv_group_all, r.iv_full,
             chart_dir, top_n=top_n, dpi=dpi,
         ))
     if 'corr_heatmap' in kinds:
