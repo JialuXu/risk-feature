@@ -37,7 +37,11 @@ risk-feature-pipeline/
 │   ├── config.py              # 公共配置（从 YAML 加载）
 │   ├── config_loader.py       # YAML 加载器（支持深度合并）
 │   ├── column_mapper.py       # 字段映射器 ColumnMapper
-│   └── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
+│   ├── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
+│   └── analysis/              # ⭐ 共享分析内核（去重后单一实现）
+│       ├── __init__.py
+│       ├── iv_core.py         # IV/WOE/自适应分箱/可信度：唯一实现（三个 Skill 的 iv_analysis.py 退化为 shim）
+│       └── engine.py          # 分群 单变量/IV/LR 引擎：唯一实现（iv_group_diagnosis / group_logistic_regression 退化为 shim）
 │
 ├── shared/                    # ⚠️ 兼容 shim：转发到 risk_pipeline.*；下个版本会移除
 │
@@ -100,12 +104,11 @@ risk-feature-pipeline/
         ├── font_utils.py              # 中文字体 OS 探测
         ├── style.py                   # 调色板 / figsize / dpi
         ├── chart_iv.py                # IV 条形图 + 分群 IV 热力图
-        ├── chart_corr.py              # 分群相关系数条形图
-        ├── chart_lr.py                # LR 系数 + 跨分群 AUC
+        ├── chart_corr.py              # 分群 × 特征 相关系数热力图
+        ├── chart_lr.py                # LR 系数热力图 + 跨分群 AUC
         ├── chart_segment.py           # 分群画像（坏客户率柱图）
-        ├── chart_tree.py              # 决策树（pkl 真树 / 规则反推）
         ├── chart_rules.py             # 规则 lift × coverage 散点
-        ├── chart_combinations.py      # 指标组合 + 特征共现网络
+        ├── chart_combinations.py      # 指标组合 max-lift 条形图
         └── chart_threshold.py         # 候选阈值分箱坏率图 + 风险倍数对比图
 ```
 
@@ -125,7 +128,7 @@ risk-feature-pipeline/
 | `risk_trigger_extraction` | 把风险结论落到每个客户（触碰 + IV 加权得分） | "哪些客户触碰了风险阈值"、"生成风险预警名单"、"客户级风险扫描" |
 | `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning + 风险倍数 + 卡方 p） | "候选阈值/单变量阈值评审/这几个 (分群,特征) 跑一下" |
 | `risk_docx_report` | LLM JSON → `.docx` | "生成 Word 报告"、"正式报告" |
-| `risk_visualization` | IV/相关性/LR/分群/决策树/指标组合 PNG 图表（Level 1 后只读出图） | "画图/可视化/IV 条形图/决策树图/指标组合图" |
+| `risk_visualization` | IV/相关性/LR/分群/规则/指标组合 PNG 图表（Level 1 后只读出图；面向业务报告，仅出概览+每维度热力图） | "画图/可视化/IV 条形图/AUC 图/指标组合图" |
 
 ### Pipeline Flow
 
@@ -269,9 +272,9 @@ pytest -k smoke                                 # 仅 smoke
 
 All configuration is centralized and YAML-driven:
 
-- **唯一 Python 配置源**: `risk-feature-pipeline/shared/config.py` — 所有模块 `from shared.config import *`
-- **YAML 数据源**: `config/default.yaml` + `config/column_mapping.yaml`
-- **各子模块 `scripts/config.py`**: 仅 `from shared.config import *` + 模块专属常量
+- **唯一 Python 配置源**: `risk-feature-pipeline/risk_pipeline/config.py` — 所有模块 `from risk_pipeline.config import *`（旧 `shared/config.py` 已是转发 shim）
+- **YAML 数据源**: `config/default.yaml` + `config/column_mapping.yaml`（IV 可信度阈值见 `iv.credibility`）
+- **各子模块 `scripts/config.py`**: 仅 `from risk_pipeline.config import *` + 模块专属常量
 - **用户覆盖**: 只覆盖差异项的自定义 YAML；其余自动回退默认值
 
 ```python

@@ -24,12 +24,11 @@ from risk_result_query.scripts.results_loader import load_results, Results
 try:
     from . import style  # 触发字体配置（必须先于 chart_* import）
     from .chart_iv import chart_iv_full, chart_iv_heatmap
-    from .chart_corr import chart_corr, chart_corr_heatmap
-    from .chart_lr import chart_lr_coef, chart_lr_heatmap, chart_lr_auc
+    from .chart_corr import chart_corr_heatmap
+    from .chart_lr import chart_lr_heatmap, chart_lr_auc
     from .chart_segment import chart_segment_profile
-    from .chart_tree import chart_tree
     from .chart_rules import chart_rules_scatter
-    from .chart_combinations import chart_combo_lift, chart_combo_network
+    from .chart_combinations import chart_combo_lift
     from .chart_threshold import chart_threshold_binning, chart_threshold_summary
 except ModuleNotFoundError as _viz_import_err:
     if _viz_import_err.name in ('matplotlib', 'seaborn', 'matplotlib.pyplot'):
@@ -45,18 +44,16 @@ except ModuleNotFoundError as _viz_import_err:
 
 ALL_KINDS = (
     'iv', 'iv_heatmap',
-    'corr', 'corr_heatmap',
-    'lr', 'lr_heatmap', 'auc',
+    'corr_heatmap',
+    'lr_heatmap', 'auc',
     'segment',
-    'tree', 'rules', 'combos', 'combo_network',
+    'rules', 'combos',
     'thresholds',
 )
-
-
-def _find_project_root(start: Optional[str] = None) -> str:
-    """委托到 risk_pipeline.paths.get_project_root（支持 RISK_PROJECT_ROOT）。"""
-    from risk_pipeline.paths import get_project_root
-    return get_project_root(start=start)
+# 已下线（对最终业务报告无增量价值）：
+#   corr / lr —— 每分群一张的散图，与 corr_heatmap / lr_heatmap 信息重复且随分群数量爆炸
+#   tree      —— 决策树图（>3 层不可读、按分群数量爆炸；规则表 + rules 散点已覆盖）
+#   combo_network —— 特征共现网络，自述用途为“反向辅助特征工程”，属建模阶段工具
 
 
 def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
@@ -87,21 +84,6 @@ def _load_csv_by_suffix(results: Results, suffix: str) -> Optional[pd.DataFrame]
                     return pd.read_csv(path, encoding=enc)
                 except UnicodeDecodeError:
                     continue
-    return None
-
-
-def _intermediate_dir_for(results: Results) -> Optional[Path]:
-    """从 results_dir 反推 _intermediate/。"""
-    project = results.project_name
-    root = _find_project_root(results.results_dir)
-    candidates = [
-        Path(root) / 'data' / 'processed' / project / '_intermediate',
-        # 老路径兜底
-        Path(results.results_dir).parent / project / '_intermediate' if results.results_dir else None,
-    ]
-    for c in candidates:
-        if c is not None and c.is_dir():
-            return c
     return None
 
 
@@ -152,7 +134,6 @@ def generate_charts(
     ensure_writable_dir(chart_dir)
 
     rules_df = _load_rules_csv(r)
-    inter_dir = _intermediate_dir_for(r)
 
     out: Dict[str, List[str]] = {}
 
@@ -163,18 +144,15 @@ def generate_charts(
     if 'iv' in kinds:
         _record('iv', chart_iv_full(r.iv_full, chart_dir, top_n=top_n, dpi=dpi))
     if 'iv_heatmap' in kinds:
+        # 每个分群维度一张（行=该维度各分群、列=特征），与 corr/lr 热力图同口径
         _record('iv_heatmap', chart_iv_heatmap(
-            r.iv_pivot, r.reliability_pivot, r.iv_full,
+            r.iv_group_all, r.iv_full,
             chart_dir, top_n=top_n, dpi=dpi,
         ))
-    if 'corr' in kinds:
-        _record('corr', chart_corr(r.corr_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi))
     if 'corr_heatmap' in kinds:
         _record('corr_heatmap', chart_corr_heatmap(
             r.corr_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi,
         ))
-    if 'lr' in kinds:
-        _record('lr', chart_lr_coef(r.lr_coef_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi))
     if 'lr_heatmap' in kinds:
         _record('lr_heatmap', chart_lr_heatmap(
             r.lr_coef_long, chart_dir, top_n=top_n, dim=dim, dpi=dpi,
@@ -183,14 +161,10 @@ def generate_charts(
         _record('auc', chart_lr_auc(r.lr_auc_long, chart_dir, dim=dim, dpi=dpi))
     if 'segment' in kinds:
         _record('segment', chart_segment_profile(r.segment_profiles, chart_dir, dpi=dpi))
-    if 'tree' in kinds:
-        _record('tree', chart_tree(rules_df, inter_dir, chart_dir, dpi=dpi))
     if 'rules' in kinds:
         _record('rules', chart_rules_scatter(rules_df, chart_dir, dpi=dpi))
     if 'combos' in kinds:
         _record('combos', chart_combo_lift(rules_df, chart_dir, top_n=top_n, dpi=dpi))
-    if 'combo_network' in kinds:
-        _record('combo_network', chart_combo_network(rules_df, chart_dir, dpi=dpi))
     if 'thresholds' in kinds:
         thr_summary = _load_csv_by_suffix(r, '候选阈值表')
         thr_detail = _load_csv_by_suffix(r, '候选阈值_分箱明细')

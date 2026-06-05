@@ -137,7 +137,7 @@ python -m risk_pipeline trigger --project <项目名> \
 python -m risk_pipeline report --project <项目名> \
   --report-markdown <md报告>.md --purpose internal
 
-# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr,corr_heatmap,lr,lr_heatmap,auc,segment,tree,rules,combos,combo_network）
+# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr_heatmap,lr_heatmap,auc,segment,rules,combos,thresholds）
 python -m risk_pipeline visualize --project <项目名>
 ```
 

@@ -92,7 +92,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 | `trigger` | **必须传 `--confirmed`**（阻断节点 2）；`--use-default-features` 是通用配置，项目专属特征必须 `--features-file` |
 | `report` | `--purpose external` **必须传 `--confirmed-final-version`**（阻断节点 3）；title 由 purpose 自动选择 |
 | `run --pipeline credit/gsfc` | 不可中段独立调用（state.json 黑盒一项）；不接受 `--wide` 等 generic 参数；`--steps` 不含 `export` 时不会推进 Level 1 |
-| `visualize` | 读的是磁盘快照（与 `query` 同源），上游重跑后须重出图；中文字体缺失时只 warn 不报错（fallback 字体渲染中文会变方框）；决策树图优先吃 `_intermediate/rule_tree_*.pkl`，找不到时按规则 CSV 反推 |
+| `visualize` | 读的是磁盘快照（与 `query` 同源），上游重跑后须重出图；中文字体缺失时只 warn 不报错（fallback 字体渲染中文会变方框）；只产面向业务报告的概览+每维度热力图，**不再出**每分群散图/决策树图/共现网络/箱形图 |
 
 ---
 

@@ -19,11 +19,6 @@ from risk_pipeline.config import *  # noqa: F401,F403
 # 模块专属配置：IV 诊断
 # =============================================================================
 
-# IV 可信度分级（与 _assess_iv_reliability 规则一致）
-IV_CREDIBILITY_MIN_BAD_STRICT = 20
-IV_CREDIBILITY_UNRELIABLE_IV_IF_LOW_BAD = 0.5
-IV_CREDIBILITY_LOW_SAMPLE_N = 200
-IV_CREDIBILITY_REFERENCE_IV = 1.0
-
-# 全量 IV「预测能力」分档上界（与 IV_THRESHOLD 弱/中/强对齐，额外定义「过强」起点）
-IV_PREDICTION_OVERSTRONG_MIN = 0.5
+# IV 可信度分级阈值（IV_CREDIBILITY_*）与「过强」分档起点（IV_PREDICTION_OVERSTRONG_MIN）
+# 均已收敛到 config/default.yaml 的 iv.* 段，经由上面的 `from risk_pipeline.config import *`
+# 引入，此处不再重复定义（本文件已无模块专属常量）。

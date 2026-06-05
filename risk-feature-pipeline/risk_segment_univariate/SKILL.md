@@ -67,21 +67,9 @@ corr_df, diff_df, pval_df, meta_df, skipped = univariate_by_group(
 |------|------|
 | `scripts/segment_univariate.py` | 分群检测、统计、单变量、跨分群方差 |
 | `scripts/univariate.py` | `calc_correlation_pvalue`、`ttest_good_bad` 等底层计算 |
-| `scripts/boxplot.py` | 单变量步骤的箱形图副产物：好/坏对比 + 分群对比 |
 
-## 副产物：箱形图（顺手出图）
+## 已移除：箱形图副产物
 
-跑 `'univariate'` 步骤时链路会自动调用 `boxplot.generate_boxplots_for_univariate(...)`，
-渲染失败不影响主流程。生成的 PNG 落在 `output/<project>/charts/boxplots/`：
-
-| 文件名 | 朝向 | 业务用法 |
-|---|---|---|
-| `box_good_bad_grid_top<N>.png` | 全样本 "好/坏" 并排（top-N 特征做小多图） | 一图扫一遍哪些指标真的能把好坏分开（中位数 + IQR，免被极值欺骗） |
-| `box_by_<dim>_grid_top<N>.png` | X=分群值，每个分群内并排 "好/坏"（每个分群维度一张） | 看指标分布是否随分群漂移、好坏可分性是否随分群退化 |
-
-**为什么不放在 `risk_visualization`**：箱形图需要原始数值分布，
-而 `risk_visualization` 是只读 CSV 摘要的路径。把这两类图绑在 `univariate` 步骤后，
-链路自然在 `df` 还在内存里时把图出完，无须落 parquet 中转。
-
-**特征排序口径**：全样本按 `|点二列相关系数|` 与 `target` 排序后取 top-N（默认 12）。
-样本数 < 30 或常数列自动跳过；尾部按 0.5%/99.5% 分位裁剪以免极值把箱压成线段。
+`univariate` 步骤过去会顺手渲染好/坏对比与分群箱形图（落 `output/<project>/charts/boxplots/`）。
+该副产物对**最终业务报告无增量价值**（属分布探索/分析师用图），已下线：`scripts/boxplot.py`
+与链路里的 `_try_generate_boxplots` 接线均已删除。需要分布探索时在 notebook 中自行绘制即可。

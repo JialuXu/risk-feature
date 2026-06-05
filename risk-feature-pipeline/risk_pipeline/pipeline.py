@@ -21,7 +21,6 @@ $ cd risk-feature-pipeline && python -m risk_pipeline run --pipeline gsfc --step
 
 import sys
 import importlib
-import importlib.util
 import argparse
 from pathlib import Path
 import pandas as pd
@@ -34,72 +33,18 @@ if _MY_SKILLS_ROOT not in sys.path:
 from risk_pipeline.config import COL_TARGET
 
 
-_current_skill = None
-
-
-def _try_generate_boxplots(
-    df, feature_cols, category_dims, project_name, target, verbose=True,
-):
-    """单变量步骤的箱形图副产物。失败不影响主流程。"""
-    if df is None or not list(feature_cols or []):
-        return
-    try:
-        mod_box = _load_module('risk_segment_univariate', 'boxplot')
-    except Exception as e:
-        if verbose:
-            print(f'  [跳过 boxplot] 模块加载失败: {e}')
-        return
-    try:
-        mod_box.generate_boxplots_for_univariate(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=list(category_dims or []),
-            project_name=project_name,
-            target=target,
-            top_n=12,
-            verbose=verbose,
-        )
-    except Exception as e:
-        if verbose:
-            print(f'  [跳过 boxplot] 渲染失败（不影响主流程）: {e}')
-
-
-def _switch_skill(skill_name):
-    """
-    切换当前活跃的 Skill 模块上下文。
-
-    清除 sys.modules 中所有 scripts.* 缓存，然后将目标 Skill 的
-    scripts/ 目录注册为 scripts 包，使后续 from .config import ... 等
-    相对导入解析到正确的文件。
-    """
-    global _current_skill
-    if _current_skill == skill_name:
-        return
-
-    # 清除所有 scripts.* 缓存
-    to_remove = [k for k in sys.modules if k == 'scripts' or k.startswith('scripts.')]
-    for k in to_remove:
-        del sys.modules[k]
-
-    # 将目标 Skill 放到 sys.path 最前面
-    skill_dir = str(Path(_MY_SKILLS_ROOT) / skill_name)
-    if skill_dir in sys.path:
-        sys.path.remove(skill_dir)
-    sys.path.insert(0, skill_dir)
-
-    _current_skill = skill_name
-
-
 def _load_module(skill_name, module_name):
-    """
-    从指定 Skill 动态加载模块，避免 6 个同名 scripts 包互相冲突。
+    """从指定 Skill 以**限定名**导入模块（`risk_X.scripts.Y`）。
+
+    历史上这里用 sys.path/sys.modules 全局突变（清空 `scripts.*` 缓存 + 改写
+    sys.path，把目标 Skill 目录顶到最前）来让 6 个同名 `scripts` 包不互相冲突。
+    现在每个 scripts/ 都是带 __init__.py 的真包，限定导入天然唯一，无需任何
+    全局状态突变——也就消除了重入/并发下「当前激活 Skill」串味的隐患。
 
     例: _load_module('risk_data_prep', 'data_prep')
-        等价于: from risk_data_prep.scripts.data_prep import *
+        等价于: import risk_data_prep.scripts.data_prep
     """
-    _switch_skill(skill_name)
-    mod = importlib.import_module(f'scripts.{module_name}')
-    return mod
+    return importlib.import_module(f'{skill_name}.scripts.{module_name}')
 
 
 def _banner(step_num, title):
@@ -231,16 +176,6 @@ def run_credit_pipeline(steps=None, verbose=True):
 
         results['corr_results'] = corr_results
         results['meta_results'] = meta_results
-
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=results.get('project_name') or CREDIT_CONFIG.get('project_name', '征信特征分析'),
-            target=COL_TARGET,
-            verbose=verbose,
-        )
 
     # Step 4: IV 分析
     if 'iv' in steps:
@@ -503,16 +438,6 @@ def run_gsfc_pipeline(steps=None, verbose=True):
         if univariate_rows:
             results['univariate_long'] = pd.DataFrame(univariate_rows)
 
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=results.get('project_name') or '工商财务风险特征分析',
-            target=COL_TARGET,
-            verbose=verbose,
-        )
-
     # Step 4: IV 分析
     if 'iv' in steps:
         if verbose:
@@ -676,16 +601,6 @@ def run_generic_pipeline(
         results['corr_results'] = corr_results
         results['diff_results'] = diff_results
         results['meta_results'] = meta_results
-
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=project_name,
-            target=target_col,
-            verbose=verbose,
-        )
 
     # Step 4: IV 分析
     if 'iv' in steps:
