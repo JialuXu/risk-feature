@@ -51,7 +51,7 @@
 | 1 | `risk_pipeline/` | 9 子命令 + 状态机 + 配置加载 | 编排 |
 | 2 | `risk_data_prep/` | 多表合并、坏客户打标、宽表构建 | 前置 |
 | 3 | `risk_feature_engineering/` | 比率/占比/效率类衍生特征 | 前置 |
-| 4 | `risk_segment_univariate/` | 分群相关性、均值差、T 检验、箱形图 | 过渡态 |
+| 4 | `risk_segment_univariate/` | 分群相关性、均值差、T 检验 | 过渡态 |
 | 5 | `risk_iv_diagnosis/` | IV 自适应分箱 + 可信度评级 | 过渡态 |
 | 6 | `risk_logistic_regression/` | 分群标准化 LR + AUC + 特征对比 | 过渡态 |
 | 7 | `risk_rule_mining/` | 决策树规则挖掘（多变量交互） | 过渡态 |
@@ -256,7 +256,7 @@
 
 #### 功能说明
 
-在每个分群（如行业、企业规模）内，对每个特征单独跑统计检验，回答"这个特征在这个分群里到底跟坏率有没有关系"。同步产出箱形图副产物，让用户一图扫一遍可分性。
+在每个分群（如行业、企业规模）内，对每个特征单独跑统计检验，回答"这个特征在这个分群里到底跟坏率有没有关系"。
 
 #### 功能逻辑
 
@@ -268,9 +268,6 @@
    - **T 检验**：好 / 坏客户均值差 + p-value。
    - **跨分群方差**：同一特征在不同分群的相关系数离散度（识别"普遍信号"vs"分群专属信号"）。
 5. **二值标签对比**（可选）：用户可指定 `qual_dims` 把"是否上市 / 是否高新"等二值列也参与对比。
-6. **箱形图副产物**：`generate_boxplots_for_univariate` 自动渲染：
-   - `box_good_bad_grid_top<N>.png`：全样本好坏并排对比。
-   - `box_by_<dim>_grid_top<N>.png`：每个分群维度好坏对比。
 
 #### 预期输出结果
 
@@ -280,11 +277,12 @@
 | 均值差 / p-value 表 | DataFrame | 同上 |
 | 分群元信息表 | DataFrame | 含 `n_total` / `n_bad` / 坏率 |
 | 跨分群方差表 | DataFrame | 识别稳定特征 |
-| 箱形图 PNG | `output/<project>/charts/boxplots/` | 报告插图与人工审阅 |
+
+> 注：早期版本会在本步骤顺手渲染箱形图副产物（`output/<project>/charts/boxplots/`），
+> 已下线——对最终业务报告无增量价值，属分布探索/分析师用图。
 
 **强制规范**：
 - 跳过的分群必须逐条记录原因。
-- 箱形图渲染失败不影响主流程（只 stderr 警告）。
 
 ---
 
@@ -566,21 +564,20 @@ Level 1 完成后，把 IV / 相关性 / LR / 分群画像 / 决策树 / 规则�
 |---|---|---|
 | `iv` | 全量 IV 横向条形图 | 1 |
 | `iv_heatmap` | 分群 × 特征 IV 热力图 | 1 |
-| `corr` | 分群相关系数条形图 | N（分群数） |
 | `corr_heatmap` | 分群 × 特征 相关系数热力图 | M（维度数） |
-| `lr` | LR 系数条形图 | N |
 | `lr_heatmap` | 分群 × 特征 LR 系数热力图 | M |
 | `auc` | 跨分群 AUC 条形图 | 1 |
 | `segment` | 分群画像（坏率柱图 + 样本数） | 1 |
-| `tree` | 决策树（pkl 真树 / 规则反推降级） | 0–N |
 | `rules` | 规则 lift × coverage 散点 | 1 |
 | `combos` | 指标组合 max lift 条形图 | 1 |
-| `combo_network` | 特征共现网络 | 1 |
+| `thresholds` | 候选阈值分箱坏率 + 风险倍数 | 0–N |
+
+> 已下线（对最终业务报告无增量价值、且随分群数量爆炸）：每分群一张的 `corr`/`lr` 散图
+> （看对应热力图即可）、决策树图 `tree`、特征共现网络 `combo_network`、单变量箱形图。
 
 3. **依赖隔离**：matplotlib / seaborn 缺失时给出友好提示（`pip install -e .[viz]`），不抛 traceback。
 4. **中文字体自动探测**：按 OS 探测中文字体，全 miss 时只 warn 不报错。
-5. **决策树两条路**：优先读 `_intermediate/rule_tree_*.pkl`（用 `sklearn.tree.plot_tree` 出真树），找不到时按规则文本反推规则路径图。
-6. **缺前置自动跳过**：未跑 rules 时 `tree/rules/combos/combo_network` 4 张图自动跳过（status stamp 显示 `skipped=...`），不报错。
+5. **缺前置自动跳过**：未跑 rules 时 `rules/combos` 自动跳过、未跑 explore_thresholds 时 `thresholds` 跳过（status stamp 显示 `skipped=...`），不报错。
 
 #### 预期输出结果
 
@@ -715,7 +712,7 @@ column_mapping:
 
 - **退出码 0**：成功。
 - **退出码 1**：业务校验失败（路径不存在 / 阻断节点拒绝 / 参数非法），错误信息走 stderr。
-- **stderr 警告（非阻断）**：audit.json 写入失败、不稳定规则提示、LLM 报告数据构建失败、可视化跳过项、箱形图渲染失败。
+- **stderr 警告（非阻断）**：audit.json 写入失败、不稳定规则提示、LLM 报告数据构建失败、可视化跳过项。
 
 ### 5.2 跳过规则
 

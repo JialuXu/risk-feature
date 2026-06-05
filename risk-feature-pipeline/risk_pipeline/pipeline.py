@@ -33,33 +33,6 @@ if _MY_SKILLS_ROOT not in sys.path:
 from risk_pipeline.config import COL_TARGET
 
 
-def _try_generate_boxplots(
-    df, feature_cols, category_dims, project_name, target, verbose=True,
-):
-    """单变量步骤的箱形图副产物。失败不影响主流程。"""
-    if df is None or not list(feature_cols or []):
-        return
-    try:
-        mod_box = _load_module('risk_segment_univariate', 'boxplot')
-    except Exception as e:
-        if verbose:
-            print(f'  [跳过 boxplot] 模块加载失败: {e}')
-        return
-    try:
-        mod_box.generate_boxplots_for_univariate(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=list(category_dims or []),
-            project_name=project_name,
-            target=target,
-            top_n=12,
-            verbose=verbose,
-        )
-    except Exception as e:
-        if verbose:
-            print(f'  [跳过 boxplot] 渲染失败（不影响主流程）: {e}')
-
-
 def _load_module(skill_name, module_name):
     """从指定 Skill 以**限定名**导入模块（`risk_X.scripts.Y`）。
 
@@ -203,16 +176,6 @@ def run_credit_pipeline(steps=None, verbose=True):
 
         results['corr_results'] = corr_results
         results['meta_results'] = meta_results
-
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=results.get('project_name') or CREDIT_CONFIG.get('project_name', '征信特征分析'),
-            target=COL_TARGET,
-            verbose=verbose,
-        )
 
     # Step 4: IV 分析
     if 'iv' in steps:
@@ -475,16 +438,6 @@ def run_gsfc_pipeline(steps=None, verbose=True):
         if univariate_rows:
             results['univariate_long'] = pd.DataFrame(univariate_rows)
 
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=results.get('project_name') or '工商财务风险特征分析',
-            target=COL_TARGET,
-            verbose=verbose,
-        )
-
     # Step 4: IV 分析
     if 'iv' in steps:
         if verbose:
@@ -648,16 +601,6 @@ def run_generic_pipeline(
         results['corr_results'] = corr_results
         results['diff_results'] = diff_results
         results['meta_results'] = meta_results
-
-        # 顺手出箱形图（好/坏 + 分群）
-        _try_generate_boxplots(
-            df=df,
-            feature_cols=feature_cols,
-            category_dims=category_dims,
-            project_name=project_name,
-            target=target_col,
-            verbose=verbose,
-        )
 
     # Step 4: IV 分析
     if 'iv' in steps:
