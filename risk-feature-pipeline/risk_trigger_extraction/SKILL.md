@@ -1,6 +1,6 @@
 ---
 name: risk_trigger_extraction
-description: 逆向提取风险特征触碰客户清单：基于已筛选的有效风险特征（IV可信、中等以上预测能力），从宽表中判断每个客户是否触碰风险阈值；产出客户触碰宽表、触碰长表、阈值说明表，并给出IV加权风险得分排名
+description: 逆向提取风险特征触碰客户清单：基于已筛选的有效风险特征（IV可信、中等以上预测能力），从宽表中判断每个客户是否触碰风险阈值；产出客户触碰宽表、触碰长表、阈值说明表，并给出IV加权风险得分排名。注意：默认特征配置仅适用 GSFC（工商财务）主题，征信/舆情/generic 等其他主题必须传入项目专属 features 配置（--features-file）
 ---
 
 ## 方法论前提
@@ -14,6 +14,8 @@ description: 逆向提取风险特征触碰客户清单：基于已筛选的有�
 - **非产出**：不重新跑 IV/LR/单变量分析，不替代 `risk_iv_diagnosis` 或 `risk_logistic_regression`。
 
 > ⚠️  **默认特征 `RISK_FEATURES_GSFC` 仅适配 GSFC 主题宽表（工商变更 + 财务 + 授信 + 数据完整度）。** 征信、舆情、generic 等其他主题请通过 `features=` 或 CLI `--features-file` 注入项目专属配置；若使用默认特征但宽表匹配率 < 50%，`extract_triggers` 会抛 `RuntimeError` 阻断，避免输出全 0 名单。
+>
+> ⚠️  触碰宽表 CSV 默认**不含** `is_bad` / `企业规模` 等业务元信息列；需保留时传 `keep_metadata_cols=[...]`（详见下文「输出列说明」末尾）。
 
 ## scope 维度筛选
 
@@ -117,7 +119,7 @@ df_wide, df_long, df_threshold = extract_triggers(
 from risk_trigger_extraction.scripts.trigger_extraction import (
     compute_thresholds, evaluate_triggers, build_threshold_table
 )
-# A1 后默认特征改名为 RISK_FEATURES_GSFC（仅工商财务主题适用）；
+# 默认特征常量为 RISK_FEATURES_GSFC（仅工商财务主题适用）；
 # RISK_FEATURES 保留为向后兼容 alias，下面两种 import 等价：
 from risk_trigger_extraction.scripts.config import RISK_FEATURES_GSFC as RISK_FEATURES
 # 或者：from risk_trigger_extraction.scripts.config import RISK_FEATURES
@@ -131,7 +133,7 @@ df_thr = build_threshold_table(RISK_FEATURES, thresholds)
 
 trigger 三件套默认落在 `<project_root>/output/<project>/`，与 IV/LR/规则等 Level 1 产物的 `data/results/<project>/` 是**两个不同根**。CLI status stamp 会打印完整绝对路径；找不到时优先用 `find <project_root>/output -name '*风险触碰*'` 而非在 `data/results/` 里翻。
 
-> 未来计划（B10 留位）：`risk_pipeline.paths.unified_results_dir(project, 'level2')` 已就位，后续会切换 trigger 默认输出到 `data/results/<project>/level2/`。届时旧路径仍向后兼容读取。
+> 输出路径的未来调整计划见 `CHANGELOG.md`（B10）。
 
 ## 输出列说明（宽表）
 
@@ -145,7 +147,7 @@ trigger 三件套默认落在 `<project_root>/output/<project>/`，与 IV/LR/规
 | `触碰特征清单` | 触碰特征名称（分号分隔） |
 | `触碰数_{类别前缀}` | 各业务类别下的触碰数 |
 
-> ⚠️  **B6 后默认行为变更**：宽表 CSV **不再包含** `is_bad` / `企业规模` / `所属行业` 等业务元信息列，避免与 `prepared.csv` merge 时撞列冲突。需要业务字段做后处理时：
+> ⚠️  **默认行为**：宽表 CSV **不包含** `is_bad` / `企业规模` / `所属行业` 等业务元信息列，避免与 `prepared.csv` merge 时撞列冲突（行为变更史见 `CHANGELOG.md`）。需要业务字段做后处理时：
 >
 > 1. 默认：`pd.merge(prepared, df_wide, on='客户编号', how='left')` 直接用，不会冲突
 > 2. 显式保留：`extract_triggers(..., keep_metadata_cols=['企业规模', '内部评级'])` 或
