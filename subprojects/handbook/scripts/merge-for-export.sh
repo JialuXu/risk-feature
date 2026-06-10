@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BOOK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_ROOT="$(cd "$BOOK_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$BOOK_DIR/../.." && pwd)"
 OUT_DIR="$BOOK_DIR/_export"
 ORDER_FILE="$BOOK_DIR/scripts/export-order.txt"
 MERGE_FILE="$OUT_DIR/handbook-merged.md"
