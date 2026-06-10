@@ -9,8 +9,7 @@ The project content is **`risk-feature-pipeline/`** — a custom enterprise cred
 **Non-project directories** (reference material only, not part of the codebase):
 - `skills/` — Anthropic's official Skills examples (cloned from anthropics/skills). Used only as a reference for SKILL.md authoring conventions. Do **not** edit or ship files here as part of the pipeline.
 - `data/`, `output/`, `data_old/`, `衍生指标设计/` — local scratch / drafts (gitignored; not reviewed as code).
-- `risk-feature-pipeline.backup-*` — historical snapshots; do not edit.
-- `risk-indicator-agent/`, `risk_data_extract/`, `risk_feature_MCPServer/`, `uci_acceptance_test/`, `handbook/` — sibling projects/experiments. Touch only when the user explicitly points there.
+- `subprojects/` — sibling projects/experiments consolidated in one place: `risk-indicator-agent/`, `risk_data_extract/`, `risk_feature_MCPServer/`, `uci_acceptance_test/`, `handbook/`. Touch only when the user explicitly points there.
 
 When the user asks you to "update the project" / "review my changes" / "add a feature," scope your work to `risk-feature-pipeline/` unless they explicitly point elsewhere.
 

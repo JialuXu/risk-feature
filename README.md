@@ -24,24 +24,27 @@
 ## 二、顶层目录总览
 
 ```
-risk-feature-pipeline/                # 仓库根
+risk-feature/                         # 仓库根
 ├── CLAUDE.md                         # Claude Code 工作规约（项目级）
 ├── README.md                         # 本文件（顶层综述与引导）
 │
 ├── risk-feature-pipeline/            # ① 核心链路（Skills 集合 + 统一 CLI）
-├── risk-indicator-agent/             # ② LLM 衍生指标 Agent（5 步流水线）
-├── risk_feature_MCPServer/           # ③ MCP Server（异步工具封装）
-├── handbook/                         # ④ HonKit 文档手册（聚合 + 导出）
-└── uci_acceptance_test/              # ⑤ UCI 端到端验收测试
+│
+└── subprojects/                      # 参考与兄弟子项目（统一归档于此）
+    ├── risk-indicator-agent/         # ② LLM 衍生指标 Agent（5 步流水线）
+    ├── risk_feature_MCPServer/       # ③ MCP Server（异步工具封装）
+    ├── handbook/                     # ④ HonKit 文档手册（聚合 + 导出）
+    ├── uci_acceptance_test/          # ⑤ UCI 端到端验收测试
+    └── risk_data_extract/            # 行内取数 Skill（占位草稿，0%）
 ```
 
 | # | 目录 | 角色 | 入口 |
 |---|---|---|---|
 | ① | `risk-feature-pipeline/` | 风险特征挖掘核心链路 | `python -m risk_pipeline <子命令>` |
-| ② | `risk-indicator-agent/` | LLM 把特征结果翻译成衍生指标 | `python -m indicator_pipeline --step N --batch-id X` |
-| ③ | `risk_feature_MCPServer/` | MCP 协议封装核心链路 | `python server.py`（stdio） |
-| ④ | `handbook/` | 本地文档站 + PDF/DOCX 导出 | `npm run serve` / `npm run pdf` |
-| ⑤ | `uci_acceptance_test/` | 公开数据集回归验证 | `source setup.sh` 后按 README 执行 |
+| ② | `subprojects/risk-indicator-agent/` | LLM 把特征结果翻译成衍生指标 | `python -m indicator_pipeline --step N --batch-id X` |
+| ③ | `subprojects/risk_feature_MCPServer/` | MCP 协议封装核心链路 | `python server.py`（stdio） |
+| ④ | `subprojects/handbook/` | 本地文档站 + PDF/DOCX 导出 | `npm run serve` / `npm run pdf` |
+| ⑤ | `subprojects/uci_acceptance_test/` | 公开数据集回归验证 | `source setup.sh` 后按 README 执行 |
 
 ---
 
@@ -86,10 +89,10 @@ risk-feature-pipeline/                # 仓库根
 | 已经跑过一次，只是想查 top IV / 分群结果 | `risk-feature-pipeline/risk_result_query/SKILL.md` | `python -m risk_pipeline query --project X --kind iv --top 15` |
 | 已跑过一次，想看 IV / LR / 决策树 / 指标组合 PNG 图表 | `risk-feature-pipeline/risk_visualization/SKILL.md` | `python -m risk_pipeline visualize --project X` |
 | 跑分析时一并出决策树规则与可视化 | 见 §六 工作流 A | `python -m risk_pipeline analyze --steps univariate,iv,lr,rules ...` |
-| 把分析结果翻译成衍生指标设计稿 | `risk-indicator-agent/README.md` | `python -m indicator_pipeline --step 1 --batch-id YYYYMMDD_X` |
-| 在 Claude Desktop / Cursor 里调用链路 | `risk_feature_MCPServer/server.py` 顶部说明 | 配置 MCP server 后用 `run_pipeline` / `query_results` / `extract_triggers` |
-| 本地浏览 / 导出全套文档 | `handbook/USAGE.txt` | `cd handbook && npm install && npm run serve` |
-| 验证链路是否在你的环境里能跑通 | `uci_acceptance_test/README.md` | `source setup.sh` 后按章节顺序执行 |
+| 把分析结果翻译成衍生指标设计稿 | `subprojects/risk-indicator-agent/README.md` | `python -m indicator_pipeline --step 1 --batch-id YYYYMMDD_X` |
+| 在 Claude Desktop / Cursor 里调用链路 | `subprojects/risk_feature_MCPServer/server.py` 顶部说明 | 配置 MCP server 后用 `run_pipeline` / `query_results` / `extract_triggers` |
+| 本地浏览 / 导出全套文档 | `subprojects/handbook/USAGE.txt` | `cd subprojects/handbook && npm install && npm run serve` |
+| 验证链路是否在你的环境里能跑通 | `subprojects/uci_acceptance_test/README.md` | `source setup.sh` 后按章节顺序执行 |
 | 适配新银行的字段名 | `risk-feature-pipeline/config/column_mapping.yaml` | 创建 `config/my_bank.yaml` 仅覆盖差异项 |
 
 ---
@@ -129,7 +132,7 @@ from risk_data_prep.scripts import prepare_df  # 标准 "宽表 + 坏客户 → 
 
 详细文档：`risk-feature-pipeline/README.md`、`risk-feature-pipeline/SKILL.md`、`risk-feature-pipeline/AGENTS.md`。
 
-### ② `risk-indicator-agent/` — LLM 衍生指标 Agent
+### ② `subprojects/risk-indicator-agent/` — LLM 衍生指标 Agent
 
 把 ① 的 IV / LR 挖掘结果"翻译"成符合元表 schema 的衍生指标设计稿，5 步流水线：
 
@@ -145,9 +148,9 @@ from risk_data_prep.scripts import prepare_df  # 标准 "宽表 + 坏客户 → 
 
 **与 ① 的关系**：单向只读上游（消费 `risk-feature-pipeline/data/results/{project}/`），下游写入元表后下次 ① 重跑时把 P3-观察 指标加入验证。
 
-详细文档：`risk-indicator-agent/README.md` / `SKILL.md` / `AGENTS.md`。
+详细文档：`subprojects/risk-indicator-agent/README.md` / `SKILL.md` / `AGENTS.md`。
 
-### ③ `risk_feature_MCPServer/` — MCP Server
+### ③ `subprojects/risk_feature_MCPServer/` — MCP Server
 
 把 ① 包装成 6 个 MCP 工具，让 Claude Desktop / Cursor 等 LLM 客户端能直接调：
 
@@ -162,22 +165,22 @@ from risk_data_prep.scripts import prepare_df  # 标准 "宽表 + 坏客户 → 
 
 启动：`RISK_PIPELINE_ROOT=/path/to/risk-feature-pipeline python server.py`（默认 stdio transport）。
 
-### ④ `handbook/` — HonKit 文档手册
+### ④ `subprojects/handbook/` — HonKit 文档手册
 
 把仓库内分散的 `README.md` / `SKILL.md` 聚合成一本可浏览 / 可导出的手册：
 
 ```bash
-cd handbook
+cd subprojects/handbook
 npm install
 npm run serve           # 本地预览（http://localhost:4000）
-npm run build           # 静态站点 → handbook/_book/
+npm run build           # 静态站点 → subprojects/handbook/_book/
 npm run pdf             # 导出 PDF（需 Calibre）
 npm run docx            # 导出 DOCX（需 pandoc）
 ```
 
-合并顺序由 `handbook/scripts/export-order.txt` 控制，新增/删除章节时改这个文件。
+合并顺序由 `subprojects/handbook/scripts/export-order.txt` 控制，新增/删除章节时改这个文件。
 
-### ⑤ `uci_acceptance_test/` — 端到端验收
+### ⑤ `subprojects/uci_acceptance_test/` — 端到端验收
 
 用 UCI Credit Card 公开数据集（30000 行 × 25 列，违约率 22.12%）跑通 ① 的 5 个核心命令（prepare / analyze / export / query / trigger），适合：
 
@@ -185,7 +188,7 @@ npm run docx            # 导出 DOCX（需 pandoc）
 - 改了 ① 的关键代码后做回归
 - 给新同事演示完整数据 → 结果链路
 
-入口：`uci_acceptance_test/README.md`，从 `source setup.sh` 开始按章节顺序执行即可。
+入口：`subprojects/uci_acceptance_test/README.md`，从 `source setup.sh` 开始按章节顺序执行即可。
 
 ---
 
@@ -230,7 +233,7 @@ python -m risk_pipeline report \
 
 ```bash
 # 前置：工作流 A 已经产出 data/results/我的项目/
-cd risk-indicator-agent
+cd subprojects/risk-indicator-agent
 
 BATCH=$(date +%Y%m%d)_first
 python -m indicator_pipeline --step 1 --batch-id $BATCH
@@ -278,7 +281,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 - **Agent 行为规约**：
   - 仓库根 `CLAUDE.md`：Claude Code 项目级规约
   - `risk-feature-pipeline/AGENTS.md`：先查再跑、用 `prepare_df`、`verbose=False` + `head(N)`
-  - `risk-indicator-agent/AGENTS.md`：不写 ETL、不动上游、人审闸口不可绕过
+  - `subprojects/risk-indicator-agent/AGENTS.md`：不写 ETL、不动上游、人审闸口不可绕过
 
 ---
 
@@ -295,11 +298,11 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 | 术语统一表（dim/group/scope/coverage + 列名跨表对照） | `risk-feature-pipeline/docs/GLOSSARY.md` |
 | 列名 / 查询配方 / 文件布局 | `risk-feature-pipeline/risk_result_query/references/` |
 | 可视化图表说明（10 种图、解读、常见误读） | `risk-feature-pipeline/risk_visualization/SKILL.md` + `references/chart_types.md` |
-| LLM Agent 总览 | `risk-indicator-agent/README.md` |
-| LLM Agent 5 步路由 | `risk-indicator-agent/SKILL.md` |
-| MCP 工具说明 | `risk_feature_MCPServer/server.py`（docstring） |
-| 文档站点构建 | `handbook/USAGE.txt` |
-| 端到端验收剧本 | `uci_acceptance_test/README.md` |
+| LLM Agent 总览 | `subprojects/risk-indicator-agent/README.md` |
+| LLM Agent 5 步路由 | `subprojects/risk-indicator-agent/SKILL.md` |
+| MCP 工具说明 | `subprojects/risk_feature_MCPServer/server.py`（docstring） |
+| 文档站点构建 | `subprojects/handbook/USAGE.txt` |
+| 端到端验收剧本 | `subprojects/uci_acceptance_test/README.md` |
 
 ---
 
@@ -326,10 +329,10 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 
 - 新增子 Skill：参考 `risk-feature-pipeline/<step>/SKILL.md` 结构（`SKILL.md` + `scripts/`）
 - 新增链路：在 `risk_pipeline/pipeline.py` 里加 `run_xxx_pipeline`，在 `risk_pipeline/cli.py` 里挂 `run --pipeline xxx`
-- 新增 LLM 步骤：参考 `risk-indicator-agent/step{N}_*/` 的 `SKILL.md` + `scripts/` + 闸口约定
-- 新增 MCP 工具：在 `risk_feature_MCPServer/tools/` 加文件，再去 `server.py` 注册 `@mcp.tool()`
+- 新增 LLM 步骤：参考 `subprojects/risk-indicator-agent/step{N}_*/` 的 `SKILL.md` + `scripts/` + 闸口约定
+- 新增 MCP 工具：在 `subprojects/risk_feature_MCPServer/tools/` 加文件，再去 `server.py` 注册 `@mcp.tool()`
 
-> 提交代码前请同步更新对应目录的 `SKILL.md` / `README.md`，否则 `handbook/` 聚合后会缺章。
+> 提交代码前请同步更新对应目录的 `SKILL.md` / `README.md`，否则 `subprojects/handbook/` 聚合后会缺章。
 
 ---
 
