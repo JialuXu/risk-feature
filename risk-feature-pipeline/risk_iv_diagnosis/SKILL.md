@@ -58,6 +58,8 @@ from risk_iv_diagnosis.scripts.iv_group_diagnosis import calc_feature_thresholds
 - `SAMPLE_THRESHOLDS`：`MIN_SAMPLES`、`MIN_BAD_SAMPLES`（与 IV 分群准入相关）。
 - IV 稳健性相关：`IV_SUSPECT_THRESHOLD`、`WOE_CAP`、`ADAPTIVE_BINS_*`、`IV_THRESHOLD`（弱/中/强档），均以 `scripts/config.py` 为准。
 
+**向业务用户解释 IV 分档、可信度等级、跳过原因时**，统一使用 `docs/GLOSSARY.md`「判定标准（业务口径）」的话术与数值，不向业务用户展示英文常量名。
+
 ## 方法与规范（本 Skill 专有）
 
 - **自适应分箱**：小样本时降低箱数，避免坏为 0 的箱用 0.5 校正导致 IV 虚高；公式与默认箱数由 `_adaptive_bins` 实现。

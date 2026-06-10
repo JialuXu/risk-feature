@@ -55,6 +55,8 @@ corr_df, diff_df, pval_df, meta_df, skipped = univariate_by_group(
 - 分群进入统计/单变量：`MIN_SAMPLES`（分群总样本）。
 - 点二列相关与 T 检验：`MIN_BAD_CORR`、`MIN_GOOD_CORR`。
 
+**向业务用户解释跳过原因时**，统一使用 `docs/GLOSSARY.md`「判定标准（业务口径）」的话术与数值，不向业务用户展示英文常量名。
+
 ## 本 Skill 强制规范
 
 - 每条相关/T 检验结果须能关联到**分群元信息**（`n_total`、`n_bad`、坏率等，由 `meta_df` 或脚本约定列给出）。

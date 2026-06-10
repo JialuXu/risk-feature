@@ -56,6 +56,8 @@ comparison_df = compare_corr_lr(corr_df, lr_coef_df)
 - 单模型拟合：`MIN_BAD_LR`、`MIN_GOOD_LR`；有效特征过少时跳过（脚本内判断）。
 - AUC：`MIN_SAMPLES_CV`、`MIN_BAD_CV` 决定是否采用 5 折分层 CV，否则为训练集 AUC，且 **AUC 类型字段须显式标注**（如训练集因样本不足）。
 
+**向业务用户解释 AUC 类型、跳过原因时**，统一使用 `docs/GLOSSARY.md`「判定标准（业务口径）」的话术与数值，不向业务用户展示英文常量名。
+
 ## 模型设定（概要）
 
 - `StandardScaler` + `LogisticRegression(penalty='l2', C=1.0, solver='lbfgs')`；系数以标准化后尺度解释。
