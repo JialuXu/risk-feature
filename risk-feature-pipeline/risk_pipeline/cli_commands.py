@@ -212,15 +212,22 @@ def cmd_prepare(args) -> int:
             f'--confirmed-target-positive 1'
         )
 
-    df, feature_cols = prepare_df(
-        wide_path=wide,
-        bad_customer_path=args.bad_customer,
-        id_col=args.id_col,
-        target_col=args.target_col,
-        bad_id_col=args.bad_id_col,
-        filter=filter_dict,
-        exclude_features=exclude_features,
-    )
+    try:
+        df, feature_cols = prepare_df(
+            wide_path=wide,
+            bad_customer_path=args.bad_customer,
+            id_col=args.id_col,
+            target_col=args.target_col,
+            bad_id_col=args.bad_id_col,
+            filter=filter_dict,
+            exclude_features=exclude_features,
+        )
+    except ValueError as e:
+        # prepare_df 的守门错误（缺主键列 / 目标列非 0/1 / 坏客户 0 匹配等）：
+        # 中文消息直接转 _err，避免裸 traceback 暴露给无技术背景的用户
+        _err(f'[prepare] {e}')
+    except UnicodeDecodeError as e:
+        _err(f'[prepare] CSV 文件编码无法识别（请确认为 UTF-8 / GBK 等常见编码）: {e}')
 
     # 配置预检（Phase A）：把 YAML 期望列与实际 df.columns 对比
     from .column_mapper import ColumnMapper

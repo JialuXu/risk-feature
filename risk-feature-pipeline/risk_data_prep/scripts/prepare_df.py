@@ -23,6 +23,7 @@
 """
 from __future__ import annotations
 
+import sys
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
@@ -90,12 +91,63 @@ def prepare_df(
         if id_col not in df.columns:
             raise ValueError(f"宽表缺少主键列 {id_col!r}；实际列：{list(df.columns)[:20]}...")
         bad_set = set(bad_df[key].astype(str))
+        n_list = len(bad_set)
+        if n_list == 0:
+            raise ValueError(
+                f"坏客户清单为空（{bad_customer_path!r} 去重后 0 条，可能只有表头）；"
+                f"请检查清单文件内容。"
+            )
         df[target_col] = df[id_col].astype(str).isin(bad_set).astype(int)
+        n_bad = int(df[target_col].sum())
+        if n_bad == 0:
+            wide_sample = df[id_col].astype(str).head(5).tolist()
+            list_sample = sorted(bad_set)[:5]
+            raise ValueError(
+                f"坏客户清单与宽表主键 0 匹配，全部客户将被标为好客户（{target_col}=0），"
+                f"下游分析将全部空跑。\n"
+                f"  宽表主键 {id_col!r} 样例: {wide_sample}\n"
+                f"  清单主键 {key!r} 样例: {list_sample}\n"
+                f"  → 请检查 --bad-id-col 是否正确、两边主键是否存在前导零/空格/格式差异。"
+            )
+        if n_bad == len(df):
+            raise ValueError(
+                f"全部 {len(df)} 个客户都被标为坏客户（{target_col}=1）；"
+                f"坏客户清单或主键可能用错，请检查清单文件与 --bad-id-col。"
+            )
+        match_rate = n_bad / n_list
+        if match_rate < 0.5:
+            print(
+                f"[警告] 坏客户清单与宽表主键匹配率偏低："
+                f"{n_bad}/{n_list} 条匹配 ({match_rate*100:.1f}%)；"
+                f"请确认两边主键格式是否一致（前导零/空格/编码差异等）。",
+                file=sys.stderr,
+            )
     else:
         if target_col not in df.columns:
             raise ValueError(
                 f"未提供 bad_customer_path，且宽表不含 {target_col!r} 列；"
                 f"请补充坏客户清单，或确认宽表已含目标列。"
+            )
+        n_na = int(df[target_col].isna().sum())
+        if n_na > 0:
+            raise ValueError(
+                f"宽表目标列 {target_col!r} 含 {n_na} 条缺失值；"
+                f"请先处理缺失，或改用坏客户清单（bad_customer_path）打标。"
+            )
+        numeric = pd.to_numeric(df[target_col], errors='coerce')
+        if numeric.isna().any() or not numeric.isin([0, 1]).all():
+            uniques = df[target_col].unique()[:10].tolist()
+            raise ValueError(
+                f"宽表目标列 {target_col!r} 取值必须为 0/1 且 1=坏客户；"
+                f"实际取值（最多前 10 个）：{uniques}。"
+                f"请先转换编码（如 '是/否'、1/2），或改用坏客户清单打标。"
+            )
+        df[target_col] = numeric.astype(int)
+        if df[target_col].nunique() < 2:
+            uniq = df[target_col].unique().tolist()
+            raise ValueError(
+                f"宽表目标列 {target_col!r} 只有单一取值 {uniq}（全 0 或全 1），"
+                f"无法做有监督分析；请检查目标列定义或坏客户口径。"
             )
 
     if filter:
