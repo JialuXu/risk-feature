@@ -121,6 +121,40 @@ def test_rules_only_rejects_new_category_dim(project_workdir, capsys):
     assert '行业' in err
 
 
+def test_prepare_value_error_no_traceback(project_workdir, capsys):
+    """--id-col 指向不存在的列：prepare_df 的 ValueError 应转成 [prepare] 中文提示，
+    以 SystemExit 退出，而不是裸 Python traceback。"""
+    code, _, err = _run([
+        'prepare',
+        '--wide', project_workdir['wide'],
+        '--bad-customer', project_workdir['bad'],
+        '--id-col', '不存在的主键列',
+        '--target-col', 'is_bad',
+        '--project', 'p1',
+        '--confirmed-new-dataset',
+    ], capsys)
+    assert code == 1
+    assert '[prepare]' in err
+    assert '不存在的主键列' in err
+    assert 'Traceback' not in err
+
+
+def test_run_generic_prepare_value_error_no_traceback(project_workdir, capsys):
+    """run --pipeline generic 复用 cmd_prepare，同样应走 _err 通道而非裸 traceback。"""
+    code, _, err = _run([
+        'run', '--pipeline', 'generic',
+        '--wide', project_workdir['wide'],
+        '--bad-customer', project_workdir['bad'],
+        '--id-col', '不存在的主键列',
+        '--target-col', 'is_bad',
+        '--project', 'p_run_generic',
+        '--confirmed-new-dataset',
+    ], capsys)
+    assert code == 1
+    assert '[prepare]' in err
+    assert 'Traceback' not in err
+
+
 def test_trigger_requires_level1(project_workdir, capsys):
     """没跑 export 就直接 trigger，应被 Level 守护拦下。"""
     cli.main([

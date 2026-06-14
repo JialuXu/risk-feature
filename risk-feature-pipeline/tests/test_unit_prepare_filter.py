@@ -105,10 +105,11 @@ def test_filter_drop_na(tmp_path):
 
 
 def test_filter_range_invalid_format_raises(tmp_path):
+    # 注：目标列需含 0/1 两种取值，否则会先触发 prepare_df 的单一取值守门
     wide = _write_wide(tmp_path, pd.DataFrame({
-        '客户编号': ['A'],
-        '占比': [0.5],
-        'is_bad': [0],
+        '客户编号': ['A', 'B'],
+        '占比': [0.5, 0.6],
+        'is_bad': [0, 1],
     }))
     with pytest.raises(ValueError, match='range'):
         prepare_df(
@@ -120,13 +121,14 @@ def test_filter_range_invalid_format_raises(tmp_path):
 
 def test_filter_unknown_col_silently_skipped(tmp_path):
     """filter 列不在宽表中 → 静默跳过，与原行为一致。"""
+    # 注：目标列需含 0/1 两种取值，否则会先触发 prepare_df 的单一取值守门
     wide = _write_wide(tmp_path, pd.DataFrame({
-        '客户编号': ['A'],
-        'is_bad': [0],
+        '客户编号': ['A', 'B'],
+        'is_bad': [0, 1],
     }))
     df, _ = prepare_df(
         wide_path=wide, bad_customer_path=None,
         id_col='客户编号', target_col='is_bad',
         filter={'不存在的列': {'range': [0, 1]}},
     )
-    assert df['客户编号'].tolist() == ['A']
+    assert df['客户编号'].tolist() == ['A', 'B']
