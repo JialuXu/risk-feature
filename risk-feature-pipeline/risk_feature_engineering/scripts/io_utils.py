@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-import os
-
 import numpy as np
-import pandas as pd
 
-from .config import COL_CUSTOMER_ID
+# read_csv_auto_encoding / load_data 的真实实现已收敛到 risk_pipeline.io_utils，
+# 此处再导出以保留 `from .io_utils import ...` 惯用导入路径。
+from risk_pipeline.io_utils import read_csv_auto_encoding, load_data  # noqa: F401
 
 
 def get_project_root():
@@ -18,52 +17,6 @@ def ensure_dir(path):
     from risk_pipeline.paths import ensure_writable_dir
     ensure_writable_dir(path)
 
-
-def read_csv_auto_encoding(file_path, **kwargs):
-    """
-    自动检测编码读取CSV文件
-
-    Windows环境下CSV可能是GBK/GB2312编码，需要自动检测
-    优先尝试 utf-8-sig（带BOM的UTF-8），然后是 utf-8，最后是 gbk
-    """
-    encodings = ['utf-8-sig', 'utf-8', 'gbk', 'gb2312', 'gb18030', 'latin1']
-
-    for encoding in encodings:
-        try:
-            df = pd.read_csv(file_path, encoding=encoding, **kwargs)
-            return df
-        except UnicodeDecodeError:
-            continue
-        except Exception as e:
-            # 其他错误（如文件格式问题）直接抛出
-            if 'codec' not in str(e).lower() and 'decode' not in str(e).lower():
-                raise e
-            continue
-
-    # 所有编码都失败，使用errors='replace'强制读取
-    return pd.read_csv(file_path, encoding='utf-8', errors='replace', **kwargs)
-
-
-def load_data(config, project_root):
-    """加载所有数据文件"""
-    data = {}
-    for name, rel_path in config.items():
-        full_path = os.path.join(project_root, rel_path)
-        if os.path.exists(full_path):
-            print(f"[INFO] 加载 {name}: {full_path}")
-            data[name] = read_csv_auto_encoding(full_path, dtype={COL_CUSTOMER_ID: str})
-            print(f"       样本量: {len(data[name])}")
-        else:
-            print(f"[WARN] 文件不存在: {full_path}")
-            data[name] = None
-    return data
-
-def clean_id(series):
-    """
-    统一的主键清洗函数
-    去除 '.0' 后缀，去除前后空格，转为字符串
-    """
-    return series.astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
 
 def safe_divide(numerator, denominator, fill_value=np.nan):
     """
