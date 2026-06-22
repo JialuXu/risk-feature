@@ -5,26 +5,24 @@ description: 读取并查询 risk-feature-pipeline 已导出的风险特征分�
 
 ## 核心规矩
 
-1. **先查再跑**：看到"查/解读/top/哪些特征"类问题，**默认用本 skill 从磁盘读 CSV**，不要调用 `run_generic_pipeline`
-2. **确认结果是否存在**：`load_results(project_name)` 若抛 `FileNotFoundError`，再考虑走主 skill 重跑
-3. **只取所需**：用 `top_features()` / DataFrame 过滤 + `head(N)`，禁止打印整张矩阵
-4. **列名不要猜**：按本页 API 返回的对象属性访问；完整列名表见 `references/columns.md`
+1. **先查再跑**：看到"查/解读/top/哪些特征"类问题，**默认用 `query` 子命令读磁盘**，不要重跑链路（`run`/`analyze`）
+2. **确认结果是否存在**：`query` 若报结果不存在（`FileNotFoundError`），再考虑走主 skill 重跑
+3. **只取所需**：用 `--top N`，禁止整表打印
+4. **列名不要猜**：完整列名表见 `references/columns.md`
 
-## 快速开始
+## 快速开始（agent 走 CLI）
 
-```python
-from risk_result_query.scripts.results_loader import load_results, top_features
-
-r = load_results('舆情特征分析')        # 自动搜索 data/results/<project>/ 等多个候选路径
-r.iv_full                               # 全量 IV DataFrame
-r.iv_group_all                          # 分群 IV
-r.corr_long / r.diff_long               # 相关性 / 均值差（长格式）
-r.lr_coef_long / r.lr_auc_long          # LR 系数 / AUC（长格式）
-
-top_features(r, kind='iv', group='小型企业', dim='企业规模', n=15)
-top_features(r, kind='lr', group='小型企业', dim='企业规模', n=15, sign='positive')
-top_features(r, kind='corr', group='小型企业', dim='企业规模', n=15)
+```bash
+python -m risk_pipeline query --project 舆情特征分析 --kind iv --top 15                              # 全量 IV
+python -m risk_pipeline query --project 舆情特征分析 --kind iv_group --dim 企业规模 --group 小型企业 --top 15
+python -m risk_pipeline query --project 舆情特征分析 --kind lr   --dim 企业规模 --group 小型企业 --top 15 --sign positive
+python -m risk_pipeline query --project 舆情特征分析 --kind corr --dim 企业规模 --group 小型企业 --top 15
+# --output-format table（默认）/ csv / json
 ```
+
+> `--kind`：`iv`（全量，不接受 dim/group）/ `iv_group`（分群）/ `corr`（分群相关）/ `lr`（分群 LR，可带 `--sign`）。
+> 要看**整张表或 LLM JSON**（`query` 只出 top-N）：直接读对应文件——横向对比 IV 读 `_IV值透视表.csv`（行=分群、列=特征）最快，高层结论读 `_LLM报告数据.json`；文件清单见 `references/file_layout.md`。
+> `query` 背后是 `results_loader.load_results` / `top_features`（仅 notebook 直接 import；agent 走 CLI）。
 
 ## 何时加载扩展参考（渐进式披露）
 

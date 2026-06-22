@@ -133,18 +133,9 @@ agent 报回前 `cat` 这个节点即可。
 - `threshold_binning_<dim>_<group>_<feat>.png` — 分箱坏率柱图 + 候选阈值竖线
 - `threshold_summary_<dim>.png` — 分群内候选规则风险倍数对比
 
-## Python API（高级用法）
+## 底层实现（仅 notebook）
 
-```python
-from risk_result_query.scripts.results_loader import load_results
-from risk_threshold_explore.scripts import explore_thresholds, read_pair_list
-import pandas as pd
-
-df = pd.read_csv('data/processed/xxx/prepared.csv', encoding='utf-8-sig')
-r = load_results('xxx')
-pairs = read_pair_list('pairs.csv')
-summary_df, detail_df = explore_thresholds(df, pairs, project_name='xxx', results=r)
-```
+> `explore_thresholds` / `read_pair_list` 仅 notebook 直接 import；agent 走上面的 `explore_thresholds` CLI。
 
 ## 边界处理
 

@@ -7,7 +7,7 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 
 1. **只读后置**：所有图都基于 `data/results/<project>/` 下已经落盘的 8 张 CSV + 1 份 JSON + 可选的 `_风险规则表.csv`，与 `risk_result_query` 同源
 2. **结果不存在时报错而非静默**：用 `load_results(project_name)` 找不到目录会抛 `FileNotFoundError`，由调用方决定要不要先跑 export
-3. **面向业务报告的取舍**：只产"全局概览 + 每个分群维度一张的热力图/对比图"。**已下线**对最终业务报告无增量价值、且随分群数量爆炸的图：每分群一张的 `corr`/`lr` 散图（看对应热力图即可）、决策树图 `tree`、特征共现网络 `combo_network`、单变量箱形图。
+3. **面向业务报告的取舍**：只产"全局概览 + 每个分群维度一张的热力图/对比图"，不出每分群散图与随分群数爆炸的细图。
 4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 只 warn 不报错（fallback 渲染 CJK 会变方框）
 5. **依赖隔离**：matplotlib / seaborn 是本 Skill 的**硬依赖**但**不在核心链路依赖**里——`visualize.py` 顶部 try-import，缺失时给出可执行的安装命令（`pip install -e .[viz]` 或 `pip install matplotlib seaborn`）
 
@@ -21,22 +21,7 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 
 **前置缺失的图会被 visualize 自动跳过**（status stamp 里会显示 `skipped=...`），不会报错。
 
-## 快速开始
-
-```python
-from risk_visualization.scripts.visualize import generate_charts
-
-paths = generate_charts(
-    project_name='舆情特征分析',
-    kinds=None,        # None = 全部 9 类
-    top_n=15,
-    dim='企业规模',    # 限定单一分群维度（不传则跨维度都画）
-    dpi=300,
-)
-# paths = {'iv': ['output/.../charts/iv_top15.png'], 'iv_heatmap': [...], ...}
-```
-
-CLI（推荐）：
+## 快速开始（agent 走 CLI）
 
 ```bash
 python -m risk_pipeline visualize --project 舆情特征分析
@@ -44,11 +29,13 @@ python -m risk_pipeline visualize --project 舆情特征分析 \
     --kinds iv,lr_heatmap,combos --top 20 --dim 企业规模
 ```
 
+> 底层 `generate_charts(project_name, kinds, top_n, dim, dpi)` 仅 notebook 直接 import；agent 走上面 CLI。
+
 ## 支持的图表（9 种）
 
 | `kinds=` | 图表 | 输入 | 数量 |
 |---|---|---|---|
-| `iv` | 全量 IV 横向条形图（top-N，按预测能力着色） | `_IV分析结果_全量.csv`（旧名 `_IV分析结果.csv` 兼容副本仍可读） | 1 |
+| `iv` | 全量 IV 横向条形图（top-N，按预测能力着色） | `_IV分析结果_全量.csv` | 1 |
 | `iv_heatmap` | **分群 × 特征 IV 热力图**（每维度一张；行=该维度各分群、列=特征 top-N，不可信单元打 X） | `_IV分析结果_分群.csv`（长表，带 `分群维度`） | M（分群维度数） |
 | `corr_heatmap` | **分群 × 特征 相关系数热力图**（行=分群、列=特征 top-N，发散色以 0 为中心） | `_特征风险相关性.csv` | M（分群维度数） |
 | `lr_heatmap` | **分群 × 特征 LR 系数热力图**（行=分群、列=特征 top-N，发散色以 0 为中心） | `_逻辑回归系数.csv` | M |
