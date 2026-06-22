@@ -1,182 +1,97 @@
 ---
 name: risk-feature-pipeline
-description: 企业风险特征分析总控技能。适用于"帮我做风险特征分析""帮我挖掘这份宽表里的风险特征""分析不同企业规模/行业/客群分群下是什么特征""读取 CSV 后输出分群画像、IV、LR、综合结论"等请求；内部自动选择 `credit` / `gsfc` / `generic` 链路，并决定走全流程、单维快路径或结果解读模式。
+description: 企业风险特征分析总控技能。适用于"帮我做风险特征分析""挖掘这份宽表里的风险特征""分析不同企业规模/行业/客群分群下是什么特征""读 CSV 后输出分群画像、IV、LR、综合结论"等请求；内部自动选择 `credit` / `gsfc` / `generic` 链路，并决定走全流程、单维快路径或只读结果。
 ---
 
-# Risk Feature Pipeline Orchestrator
+# Risk Feature Pipeline 调度器
 
-## 先读这里
+本 Skill 只负责**把用户意图映射到正确的 CLI 命令**，不重写分析逻辑。用户无需说出 `credit`/`IV`/`LR` 等技术词——由本 Skill 判断。
 
-本 Skill 只负责**调度**，不重写分析逻辑。用户无需说出 `credit`/`IV`/`LR` 等技术词——这些由本 Skill 内部判断。
-
-**硬规矩在 `AGENTS.md`**（绝对触发/排斥、结果层次、工具雷区、阻断节点、代码模板），本文件不重复；**执行任何步骤前必须先读 `AGENTS.md`**。
+> **执行任何步骤前先读 `AGENTS.md`**：硬规矩（阻断节点、结果层次、CLI 模板全集、工具雷区、响应自检）都在那里，本文件不重复，只做路由。
+>
+> **铁律**：agent 工作流一律走 `python -m risk_pipeline <子命令>`，**禁止**在 Bash 里 import 模块手抄代码（详见 `AGENTS.md` 一、三）。
 
 ---
 
-## 30 秒判断
+## 第一步：是否需要阻断？
 
-### A. 先判断是否需要阻断
+下列情况**先输出确认请求，等用户回复再继续**（文案与清单见 `AGENTS.md` 五）：
 
-下列情况必须**先输出确认请求，等用户回复后再继续**（详见 `AGENTS.md` 五）：
+- 用户给的是**没见过的宽表 / 切了银行配置** → 阻断节点 1（`prepare`/`run` 须带 `--confirmed-new-dataset`）
+- 要做**触碰提取**但未明确 features 配置 → 阻断节点 2（`trigger` 须带 `--confirmed`）
+- 要生成**正式对外 Word 报告** → 阻断节点 3（`report --purpose external` 须带 `--confirmed-final-version`）
 
-- 用户提供的是从未见过的宽表 / 切换了银行配置 → **阻断节点 1**
-- 用户要触碰提取，但未明确 features 配置 → **阻断节点 2**
-- 用户要生成正式 Word 报告 → **阻断节点 3**
+## 第二步：用户意图 → CLI 命令
 
-### B. 再选执行路径
+| 用户说 | 跑这条 | 说明 |
+|---|---|---|
+| "查/读/看/解读/top X/已有结果" | `python -m risk_pipeline query --project X --kind iv --top 15` | **不重跑链路**；详见 `risk_result_query` |
+| "帮我分析这份宽表/做风险特征分析"（自带宽表） | `python -m risk_pipeline run --pipeline generic --wide … --confirmed-new-dataset` | 全流程；缺目标列见下方 |
+| "跑征信主题 / 工商财务主题分析" | `python -m risk_pipeline run --pipeline credit`（或 `gsfc`） | 数据路径走 `config/` 默认 |
+| "只看某个分群维度" | `python -m risk_pipeline analyze --project X --steps univariate,iv,lr --category-dims 企业规模` 然后 `export` | 单维快路径，不默认跑所有维度 |
+| "要预警规则/审批红线/贷后检查项" | `run/analyze` 带 `--steps …,rules` 再 `export` | 决策树多变量规则，落 `_风险规则表.csv` |
+| "这几个 (分群,特征) 探一下阈值/候选规则评审" | `python -m risk_pipeline explore_thresholds --project X --pairs-file pairs.csv` | Level 1 后只读；详见 `risk_threshold_explore` |
+| "哪些客户触碰阈值/风险预警名单/客户级扫描" | `python -m risk_pipeline trigger --project X --use-default-features --confirmed` | 先过阻断节点 2；详见 `risk_trigger_extraction` |
+| "画图/可视化/IV 条形图/AUC 图" | `python -m risk_pipeline visualize --project X` | Level 1 后只读出图 |
+| "生成 Word/正式报告" | `python -m risk_pipeline report --project X --report-markdown r.md --purpose internal` | 先过阻断节点 3 |
 
-| 用户意图 | 执行路径 |
+> 完整命令模板（全部 flag、复杂 filter 走 `--xxx-file *.json` 等）见 `AGENTS.md` 六。
+
+## 第三步：全流程时选链路
+
+| 链路 | 何时选 |
 |---|---|
-| "查/读/看/解读/top X/已有结果" | `risk_result_query`（模板 B），**不重跑链路** |
-| "哪些客户触碰/风险预警名单" | `risk_trigger_extraction`（模板 C），先过阻断节点 2 |
-| "候选阈值/单变量阈值评审/这几个 (分群,特征) 跑一下" | `risk_threshold_explore`（CLI `explore_thresholds`），Level 1 后只读后置；不推进 level |
-| "生成 Word/正式报告" | `risk_docx_report`，先过阻断节点 3 |
-| 全流程分析 / 单维快路径 | 选链路（见下），走模板 A |
-
-### C. 全流程时选链路
-
-| 链路 | 适用场景 |
-|------|----------|
-| `credit` | 用户要跑征信主题分析 |
-| `gsfc` | 用户要跑工商财务主题分析 |
-| `generic` | 用户已给宽表 CSV，不想重走内置数据准备 |
-
-**单维快路径**：用户只关心某一分群维度——仅对该维度跑 `univariate`→`iv`→`lr`→`export`，不默认把所有维度都跑。
+| `generic` | 用户已给宽表 CSV，不想重走内置数据准备（最常用） |
+| `credit` | 跑征信主题，数据走 `config/` 默认路径 |
+| `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径 |
 
 ---
 
-## 执行策略
+## 场景定位（决定怎么措辞结论）
 
-### 1. 全流程 / 单维快路径 → AGENTS.md 模板 A + 模板 B
+本 Skill 服务于**贷前业务建议**与**贷后预警规则**，**不是**评分卡/模型评估。因此：
 
-严格按 `AGENTS.md` 的模板 A（跑链路）和模板 B（读结果）执行，禁止自行拼凑代码。
+- 结论与建议落在「信号强度（IV）+ 跨分群稳定性（方向一致）→ 可操作的关注点 / 预警阈值」
+- AUC、"原始 vs 衍生 AUC 对比" 只作**诊断性佐证**，不得当结论主角或排序依据
+- 阈值类预警规则的有效性以**风险倍数 / lift / 覆盖率 / 卡方**为准（见 `risk_threshold_explore`）
 
-关键约束：
-- 宽表+打标+特征列必须用 `prepare_df`，不要手写合并
-- `steps=` 必须包含 `'export'`（否则结果不落盘，达不到 Level 1）
-- 链路跑完立刻切模板 B 读磁盘结果，禁止读内存 `results` 对象
+## `generic` 运行前核验（字段不确定就读 `df.columns`，不猜）
 
-### 2. `generic` 缺少目标列时
-
-不得擅自改做无监督分析，必须输出：
-
-> "当前宽表缺少 `is_bad` 列，无法进行 IV/LR/坏客户相关性分析。请补充坏客户清单（如 `data/raw/坏客户标记.csv`），或提供含目标列的文件。"
-
-若坏客户清单已有：优先走 `generic + prepare_df(bad_customer_path=...)`。
-
-### 3. 只解读已有结果 → AGENTS.md 模板 B
-
-用户说"查/读/解读/看 IV/LR/相关性"或"top 特征"时，**切勿重跑链路**：直接用 `load_results` + `top_features`。  
-只有 `load_results` 抛 `FileNotFoundError` 时才考虑重跑。
-
-### 4. 结论纳入要求（强制）
-
-- IV > 2.0 的特征：必须标记"过拟合嫌疑"并**排除出结论推荐**，不得正常引用
-- AUC 必须附注类型（交叉验证 / 训练集-样本不足 / 训练集-CV失败）
-- 跳过的 segment 必须记录原因，不得静默跳过
-
----
-
-## 结果确定性层次（执行前对齐用户预期）
-
-```
-Level 1 — 分析结论可用（8 张 CSV + LLM JSON 落盘）
-  → 可做：查询、审阅、修改后重跑
-  → 不可做：对外交付、写入预警名单
-
-Level 2 — 客户级风险落地（触碰三张表落盘）
-  → 可做：推送预警名单给业务部门
-  → 不可做：底层宽表变更后不重新 extract_triggers
-
-Level 3 — 正式报告交付（.docx 生成并交付）
-  → 不可做：修改底层 CSV 而不同步重新出报告
-```
-
-开始执行前，告知用户本次目标是 Level 几，并确认数据/结论已达到前置层次。
-
----
-
-## `generic` 运行前检查
-
-运行前核验以下条件（字段不确定时读 `df.columns`，不猜）：
-
-- 存在稳定主键（默认 `客户编号`，实际字段名需确认）
-- 存在目标列（或可从坏客户清单推导）
-- 至少有一批可分析的数值特征列
+- 有稳定主键（默认 `客户编号`，实际名需确认）
+- 有目标列，或能从坏客户清单推导
+- 至少一批可分析的数值特征列
 - 用户指定的分群维度列真实存在
 
----
-
-## CLI 入口（统一走 `python -m risk_pipeline`）
-
-```bash
-cd "<pipeline_root>"
-
-# 全流程（generic / credit / gsfc）
-python -m risk_pipeline run --pipeline generic \
-  --wide data/raw/<宽表>.csv \
-  --bad-customer data/raw/<坏客户清单>.csv \
-  --id-col 客户编号 --target-col is_bad \
-  --project <项目名> --confirmed-new-dataset
-
-python -m risk_pipeline run --pipeline credit          # 征信全流程
-python -m risk_pipeline run --pipeline gsfc            # 工商财务全流程
-
-# 单维快路径（CLI 直接接受 --category-dims）
-python -m risk_pipeline analyze --project <项目名> \
-  --steps univariate,iv,lr --category-dims 企业规模
-
-# 只读已有结果
-python -m risk_pipeline query --project <项目名> --kind iv --top 15
-
-# 客户级触碰提取（默认特征仅 GSFC 主题适用；征信/舆情等用 --features-file）
-python -m risk_pipeline trigger --project <项目名> \
-  --use-default-features --confirmed
-
-# 生成 Word 报告
-python -m risk_pipeline report --project <项目名> \
-  --report-markdown <md报告>.md --purpose internal
-
-# 生成可视化图表（Level 1 后；--kinds 可选 iv,iv_heatmap,corr_heatmap,lr_heatmap,auc,segment,rules,combos,thresholds）
-python -m risk_pipeline visualize --project <项目名>
-```
-
-> **老入口 `python -m shared --pipeline X` 仍可工作但会打 stderr deprecation 警告**，请尽快迁移到 `python -m risk_pipeline run --pipeline X`。
->
-> 复杂参数（filter / exclude_features / 自定义 features）一律走 `--xxx-file *.json` 避免 shell 转义。详细模板见 `AGENTS.md` 六。
+**缺目标列时**不得擅自改做无监督分析，须输出：
+> "当前宽表缺少 `is_bad` 列，无法做 IV/LR/坏客户相关性分析。请补充坏客户清单（如 `data/raw/坏客户标记.csv`），或提供含目标列的文件。"
+> 坏客户清单已有时：走 `generic` + `--bad-customer <清单>`（`prepare_df` 自动打标）。
 
 ---
 
 ## 子 Skill 路由
 
-| 子 Skill | 触发场景 | 结果层次 |
-|---|---|---|
-| `risk_data_prep` | 多表合并、坏客户打标、宽表构建 | 前置 |
-| `risk_feature_engineering` | 衍生比率特征、特征工程 | 前置 |
-| `risk_segment_univariate` | 分群相关系数、均值差、T 检验 | 过渡态 |
-| `risk_iv_diagnosis` | IV、WOE、分箱、IV 可信度 | 过渡态 |
-| `risk_logistic_regression` | 分群 LR、系数、AUC | 过渡态 |
-| `risk_rule_mining` | 决策树规则、预警/审批规则 | 过渡态 |
-| `risk_export_report` | 标准 CSV 导出、LLM JSON、分群画像 | **→ Level 1** |
-| `risk_result_query` | **只读**已有结果（top-N、分群查询） | Level 1 后 |
-| `risk_trigger_extraction` | 把风险结论落到每个客户（触碰+得分） | **→ Level 2** |
-| `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning + 业务级判定） | Level 1 后 |
-| `risk_docx_report` | LLM JSON → 正式 Word 报告 | **→ Level 3** |
-| `risk_visualization` | Level 1 后，IV/相关性/LR/分群/决策树/指标组合 PNG 图表 | Level 1 后 |
+| 子 Skill | 触发场景 | 对应 CLI | 结果层次 |
+|---|---|---|---|
+| `risk_data_prep` | 多表合并、坏客户打标、宽表构建 | `prepare` / `run` | 前置 |
+| `risk_feature_engineering` | 衍生比率特征 | `run`（step）| 前置 |
+| `risk_segment_univariate` | 分群相关、均值差、T 检验 | `analyze --steps univariate` | 过渡态 |
+| `risk_iv_diagnosis` | IV、WOE、分箱、IV 可信度 | `analyze --steps iv` | 过渡态 |
+| `risk_logistic_regression` | 分群 LR、系数、AUC | `analyze --steps lr` | 过渡态 |
+| `risk_rule_mining` | 决策树规则、预警/审批规则 | `analyze --steps …,rules` | 过渡态 |
+| `risk_export_report` | 标准 CSV、LLM JSON、分群画像 | `export` | **→ Level 1** |
+| `risk_result_query` | **只读**已有结果（top-N、分群查询） | `query` | Level 1 后 |
+| `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning） | `explore_thresholds` | Level 1 后 |
+| `risk_trigger_extraction` | 风险结论落到每个客户（触碰+得分） | `trigger` | **→ Level 2** |
+| `risk_visualization` | IV/相关/LR/分群/规则 PNG 图表 | `visualize` | Level 1 后 |
+| `risk_docx_report` | LLM JSON → 正式 Word 报告 | `report` | **→ Level 3** |
 
----
-
-## agent 运行规范
-
-1. **开始前说明**：本次目标 Level、选中哪条链路、计划跑哪些步骤
-2. **长任务渐进汇报**：确认数据结构 → 确认目标列/分群 → 步骤进展 → 文件落地确认
-3. **阻断时的输出格式**：见 `AGENTS.md` 七，必须显式输出 `⚠️ [阻断节点 N]`
+结果层次（Level 1/2/3）的达成条件与"能做/不能做"清单见 `AGENTS.md` 二。**开始执行前先告诉用户本次目标是 Level 几。**
 
 ---
 
 ## 调试顺序
 
-1. 看错误在 `risk_pipeline/pipeline.py` 哪个阶段
-2. 确认下游函数签名与透传参数是否一致
-3. 检查目标列、主键列、分群列是否真实存在（读 `df.columns`，不猜）
+1. 看错误落在 `risk_pipeline/pipeline.py` 哪个阶段
+2. 确认下游函数签名与透传参数一致
+3. 读 `df.columns` 核对目标列/主键列/分群列真实存在（不猜）
 4. 常见错误：`KeyError: 'is_bad'`、`unexpected keyword argument 'target'`、分群字段不存在

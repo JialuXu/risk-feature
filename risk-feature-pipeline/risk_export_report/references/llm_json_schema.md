@@ -59,8 +59,8 @@
 | `AUC类型` | 5折交叉验证 / 训练集(样本不足) / 训练集(CV失败) |
 | `IV可信率%` | float |
 | `风险特征概要` | 自动生成的一句话描述 |
-| `Top3_IV特征` | `特征名(IV值), ...` 格式字符串 |
-| `Top3_风险相关特征` | `特征名(±相关系数), ...` 格式字符串 |
+| `Top3预测特征_IV` | `特征名(IV值), ...` 格式字符串 |
+| `Top3风险特征_相关性` | `特征名(±相关系数), ...` 格式字符串 |
 | `特征集优胜` | 原始 / 衍生 / 持平（可选，有特征集对比时才有） |
 
 ## `分群画像_简略[*]` 字段
@@ -91,7 +91,7 @@ core = [f for f in data['特征有效性汇总'] if f['综合评级'] == '核心
 
 # 重点分群画像
 for seg in data['分群画像_重点']:
-    print(seg['分群名称'], seg.get('Top3_IV特征', ''))
+    print(seg['分群名称'], seg.get('Top3预测特征_IV', ''))
 
 # 也可通过 load_results 读取（已加载到 r.llm_report）
 from risk_result_query.scripts import load_results
