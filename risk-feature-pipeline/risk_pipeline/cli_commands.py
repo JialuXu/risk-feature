@@ -171,6 +171,12 @@ def cmd_prepare(args) -> int:
         _err(f'[prepare] 宽表文件不存在: {wide}')
     if args.bad_customer is not None and not os.path.isfile(args.bad_customer):
         _err(f'[prepare] 坏客户清单不存在: {args.bad_customer}')
+    merge_table = getattr(args, 'merge_table', None)
+    if merge_table is not None and not os.path.isfile(merge_table):
+        _err(f'[prepare] --merge-table 不存在: {merge_table}')
+    merge_cols = None
+    if getattr(args, 'merge_cols', None):
+        merge_cols = [c.strip() for c in args.merge_cols.split(',') if c.strip()]
 
     filter_dict = None
     if args.filter_file:
@@ -219,6 +225,9 @@ def cmd_prepare(args) -> int:
             id_col=args.id_col,
             target_col=args.target_col,
             bad_id_col=args.bad_id_col,
+            merge_table_path=merge_table,
+            merge_id_col=getattr(args, 'merge_id_col', None),
+            merge_cols=merge_cols,
             filter=filter_dict,
             exclude_features=exclude_features,
         )
@@ -591,7 +600,7 @@ def _write_audit_json(
 ) -> None:
     """C12: 落盘 <project>_audit.json，agent 报回前 cat 这个文件做机器可读自检。
 
-    包含：IV>2.0 过拟合嫌疑特征、不稳定规则列表、文件数、当前 Level。
+    包含：IV>2.0 疑似数据穿越特征（键名沿用 iv_overfit_features）、不稳定规则列表、文件数、当前 Level。
     自检失败时本函数本身不阻断，仅 stderr 警告——audit 是辅助工具不是关键路径。
     """
     audit = {
@@ -603,7 +612,7 @@ def _write_audit_json(
         'unstable_rules': [],
     }
 
-    # 扫 IV 过拟合嫌疑（读已落盘的 _IV分析结果_全量.csv，保证与导出一致）
+    # 扫 IV 疑似数据穿越（IV>2，读已落盘的 _IV分析结果_全量.csv，保证与导出一致）
     try:
         iv_full_path = None
         for fn in (f'{project}_IV分析结果_全量.csv', f'{project}_IV分析结果.csv'):
@@ -624,7 +633,7 @@ def _write_audit_json(
                         for _, row in overfit.iterrows()
                     ]
     except Exception as e:  # noqa: BLE001
-        print(f'  [audit 警告] 扫 IV 过拟合特征失败: {e}', file=sys.stderr)
+        print(f'  [audit 警告] 扫 IV 疑似数据穿越特征失败: {e}', file=sys.stderr)
 
     # 扫规则不稳定（读规则表）
     try:
@@ -653,7 +662,7 @@ def _write_audit_json(
         with open(audit_path, 'w', encoding='utf-8') as f:
             json.dump(audit, f, ensure_ascii=False, indent=2)
         print(f'  -> {os.path.basename(audit_path)} '
-              f'(IV>2 过拟合={len(audit["iv_overfit_features"])} | '
+              f'(IV>2 疑似穿越={len(audit["iv_overfit_features"])} | '
               f'不稳定规则={len(audit["unstable_rules"])})')
     except Exception as e:  # noqa: BLE001
         print(f'  [audit 警告] 写 audit.json 失败: {e}', file=sys.stderr)
@@ -678,7 +687,6 @@ def _maybe_export_rules_csv(
         # 跑过 rules 但未挖到规则也算有效信号，写一个空表占位
         print('  [提示] rules.pkl 为空（analyze 阶段未挖到满足闸门的规则）', file=sys.stderr)
 
-    from risk_export_report.scripts.report_analysis import export_results as _noop  # noqa
     from risk_rule_mining.scripts.rule_mining_pipeline import export_rules
 
     out_dir = os.path.join(project_root, 'data', 'results', output_subdir)
@@ -1263,6 +1271,14 @@ def cmd_report(args) -> int:
 # ===== run =====
 
 def cmd_run(args) -> int:
+    # --category-dims 仅 generic 链路生效；credit/gsfc 用预置维度，传了告警忽略
+    if getattr(args, 'category_dims', None) and args.pipeline != 'generic':
+        print(
+            f'⚠️ [run] --category-dims 仅对 --pipeline generic 生效；'
+            f'当前 pipeline={args.pipeline} 使用预置分群维度，本参数将被忽略。',
+            file=sys.stderr,
+        )
+
     if args.pipeline == 'credit':
         from risk_pipeline.pipeline import run_credit_pipeline
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
@@ -1323,6 +1339,9 @@ def cmd_run(args) -> int:
         wide=args.wide, bad_customer=args.bad_customer,
         id_col=args.id_col, target_col=args.target_col,
         bad_id_col=getattr(args, 'bad_id_col', None),
+        merge_table=getattr(args, 'merge_table', None),
+        merge_id_col=getattr(args, 'merge_id_col', None),
+        merge_cols=getattr(args, 'merge_cols', None),
         filter_file=getattr(args, 'filter_file', None),
         exclude_features_file=getattr(args, 'exclude_features_file', None),
         project=args.project,
@@ -1342,7 +1361,8 @@ def cmd_run(args) -> int:
         project=args.project, prepared=None, features_file=None,
         # 默认含 rules，让 visualize 立即能出决策树/规则散点/共现网络
         steps=args.steps or 'univariate,iv,lr,rules',
-        category_dims=None, qual_dims=None, target_col=None,
+        category_dims=getattr(args, 'category_dims', None),
+        qual_dims=None, target_col=None,
         quiet=_is_quiet(args), verbose=_is_verbose(args),
         state_dir=_state_dir(args),
     ))

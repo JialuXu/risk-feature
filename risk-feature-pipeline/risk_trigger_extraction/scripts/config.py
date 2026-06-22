@@ -40,7 +40,7 @@ from risk_pipeline.config import (  # noqa: F401
 
 # 默认特征匹配率阈值：使用 RISK_FEATURES 默认值时，若宽表匹配率低于此值，
 # extract_triggers 会抛 RuntimeError 而非静默跑出全 0 名单。
-# 0.7 = GSFC 主题 33 个特征中需匹配 ≥ 23 个；阈值之所以收紧（0.5 → 0.7），
+# 0.7 = GSFC 主题 37 个特征中需匹配 ≥ 26 个；阈值之所以收紧（0.5 → 0.7），
 # 是因为非 GSFC 数据集恰好碰撞 50% 列名时会勉强通过守门并输出语义错误的预警名单，
 # 这是 Level 2 不可撤回的产物。非 GSFC 主题请用 --features-file 注入项目专属配置。
 MIN_DEFAULT_FEATURE_MATCH_RATE = 0.7

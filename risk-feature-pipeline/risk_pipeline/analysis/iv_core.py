@@ -55,16 +55,16 @@ def _assess_iv_reliability(iv_value, n_samples, n_bad, n_bins_actual):
     - '可信': 样本量充足，IV 值处于合理范围
     - '参考': 样本量偏少或 IV 偏高，结论需谨慎
     - '不可信-样本不足': 坏客户过少，统计结论不稳定
-    - '不可信-过拟合嫌疑': IV 超过阈值，大概率是分箱不稳定导致
+    - '不可信-疑似数据穿越': IV 超过阈值，大概率是该特征与坏客户定义重叠/数据穿越
 
     参数 n_bins_actual 保留与调用方一致，便于后续扩展分箱稳定性诊断（当前未参与判定）。
     """
     if pd.isna(iv_value):
         return '无法计算'
 
-    # IV 超过可疑阈值 -> 过拟合嫌疑
+    # IV 超过可疑阈值 -> 疑似数据穿越（特征与坏客户定义重叠），不可作结论
     if iv_value > IV_SUSPECT_THRESHOLD:
-        return '不可信-过拟合嫌疑'
+        return '不可信-疑似数据穿越'
 
     # 坏客户数不足 -> 样本不足
     if n_bad < IV_CREDIBILITY_MIN_BAD_STRICT:
@@ -80,6 +80,23 @@ def _assess_iv_reliability(iv_value, n_samples, n_bad, n_bins_actual):
         return '参考'
 
     return '可信'
+
+
+def iv_power_label(iv_value):
+    """把 IV 值映射为预测力标签（强/中/弱/无）。
+
+    口径与 calc_iv docstring 一致：IV>=0.3 强、0.1~0.3 中、0.02~0.1 弱、<0.02 无。
+    此前 report_analysis 内有两处逐字相同的内联实现，现统一收敛到这里。
+    """
+    if pd.isna(iv_value):
+        return '无'
+    if iv_value >= 0.3:
+        return '强'
+    if iv_value >= 0.1:
+        return '中'
+    if iv_value >= 0.02:
+        return '弱'
+    return '无'
 
 
 def calc_iv(df, feature, target, bins=10):

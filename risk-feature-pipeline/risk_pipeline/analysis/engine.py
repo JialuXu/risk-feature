@@ -314,8 +314,10 @@ def _fit_lr_single(X_scaled, y, feature_names, n_samples, n_bad):
     - 样本 >= 200 且坏客户 >= 30 时，使用5折交叉验证AUC
     - 否则使用训练集AUC（标注类型）
     """
+    # 默认即 L2 正则（sklearn 1.8 起 penalty 参数已弃用，1.10 移除；
+    # 新默认 l1_ratio=0 与旧 penalty='l2' 数值等价，故不再显式传 penalty）
     model = LogisticRegression(
-        penalty='l2', C=1.0, solver='lbfgs', max_iter=1000, random_state=42
+        C=1.0, solver='lbfgs', max_iter=1000, random_state=42
     )
     model.fit(X_scaled, y)
 
@@ -751,7 +753,7 @@ def compare_feature_sets(df, dim_col, raw_features, derived_features, target=COL
                 scaler = StandardScaler()
                 Xs = scaler.fit_transform(X)
                 mdl = LogisticRegression(
-                    penalty='l2', C=1.0, solver='lbfgs',
+                    C=1.0, solver='lbfgs',
                     max_iter=1000, random_state=42
                 )
                 mdl.fit(Xs, y)
@@ -769,8 +771,8 @@ def compare_feature_sets(df, dim_col, raw_features, derived_features, target=COL
                     auc_raw = auc
                 else:
                     auc_derived = auc
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WARN] 组合 LR 拟合失败（分群={gname}, 特征集={label}）: {e}")
 
         diff = (auc_derived - auc_raw
                 if pd.notna(auc_raw) and pd.notna(auc_derived) else np.nan)

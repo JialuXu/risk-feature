@@ -79,21 +79,37 @@ def test_bad_list_all_bad_raises(tmp_path):
                    id_col='客户编号', target_col='is_bad')
 
 
-def test_bad_list_low_match_rate_warns_not_blocks(tmp_path, capsys):
-    """清单匹配率 < 50% → 仅 stderr 警告，不阻断，返回结果正常。"""
+def test_bad_list_low_match_rate_subset_hints_not_blocks(tmp_path, capsys):
+    """清单命中率 < 50% 但宽表内坏客户占比正常（疑似子集）→ [提示]，不阻断（P3-1）。"""
     wide = _make_wide(tmp_path, n=6)
-    # 清单 4 条，只有 1 条能匹配上（25% < 50%）
+    # 清单 4 条，只有 1 条能匹配上（25% < 50%）；宽表 6 行里有 1 个坏客户（16.7%）→ join 已生效
     bad = _write_csv(tmp_path, 'bad.csv', pd.DataFrame({
         '客户编号': ['C001', 'X001', 'X002', 'X003'],
     }))
     df, feature_cols = prepare_df(wide_path=wide, bad_customer_path=bad,
                                   id_col='客户编号', target_col='is_bad')
     err = capsys.readouterr().err
-    assert '[警告]' in err
-    assert '匹配率' in err
-    assert '1/4' in err
+    assert '[提示]' in err          # 子集场景：提示而非警告
+    assert '[警告]' not in err
+    assert '落在宽表外' in err
+    # 不阻断、打标正确
     assert df['is_bad'].sum() == 1
     assert set(feature_cols) == {'feat_1', 'feat_2'}
+
+
+def test_bad_list_format_mismatch_warns_not_blocks(tmp_path, capsys):
+    """清单命中率 < 50% 且宽表内坏客户占比近零（主键对不上）→ [警告]，不阻断（P3-1）。"""
+    wide = _make_wide(tmp_path, n=300)
+    # 大宽表里仅 1 个客户被标坏（0.33% < 0.5%），清单大部分对不上 → 像主键格式问题
+    bad = _write_csv(tmp_path, 'bad.csv', pd.DataFrame({
+        '客户编号': ['C001'] + [f'X{i:03d}' for i in range(10)],
+    }))
+    df, feature_cols = prepare_df(wide_path=wide, bad_customer_path=bad,
+                                  id_col='客户编号', target_col='is_bad')
+    err = capsys.readouterr().err
+    assert '[警告]' in err
+    assert '主键' in err
+    assert df['is_bad'].sum() == 1
 
 
 def test_bad_list_normal_path_no_warning(tmp_path, capsys):
@@ -108,6 +124,58 @@ def test_bad_list_normal_path_no_warning(tmp_path, capsys):
     assert '[警告]' not in err
     assert df['is_bad'].tolist() == [0, 1, 0, 1, 0, 0]
     assert set(feature_cols) == {'feat_1', 'feat_2'}
+
+
+# ---------------------------------------------------------------------------
+# B. 补充表 left-join 分支（merge_table_path，P2-2）
+# ---------------------------------------------------------------------------
+
+def test_merge_table_brings_in_dimension(tmp_path):
+    """补充表在主键上 left-join，带入分群维度列；特征列不受影响（P2-2）。"""
+    wide = _make_wide(tmp_path, n=6)
+    dims = _write_csv(tmp_path, 'dims.csv', pd.DataFrame({
+        '客户编号': [f'C{i:03d}' for i in range(6)],
+        '企业规模': ['小型企业', '中型企业'] * 3,
+    }))
+    bad = _write_csv(tmp_path, 'bad.csv', pd.DataFrame({'客户编号': ['C001', 'C003']}))
+    df, feature_cols = prepare_df(
+        wide_path=wide, bad_customer_path=bad,
+        merge_table_path=dims, id_col='客户编号', target_col='is_bad',
+    )
+    assert len(df) == 6                       # left-join 不放大行数
+    assert '企业规模' in df.columns           # 维度列已带入
+    assert df['企业规模'].notna().all()
+    # 维度列是分类型，不应混进数值特征列
+    assert set(feature_cols) == {'feat_1', 'feat_2'}
+
+
+def test_merge_table_zero_match_raises(tmp_path):
+    """补充表主键与宽表 0 匹配 → 抛 ValueError，避免新增列全空静默（P2-2）。"""
+    wide = _make_wide(tmp_path, n=6)
+    dims = _write_csv(tmp_path, 'dims.csv', pd.DataFrame({
+        '客户编号': [f'Z{i:03d}' for i in range(6)],   # 与宽表 C0xx 完全不匹配
+        '企业规模': ['小型企业'] * 6,
+    }))
+    with pytest.raises(ValueError, match='0 匹配'):
+        prepare_df(wide_path=wide, merge_table_path=dims,
+                   id_col='客户编号', target_col='is_bad',
+                   bad_customer_path=None)
+
+
+def test_merge_table_dedups_keys_no_row_fanout(tmp_path):
+    """补充表主键重复时去重，left-join 不放大行数（P2-2）。"""
+    wide = _make_wide(tmp_path, n=4)   # C000..C003
+    dims = _write_csv(tmp_path, 'dims.csv', pd.DataFrame({
+        '客户编号': ['C000', 'C000', 'C001', 'C002', 'C003'],  # C000 重复
+        '企业规模': ['小型企业', '中型企业', '中型企业', '小型企业', '中型企业'],
+    }))
+    bad = _write_csv(tmp_path, 'bad.csv', pd.DataFrame({'客户编号': ['C001']}))
+    df, _ = prepare_df(wide_path=wide, merge_table_path=dims,
+                       bad_customer_path=bad,
+                       id_col='客户编号', target_col='is_bad')
+    assert len(df) == 4                       # 去重后不放大行数
+    # C000 取去重后第一条（keep='first' → 小型企业）
+    assert df.loc[df['客户编号'] == 'C000', '企业规模'].iloc[0] == '小型企业'
 
 
 # ---------------------------------------------------------------------------
