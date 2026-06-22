@@ -1,165 +1,69 @@
 ---
 name: risk_trigger_extraction
-description: 逆向提取风险特征触碰客户清单：基于已筛选的有效风险特征（IV可信、中等以上预测能力），从宽表中判断每个客户是否触碰风险阈值；产出客户触碰宽表、触碰长表、阈值说明表，并给出IV加权风险得分排名。注意：默认特征配置仅适用 GSFC（工商财务）主题，征信/舆情/generic 等其他主题必须传入项目专属 features 配置（--features-file）
+description: 逆向提取风险特征触碰客户清单：基于已筛选的有效风险特征（IV可信、中等以上预测能力），从宽表判断每个客户是否触碰风险阈值；产出客户触碰宽表/长表/阈值说明表，并给出 IV 加权风险得分排名。注意：默认特征配置仅适用 GSFC（工商财务）主题，征信/舆情/generic 等其他主题必须传项目专属 features 配置（--features-file）
 ---
 
-## 方法论前提
+> **这是 Level 2 操作（把风险结论落到每个客户），agent 必须走 CLI：**
+> `python -m risk_pipeline trigger --project X --use-default-features --confirmed`
+> ⚠️ **必须带 `--confirmed`（阻断节点 2，见 `AGENTS.md` 五）**——预警名单推送给业务后不可撤回。
 
-- **输入**：已完成特征工程的宽表（需含 `is_bad` 目标列）；风险特征配置列表（`features=` 参数 / `--features-file`，含 IV、风险方向、可选显式阈值、scope 维度筛选）。
-- **产出对象**：
-  1. `{project}_风险触碰明细_宽表.csv` — 每行一个客户，含各特征值、触碰标记（0/1）、触碰特征总数、IV加权风险得分、触碰特征清单
-  2. `{project}_风险触碰明细_长表.csv` — 仅保留触碰的 客户×特征 记录，含阈值、来源、特征类别
-  3. `{project}_触碰阈值说明.csv` — 每个特征的触碰条件、好/坏客户均值、阈值来源
+## 触发 → CLI
 
-- **非产出**：不重新跑 IV/LR/单变量分析，不替代 `risk_iv_diagnosis` 或 `risk_logistic_regression`。
+| 用户说 | 跑 |
+|---|---|
+| "风险预警名单 / 哪些客户触碰阈值 / 客户级扫描"（GSFC 主题） | `python -m risk_pipeline trigger --project X --use-default-features --confirmed` |
+| 非 GSFC 主题（征信/舆情/generic）或有专属特征 | `python -m risk_pipeline trigger --project X --features-file project_features.json --confirmed` |
+| 要保留 `企业规模`/`内部评级` 等业务列 | 加 `--keep-metadata-cols 企业规模,内部评级` |
 
-> ⚠️  **默认特征 `RISK_FEATURES_GSFC` 仅适配 GSFC 主题宽表（工商变更 + 财务 + 授信 + 数据完整度）。** 征信、舆情、generic 等其他主题请通过 `features=` 或 CLI `--features-file` 注入项目专属配置；若使用默认特征但宽表匹配率 < 50%，`extract_triggers` 会抛 `RuntimeError` 阻断，避免输出全 0 名单。
->
-> ⚠️  触碰宽表 CSV 默认**不含** `is_bad` / `企业规模` 等业务元信息列；需保留时传 `keep_metadata_cols=[...]`（详见下文「输出列说明」末尾）。
+> ⚠️ **默认特征 `RISK_FEATURES_GSFC`（37 个）仅适配 GSFC 主题宽表。** 其它主题用默认特征时，若宽表匹配率 **< 70%**，`extract_triggers` 抛 `RuntimeError` 阻断，避免输出全 0/语义错误的名单。专属特征请走 `--features-file`，并在阻断节点确认每个特征的 `risk_direction` 和 `iv`。
 
-## scope 维度筛选
+## 产出三件套
 
-每个特征的 `scope` 字段指定其触发范围，支持 4 种形态：
+1. `{project}_风险触碰明细_宽表.csv` — 每行一客户：各特征值、触碰标记(0/1)、触碰特征总数、IV加权风险得分、触碰特征清单
+2. `{project}_风险触碰明细_长表.csv` — 仅触碰的 客户×特征 记录，含阈值、来源、类别
+3. `{project}_触碰阈值说明.csv` — 每特征的触碰条件、好/坏均值、阈值来源
 
-| scope 形态 | 含义 |
-|-----------|------|
-| `'full'`（默认）| 全量客户 |
-| `'waist'` | 仅腰部企业（兼容旧写法，等价于 `{"dim": "是否腰部企业", "value": 1}`） |
-| `{"dim": "X", "value": "Y"}` | 单值维度筛选，如 `{"dim": "企业规模", "value": "大型企业"}` |
-| `{"dim": "X", "values": ["Y1","Y2"]}` | 多值维度筛选 |
+**输出位置**：默认落 `<project_root>/output/<project>/`，与 Level 1 的 `data/results/<project>/` 是**两个不同根**。CLI status stamp 打印绝对路径；找不到时用 `find <project_root>/output -name '*风险触碰*'`。
 
-若 `dim` 不在宽表列中，scope 退化为全量（不阻断）。
+## 阈值策略（优先级从高到低）
 
-## 阈值策略
-
-优先级从高到低：
-
-1. **显式阈值**（`explicit_threshold` 字段）：报告中业务专家明确给出，直接使用（如 `本行授信使用率 > 70%`）
-2. **坏客户均值**：以坏客户均值水平作为触碰线——只要客户的表现至少与坏客户平均水平一样差，才算触碰。保守且有风控意义。
-3. **兜底**：好/坏样本不足时用全量中位数，附注来源说明。
+1. **显式阈值**（`explicit_threshold`）：报告中业务专家给定，直接用
+2. **坏客户均值**：客户表现至少和坏客户平均一样差才算触碰（保守、有风控意义）
+3. **兜底**：好/坏样本不足时用全量中位数，附注来源
 
 ## IV 加权风险得分
 
-```
-得分 = Σ(触碰_i × IV_i) / Σ(IV_i) × 100
-```
+`得分 = Σ(触碰_i × IV_i) / Σ(IV_i) × 100`（0–100，越高风险越大，按降序排）。高 IV 特征触碰贡献更大权重。
 
-- 高 IV 特征被触碰时贡献更大权重
-- `scope='waist'` 的特征使用 `iv_waist` 参与加权（兼容旧配置）；通用 `scope` dict 一律用 `iv` 字段
-- 结果按得分降序排列，便于直接识别高风险客户
+## scope 维度筛选（每个特征的触发范围）
 
-## 流水线位置
+| scope 形态 | 含义 |
+|---|---|
+| `'full'`（默认）| 全量客户 |
+| `'waist'` | 仅腰部企业（等价 `{"dim":"是否腰部企业","value":1}`，加权用 `iv_waist`）|
+| `{"dim":"X","value":"Y"}` | 单值维度筛选 |
+| `{"dim":"X","values":["Y1","Y2"]}` | 多值维度筛选 |
 
-- **前置**：`risk_data_prep`（宽表构建）+ `risk_feature_engineering`（衍生特征生成）
-- **独立使用**：可直接对任何已有宽表运行（不依赖 `risk_iv_diagnosis` / `risk_logistic_regression` 的输出）
-- **与 `risk_export_report` 的关系**：并行关系，触碰提取结果是对分析结论的业务落地，不写入八文件体系
+`dim` 不在宽表列中时 scope 回退为全量（不阻断）。
 
-## 何时使用
+## keep_metadata_cols（默认不含业务列）
 
-- 分析已经完成，需要"把风险信号落到每个客户头上"
-- 需要给客户经理一份**可操作的风险预警名单**
-- 需要对存量客户做**批量风险扫描**（触碰了哪些特征、得分多少）
-- 需要验证报告结论的**区分度**（坏客户触碰率应显著高于好客户）
+宽表 CSV **默认不含** `is_bad`/`企业规模`/`所属行业` 等列，避免与 `prepared.csv` merge 撞列。需要时：
+- CLI `--keep-metadata-cols 企业规模,内部评级`（任意原始列都可指定，不限默认白名单）
+- 或默认行为下 `pd.merge(prepared, df_wide, on='客户编号', how='left')` 自取
 
-## 调用入口
+## `--features-file` 配置（非 GSFC 主题必备）
 
-```python
-# 推荐用法：先用 prepare_df 准备宽表，再调用 extract_triggers
-from risk_data_prep.scripts.prepare_df import prepare_df
-from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
+JSON 数组，每条特征至少含 `report_name` / `source_col` / `risk_direction`（`positive`|`negative`）/ `iv` / `category` / `scope`：
 
-df, feature_cols = prepare_df(
-    wide_path='data/raw/...csv',
-    bad_customer_path='data/raw/坏客户标记.csv',
-)
-
-df_wide, df_long, df_threshold = extract_triggers(
-    df=df,
-    project_name='征信触碰分析',
-)
+```json
+[{"report_name":"资产负债率","source_col":"资产负债率","risk_direction":"positive","iv":0.35,"category":"偿债能力","scope":"full"}]
 ```
 
-```python
-# 高级用法：传入自定义特征配置列表
-from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
-
-MY_FEATURES = [
-    {
-        'report_name': '资产负债率',
-        'source_col': '资产负债率',
-        'risk_direction': 'positive',
-        'iv': 0.35,
-        'category': '偿债能力',
-        'explicit_threshold': ('>', 0.75),  # 可选，优先于数据计算
-        'scope': 'full',                     # 全量
-    },
-    {
-        'report_name': '非银机构占比_大型',
-        'source_col': '非银机构占比',
-        'risk_direction': 'positive',
-        'iv': 0.42,
-        'category': '征信结构',
-        'scope': {'dim': '企业规模', 'value': '大型企业'},   # 维度筛选示例
-    },
-    ...
-]
-
-df_wide, df_long, df_threshold = extract_triggers(
-    df=df,
-    features=MY_FEATURES,
-    target_col='is_bad',
-    id_col='客户编号',
-    project_name='自定义触碰',
-    output_dir='output/',
-)
-```
-
-```python
-# 仅使用核心计算函数（不落盘）
-from risk_trigger_extraction.scripts.trigger_extraction import (
-    compute_thresholds, evaluate_triggers, build_threshold_table
-)
-# 默认特征常量为 RISK_FEATURES_GSFC（仅工商财务主题适用）；
-# RISK_FEATURES 保留为向后兼容 alias，下面两种 import 等价：
-from risk_trigger_extraction.scripts.config import RISK_FEATURES_GSFC as RISK_FEATURES
-# 或者：from risk_trigger_extraction.scripts.config import RISK_FEATURES
-
-thresholds = compute_thresholds(df, RISK_FEATURES)
-df_wide, df_long = evaluate_triggers(df, RISK_FEATURES, thresholds)
-df_thr = build_threshold_table(RISK_FEATURES, thresholds)
-```
-
-## 输出位置
-
-trigger 三件套默认落在 `<project_root>/output/<project>/`，与 IV/LR/规则等 Level 1 产物的 `data/results/<project>/` 是**两个不同根**。CLI status stamp 会打印完整绝对路径；找不到时优先用 `find <project_root>/output -name '*风险触碰*'` 而非在 `data/results/` 里翻。
-
-> 输出路径的未来调整计划见 `CHANGELOG.md`（B10）。
-
-## 输出列说明（宽表）
-
-| 列名 | 说明 |
-|------|------|
-| `{id_col}` | 主键（默认 `客户编号`） |
-| `{特征名称}_值` | 该特征的原始数值（pd.to_numeric 强转后） |
-| `{特征名称}_触碰` | 1=触碰，0=未触碰，NaN=数据缺失 |
-| `触碰特征总数` | 触碰的特征数量 |
-| `IV加权风险得分` | 0-100，越高风险越大 |
-| `触碰特征清单` | 触碰特征名称（分号分隔） |
-| `触碰数_{类别前缀}` | 各业务类别下的触碰数 |
-
-> ⚠️  **默认行为**：宽表 CSV **不包含** `is_bad` / `企业规模` / `所属行业` 等业务元信息列，避免与 `prepared.csv` merge 时撞列冲突（行为变更史见 `CHANGELOG.md`）。需要业务字段做后处理时：
->
-> 1. 默认：`pd.merge(prepared, df_wide, on='客户编号', how='left')` 直接用，不会冲突
-> 2. 显式保留：`extract_triggers(..., keep_metadata_cols=['企业规模', '内部评级'])` 或
->    CLI `--keep-metadata-cols 企业规模,内部评级`
->
-> `keep_metadata_cols` **不限于** 默认白名单（所属分行/客户性质/控股类型/所属行业/行业大类/企业规模/客户分层/赛道/是否腰部企业）；任意原始宽表列都可指定（如 `内部评级`）。指定的列若在宽表中不存在，verbose 模式会打印 `[WARN] keep_metadata_cols 指定的列在宽表中不存在` 但不阻断。
+> 底层 `extract_triggers` 与默认常量 `RISK_FEATURES_GSFC` 仅 notebook 直接 import；agent 走上面的 `trigger` CLI。
 
 ## 职责边界
 
 | 负责 | 不负责 |
 |------|--------|
-| 阈值计算（显式/数据驱动） | 特征工程（见 `risk_feature_engineering`） |
-| 客户级触碰评估与 IV 加权得分 | IV/LR 分析（见对应 Skill） |
-| 三张 CSV 落盘 | 八文件标准导出（见 `risk_export_report`） |
-| 触碰统计摘要打印 | DOCX 报告（见 `risk_docx_report`） |
+| 阈值计算（显式/数据驱动）、客户级触碰评估、IV 加权得分、三张 CSV 落盘 | 特征工程、IV/LR 分析、八文件标准导出、DOCX 报告 |

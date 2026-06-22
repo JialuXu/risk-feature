@@ -14,10 +14,8 @@
 
 ```
 <project_root>/data/results/<project_name>/
-    <project_name>_IV分析结果_全量.csv      → r.iv_full        # A5 新名
-    <project_name>_IV分析结果_分群.csv      → r.iv_group_all   # A5 新名
-    <project_name>_IV分析结果.csv           # A5 兼容副本（同 _全量；下个版本移除）
-    <project_name>_IV值分析.csv             # A5 兼容副本（同 _分群；下个版本移除）
+    <project_name>_IV分析结果_全量.csv      → r.iv_full
+    <project_name>_IV分析结果_分群.csv      → r.iv_group_all
     <project_name>_特征风险相关性.csv       → r.corr_long（重塑）
     <project_name>_逻辑回归系数.csv         → r.lr_coef_long（重塑）
     <project_name>_IV值透视表.csv           → r.iv_pivot（可选）

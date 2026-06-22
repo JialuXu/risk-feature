@@ -76,6 +76,13 @@ def _build_parser() -> argparse.ArgumentParser:
                         help='构建 prepared.csv + features.json（前置态）')
     p.add_argument('--wide', required=True, help='宽表 CSV 路径')
     p.add_argument('--bad-customer', default=None, help='坏客户清单 CSV（宽表已有 target 时可省略）')
+    p.add_argument('--merge-table', default=None,
+                   help='可选：在主键上 left-join 的补充表 CSV（如分群维度在另一张表，'
+                        '如客户信息.csv）。免去手抄 pandas merge')
+    p.add_argument('--merge-id-col', default=None,
+                   help='补充表主键列名（默认与 --id-col 同）')
+    p.add_argument('--merge-cols', default=None,
+                   help='只从补充表带入这些列（逗号分隔；缺省=带入全部非主键列）')
     p.add_argument('--id-col', required=True, help='主键列名（无默认，必填）')
     p.add_argument('--target-col', required=True, help='目标列名（无默认，必填）')
     p.add_argument('--bad-id-col', default=None, help='坏客户清单主键列名（默认与 --id-col 同）')
@@ -217,10 +224,19 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--project', default=None, help='generic 必填')
     p.add_argument('--wide', default=None, help='generic 必填')
     p.add_argument('--bad-customer', default=None)
+    p.add_argument('--merge-table', default=None,
+                   help='[generic] 同 prepare --merge-table；在主键上 left-join 的补充表 CSV')
+    p.add_argument('--merge-id-col', default=None,
+                   help='[generic] 同 prepare --merge-id-col')
+    p.add_argument('--merge-cols', default=None,
+                   help='[generic] 同 prepare --merge-cols')
     p.add_argument('--id-col', default=None, help='generic 必填')
     p.add_argument('--target-col', default=None, help='generic 必填')
     p.add_argument('--steps', default=None,
                    help='credit/gsfc 步骤透传；generic 透传给 analyze')
+    p.add_argument('--category-dims', default=None,
+                   help='[generic] 类别维度列名（逗号分隔），默认自动检测；透传给 analyze。'
+                        'credit/gsfc 用预置维度，传了会被忽略并告警')
     p.add_argument('--confirmed-new-dataset', action='store_true',
                    help='[阻断节点 1] 首次使用新数据集时必传')
     # generic 路径透传给 cmd_prepare 的参数（原 cmd_run 硬编码 None 导致这些功能不可用）

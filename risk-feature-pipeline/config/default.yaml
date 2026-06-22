@@ -45,7 +45,7 @@ thresholds:
 
 # ---- IV 配置 ----
 iv:
-  suspect_threshold: 2.0     # IV 可疑阈值（超过视为过拟合嫌疑）
+  suspect_threshold: 2.0     # IV 可疑阈值（超过视为疑似数据穿越）
   woe_cap: 5.0               # WOE 截断绝对值上限
   select_threshold: 0.1      # IV 筛选阈值（中等预测性以上）
   prediction_overstrong_min: 0.5  # 全量 IV「过强」分档起点（高于强预测能力，需复核）

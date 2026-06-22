@@ -47,6 +47,9 @@ def prepare_df(
     id_col: str = '客户编号',
     target_col: str = 'is_bad',
     bad_id_col: Optional[str] = None,
+    merge_table_path: Optional[str] = None,
+    merge_id_col: Optional[str] = None,
+    merge_cols: Optional[Iterable[str]] = None,
     filter: Optional[Dict[str, Dict[str, Iterable]]] = None,
     exclude_features: Optional[Iterable[str]] = None,
     extra_exclude_cols: Optional[Iterable[str]] = None,
@@ -60,6 +63,10 @@ def prepare_df(
         id_col: 宽表与坏客户清单共用的主键（默认 `客户编号`）。
         target_col: 生成/校验的目标列名（默认 `is_bad`）。
         bad_id_col: 坏客户清单中的主键列；默认与 id_col 相同。
+        merge_table_path: 可选的补充表 CSV（如分群维度在另一张表）。按主键 left-join
+                          到宽表上，免去手抄 pandas merge（AGENTS.md 禁止手抄合并）。
+        merge_id_col: 补充表主键列名；默认与 id_col 相同。
+        merge_cols: 仅从补充表带入这些列（默认带入全部非主键列）。
         filter: 运行前过滤，每列接受以下规则键（可联用，按顺序应用）：
                   - exclude: list  排除的取值（按字符串比较）
                   - include: list  仅保留的取值（按字符串比较）
@@ -83,6 +90,58 @@ def prepare_df(
     """
     df = _read_csv_robust(wide_path)
 
+    # 可选：左连接一张维度/补充表（如分群维度在另一张 CSV）。
+    # 在主键上 left-join，免去每个 agent 手抄 pandas merge（AGENTS.md 禁止手抄合并）。
+    if merge_table_path is not None:
+        merge_df = _read_csv_robust(merge_table_path)
+        mkey = merge_id_col or id_col
+        if id_col not in df.columns:
+            raise ValueError(f"宽表缺少主键列 {id_col!r}；实际列：{list(df.columns)[:20]}...")
+        if mkey not in merge_df.columns:
+            raise ValueError(
+                f"补充表 {merge_table_path!r} 缺少主键列 {mkey!r}；实际列：{list(merge_df.columns)}"
+            )
+        if merge_cols:
+            want = list(merge_cols)
+            missing = [c for c in want if c not in merge_df.columns]
+            if missing:
+                raise ValueError(
+                    f"补充表 {merge_table_path!r} 缺少指定列 {missing}；实际列：{list(merge_df.columns)}"
+                )
+            merge_df = merge_df[[mkey] + [c for c in want if c != mkey]]
+        # 主键统一转字符串，规避前导零/类型不一致导致的 0 命中
+        df[id_col] = df[id_col].astype(str)
+        merge_df = merge_df.copy()
+        merge_df[mkey] = merge_df[mkey].astype(str)
+        # 去重补充表主键，避免一对多放大行数
+        merge_df = merge_df.drop_duplicates(subset=[mkey], keep='first')
+        merge_payload = [c for c in merge_df.columns if c != mkey]
+        # 撞列（除主键外）以补充表为准：先从左表删同名列再 join
+        collide = [c for c in merge_payload if c in df.columns]
+        if collide:
+            print(
+                f"[提示] 补充表与宽表存在同名列 {collide}，将以补充表覆盖宽表。",
+                file=sys.stderr,
+            )
+            df = df.drop(columns=collide)
+        n_before = len(df)
+        df = df.merge(merge_df, left_on=id_col, right_on=mkey, how='left')
+        if mkey != id_col and mkey in df.columns:
+            df = df.drop(columns=[mkey])
+        if merge_payload:
+            matched = int(df[merge_payload[0]].notna().sum())
+            if matched == 0:
+                raise ValueError(
+                    f"补充表 {merge_table_path!r} 与宽表主键 0 匹配，left-join 后新增列全为空。\n"
+                    f"  宽表主键 {id_col!r} 样例: {df[id_col].head(5).tolist()}\n"
+                    f"  补充表主键 {mkey!r} 样例: {merge_df[mkey].head(5).tolist()}\n"
+                    f"  → 请检查 --merge-id-col 是否正确、两边主键是否存在前导零/空格差异。"
+                )
+        if len(df) != n_before:
+            raise ValueError(
+                f"补充表 left-join 后行数从 {n_before} 变为 {len(df)}（补充表主键未唯一？）"
+            )
+
     if bad_customer_path is not None:
         bad_df = _read_csv_robust(bad_customer_path)
         key = bad_id_col or id_col
@@ -97,6 +156,7 @@ def prepare_df(
                 f"坏客户清单为空（{bad_customer_path!r} 去重后 0 条，可能只有表头）；"
                 f"请检查清单文件内容。"
             )
+        df = df.copy()  # 去碎片化，避免插列时的 pandas PerformanceWarning（P3-2）
         df[target_col] = df[id_col].astype(str).isin(bad_set).astype(int)
         n_bad = int(df[target_col].sum())
         if n_bad == 0:
@@ -114,14 +174,30 @@ def prepare_df(
                 f"全部 {len(df)} 个客户都被标为坏客户（{target_col}=1）；"
                 f"坏客户清单或主键可能用错，请检查清单文件与 --bad-id-col。"
             )
-        match_rate = n_bad / n_list
-        if match_rate < 0.5:
-            print(
-                f"[警告] 坏客户清单与宽表主键匹配率偏低："
-                f"{n_bad}/{n_list} 条匹配 ({match_rate*100:.1f}%)；"
-                f"请确认两边主键格式是否一致（前导零/空格/编码差异等）。",
-                file=sys.stderr,
-            )
+        # P3-1：低匹配率有两种成因，按「宽表内是否真的标到了坏客户」区分，
+        # 避免把「正常子集」（清单覆盖人群大于本次分析总体）误报成「主键格式不一致」。
+        n_out = n_list - n_bad                      # 清单中未落在宽表里的条数
+        list_hit_rate = n_bad / n_list              # 清单中落在宽表内的占比
+        wide_bad_rate = n_bad / len(df) if len(df) else 0.0  # 宽表内被标坏的占比（口径校验信号）
+        if list_hit_rate < 0.5:
+            if wide_bad_rate >= 0.005:
+                # 宽表内坏客户占比正常 → join 已生效，只是清单覆盖人群更大，属正常子集
+                print(
+                    f"[提示] 坏客户清单覆盖的人群大于本次分析的宽表（疑似正常子集关系）："
+                    f"清单共 {n_list} 条，落在宽表内 {n_bad} 条（{list_hit_rate*100:.1f}%）、"
+                    f"落在宽表外 {n_out} 条；宽表内坏客户占比 {wide_bad_rate*100:.2f}%。"
+                    f"若宽表本就是清单人群的一个子集，可忽略本提示。",
+                    file=sys.stderr,
+                )
+            else:
+                # 宽表内几乎没人被标坏 → 更像主键对不上
+                print(
+                    f"[警告] 坏客户清单与宽表主键几乎对不上："
+                    f"清单共 {n_list} 条，仅 {n_bad} 条落在宽表内、{n_out} 条落在宽表外，"
+                    f"宽表内坏客户占比仅 {wide_bad_rate*100:.2f}%；"
+                    f"请确认两边主键格式是否一致（前导零/空格/编码差异等）。",
+                    file=sys.stderr,
+                )
     else:
         if target_col not in df.columns:
             raise ValueError(

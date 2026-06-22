@@ -3,138 +3,53 @@ name: risk_docx_report
 description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 docx 生成能力产出正式 Word 报告。用户要把最终分析结果整理成 `.docx` 交付件时使用。
 ---
 
-# Risk DOCX Report
+# Risk DOCX Report（→ Level 3）
 
-## Overview
+> **这是分析链路的最后一跳（正式交付），agent 走 CLI：**
+> `python -m risk_pipeline report --project X --report-markdown 正文.md --purpose internal`
+> ⚠️ `--purpose external`（对外交付）**必须加 `--confirmed-final-version`**（阻断节点 3，见 `AGENTS.md` 五）：
+> `.docx` 一旦交付，报告与底层数据一致性承诺即成立，此后改 CSV 须同步重出报告。
 
-`risk_docx_report` 是 `risk-feature-pipeline` 的报告交付型子 Skill。
+## 三步工作流
 
-它位于整个分析链路的最后一跳，专门处理以下任务：
-
-- 接收 `risk_export_report` 已导出的 LLM 三层结构化产物
-- 复用仓库根目录的 `report-prompt.md` 作为正式报告写作约束
-- 把最终 LLM 正文与结构化分析结果一起整理为 `.docx`
-
-## 何时使用
-
-在以下场景优先使用本 Skill：
-
-- 已经拿到 `*_LLM报告数据.json`，准备生成正式 Word 报告
-- 用户要求把风险特征分析结果转成银行可交付的 `.docx`
-- 用户希望将 LLM 正文、核心发现、特征有效性汇总、分群画像一起沉淀为报告
-- 用户要将 `report-prompt.md` 与结构化 JSON 打包，喂给大模型继续撰写正式报告
-
-不适合直接使用本 Skill 的场景：
-
-- 还没有完成 `risk_export_report` 的 JSON/CSV 导出
-- 只想看 CSV 或 JSON，不需要 Word 报告
-- 只改 IV/LR/分群分析逻辑，不涉及交付件生成
+1. **确认 JSON 已导出**：`export` 已产出 `*_LLM报告数据.json` + `*_LLM_分群画像.csv`（Level 1）
+2. **写正文**：把 `report-prompt.md` + LLM JSON 喂给大模型，输出 **Markdown 正文**
+   - 可选用 `build_prompt_bundle.py` 把"提示词 + 数据"打成一个可直接投喂的 md，免去每次手拼：
+     ```bash
+     cd risk_docx_report
+     python3 scripts/build_prompt_bundle.py --llm-json ../output/<项目>/<项目>_LLM报告数据.json
+     ```
+3. **渲染**：
+   ```bash
+   python -m risk_pipeline report --project <项目> \
+     --report-markdown <项目>_正式报告.md --purpose internal
+   ```
+   `report` 内部调 `build_docx_report` → Node 渲染器，保留正文标题/列表/表格，并追加结构化附录（分析概览、特征有效性、分群画像）。默认输出到 `output/docx-report/`。
 
 ## 输入契约
 
-本 Skill 默认围绕以下三类输入工作：
+- **LLM JSON**：`risk_export_report` 导出的 `*_LLM报告数据.json`（征信/通用/工商财务链路同名），至少含 `分析概览` / `特征有效性汇总` / `分群画像_重点` / `分群画像_简略`
+- **模板**：仓库根 `report-prompt.md`（定义章节、写作风格、数据引用与业务建议口径）
+- **正文**：推荐由大模型先输出为 Markdown（纯文本会丢标题/表格结构）
 
-1. `risk_export_report` 导出的 LLM 结果
-   - 征信/通用链路常见为 `*_LLM报告数据.json`
-   - 工商财务链路常见为 `*_LLM报告数据.json`
-   - 结构上至少包含：
-     - `分析概览`
-     - `特征有效性汇总`
-     - `分群画像` 或 `分群画像_重点` / `分群画像_简略`
+## 关于 docx 校验
 
-2. 报告写作模板
-   - 默认使用仓库根目录 `report-prompt.md`
-   - 该提示词定义了报告章节、写作风格、数据引用要求和业务建议口径
+`build_docx_report` 会尝试调 `skills/skills/docx/scripts/office/validate.py` 校验，但**该仓库已不含 `skills/` 目录，校验会自动跳过并打 `[WARN] 未找到校验脚本`**——属预期行为，不是报错。需要校验时自行提供该脚本，或用 `--skip-validate` 显式跳过。
 
-3. 最终正文
-   - 推荐由大模型先输出为 Markdown
-   - 该 Markdown 再由本 Skill 渲染为 `.docx`
+## 操作规则
 
-## 输出契约
-
-本 Skill 产出以下内容：
-
-- 报告提示词打包文件：便于将 `report-prompt.md` 与 JSON 一起提交给大模型
-- `.docx` 正式报告：包含封面、目录、正文、附录表
-- 可选校验结果：调用 `skills/skills/docx/scripts/office/validate.py`
-
-默认建议输出到：
-
-- `output/docx-report/`
-
-## 核心脚本
-
-> **路径约定**：`<pipeline_root>` = 上级 `risk-feature-pipeline/` 目录（`SKILL.md` 所在位置）。数据文件路径为相对于该目录的建议位置。
-
-### 1. 打包写作输入
-
-将 `report-prompt.md` 与 LLM JSON 组合为一个可直接投喂大模型的 Markdown 文件：
-
-```bash
-cd “<pipeline_root>/risk_docx_report”
-python3 scripts/build_prompt_bundle.py \
-  --llm-json ../output/<项目名>/<某项目>_LLM报告数据.json
-```
-
-用途：
-
-- 固化”提示词 + 数据”的组合输入
-- 降低后续每次手工拼提示词的成本
-- 让报告撰写链路可复现
-
-### 2. 生成 Word 报告
-
-先准备一份由大模型输出的 Markdown 正文，再调用以下脚本：
-
-```bash
-cd “<pipeline_root>/risk_docx_report”
-python3 scripts/build_docx_report.py \
-  --llm-json ../output/<项目名>/<某项目>_LLM报告数据.json \
-  --report-markdown ../output/<项目名>/<某项目>_正式报告.md \
-  --output ../output/docx-report/<某项目>_正式报告.docx
-```
-
-该脚本内部会：
-
-- 调用本 Skill 的 Node 渲染器生成 `.docx`
-- 优先保留 Markdown 正文的标题、列表、表格结构
-- 追加结构化附录（分析概览、特征有效性、分群画像）
-
-## 推荐工作流（三步）
-
-1. **确认 JSON 已导出**：`risk_export_report` 已产出 `*_LLM报告数据.json` + `*_LLM_分群画像.csv`
-2. **打包写作上下文**：运行 `build_prompt_bundle.py`，合并 `report-prompt.md` + LLM JSON，喂给大模型输出 Markdown 正文
-3. **渲染**：运行 `build_docx_report.py`，自动生成封面/目录/正文/附录
+- 输入 JSON 用 `risk_export_report` 的正式文件，不手拼字段名。
+- 正文用 Markdown，避免标题/表格丢失。
+- 附录的结构化表仅作"解释性增强"，不替代正文业务分析。
+- 征信精简版 JSON：拼 `分群画像_重点` + `分群画像_简略` 作附录来源。
 
 ## 职责边界
 
 | 负责 | 不负责 |
 |------|--------|
-| 提示词打包、Markdown 转 docx、附录生成、docx 校验串联 | 重新计算 IV/LR/相关系数 |
-| 复用 `report-prompt.md` 与 `risk_export_report` 的 LLM JSON | 替代上游导出逻辑 |
-| 生成正式 Word 交付件 | 替代用户决定最终报告措辞 |
-
-## 操作规则
-
-- 输入 JSON 优先使用 `risk_export_report` 导出的正式文件，不要手工拼字段名。
-- 正文优先使用 Markdown，而不是纯文本，避免标题和表格结构丢失。
-- `.docx` 渲染完成后，优先执行校验脚本；若校验失败，再回看 Markdown 表格或节点结构。
-- 附录中的结构化表仅作为“解释性增强”，不替代正文中的业务分析。
-- 若 JSON 为征信导出精简版，优先拼接 `分群画像_重点` 与 `分群画像_简略` 作为附录来源。
+| 提示词打包、Markdown 转 docx、附录生成 | 重算 IV/LR/相关系数（上游） |
+| 复用 `report-prompt.md` 与 LLM JSON | 替代用户决定最终报告措辞 |
 
 ## 关键文件
 
-- `report-prompt.md`
-- `risk_export_report/SKILL.md`
-- `risk_docx_report/scripts/build_prompt_bundle.py`
-- `risk_docx_report/scripts/build_docx_report.py`
-- `risk_docx_report/scripts/render_docx_report.js`
-
-## Success Criteria
-
-如果本 Skill 被正确使用，最终应满足：
-
-- 有一份可复用的报告任务包
-- 有一份结构清晰、适合银行交付的 `.docx`
-- Word 报告正文与 LLM 结构化结果保持一致
-- 报告附录能增强风险特征挖掘结果的可解释性
+`report-prompt.md` · `risk_export_report/SKILL.md` · `scripts/build_prompt_bundle.py` · `scripts/build_docx_report.py` · `scripts/render_docx_report.js`
