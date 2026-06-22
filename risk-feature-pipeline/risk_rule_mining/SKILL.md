@@ -3,134 +3,72 @@ name: risk_rule_mining
 description: 决策树规则挖掘：从宽表产出可读风险规则（非建模），用于预警策略、审批规则与贷后触发条件设计；产出规则表含覆盖率/坏账率/Lift/稳定性
 ---
 
-## 方法论前提（与数据来源无关）
+> **本步是 `analyze` 的可选步骤，agent 不单独跑它。** 用 CLI：
+> `python -m risk_pipeline analyze --project X --steps univariate,iv,lr,rules --category-dims <dim>` 然后 `export`
+> （或一把梭 `run --pipeline generic --steps univariate,iv,lr,rules …`）。
+> rules 步骤拟合树并把 pkl 落 `_intermediate/`，**`export` 才会把规则表写到 `data/results/<project>/<project>_风险规则表.csv`**。
+> ⚠️ `--steps rules` 单跑时 `--category-dims` 必须是前置 analyze 已用维度的**子集**（否则与 `_intermediate/` 错位，CLI 直接 exit）。
 
-- **输入**：主实体粒度的宽表；二分类目标列（默认 `is_bad`）；用于分裂的数值/可分箱特征列；可选分群列。
-- **产出对象**：**可读的规则**（如 `资产负债率 > 0.75 且 短期借款占比 > 0.40`），每条附带覆盖率、覆盖坏客户数、坏账率、Lift、稳定性评级。
-- **非产出**：不产出预测概率、不替代 `risk_logistic_regression` 作为评分模型。定位为 **IV（单变量）+ LR（加性）** 之外的 **多变量交互规则** 补充。
-- **与 `risk_threshold_explore` 怎么选**：本 Skill 是**多变量自动发现**（全特征喂给决策树）；若用户已**手工挑好 (分群, 特征) 清单**、只想看单变量最优切点与显著性，走 `risk_threshold_explore`（详细对比表见其 SKILL.md「定位」节）。
+## 何时用（贷后预警/审批规则的核心引擎）
 
-实现代码位于本目录 `scripts/`。
+- 要产出**业务规则清单 / 预警触发条件 / 审批红线 / 贷后检查项**
+- 要识别**特征交互效应**（IV 单变量、LR 加性都识别不了的组合信号，如"高杠杆 + 短借款期限"）
+- 要**替代或验证人工分群维度**（树分裂可能揭示更优切分）
 
-## 业务价值
+## 与 `risk_threshold_explore` 怎么选
 
-1. **多变量交互**：补充 IV（单变量）与 LR（加性）的盲区，识别组合信号（高杠杆+短借款期限、行业×规模等）。
-2. **规则可落地**：直接可作为预警触发条件、审批剔除条件、贷后检查清单。
-3. **分群替代验证**：树可能发现比人工分群（行业/性质）更优的风险细分。
+| | risk_rule_mining | risk_threshold_explore |
+|---|---|---|
+| 输入 | 全特征自动喂决策树 | 手工挑好的 (分群,特征) 清单 |
+| 方法 | 决策树 max_depth=3，**多变量 AND** | optbinning **单变量**最优切点 |
+| 用途 | 自动发现交互规则 | 分析师候选规则评审 |
 
-## 流水线位置
+## 推荐输入特征集
 
-- **前置**：`risk_data_prep`（宽表）+ `risk_feature_engineering`（衍生特征）+ `risk_iv_diagnosis`（用 IV 预筛强特征，避免树用噪声列分裂）。
-- **推荐输入特征集**：IV ≥ `IV_THRESHOLD['medium']` 且可信度为"可信/参考"的特征；自动剔除 IV > `IV_SUSPECT_THRESHOLD` 的过拟合嫌疑特征。
-- **后置**：`risk_export_report` 增量追加 `_风险规则表.csv` 与 LLM JSON 的 `rules` 节点。
+IV ≥ `IV_THRESHOLD['medium']` 且可信度为"可信/参考"的特征；自动剔除 IV > `IV_SUSPECT_THRESHOLD` 的疑似数据穿越特征（避免树用噪声列分裂）。
 
-## 何时使用（触发）
-
-- 需要产出**业务规则清单**、**预警触发条件**、**审批红线规则**、**贷后检查项**。
-- 需要识别**特征交互效应**（LR 无法识别）。
-- 需要**替代或验证人工分群维度**（树分裂的 feature 可能揭示更优切分）。
-
-## 职责边界
-
-| 负责 | 不负责 |
-|------|--------|
-| 决策树拟合、规则路径提取、规则评估（覆盖率/Lift/置信） | 评分模型训练（见 `risk_logistic_regression`） |
-| 规则交叉验证稳定性、规则去重与排序 | 特征工程（见 `risk_feature_engineering`） |
-| 分群规则挖掘、规则业务语言格式化 | 八文件命名与 LLM JSON 主干（见 `risk_export_report`） |
-
-## 调用入口（最小示例）
-
-```python
-from risk_rule_mining.scripts.rule_extraction import mine_rules
-from risk_rule_mining.scripts.rule_evaluation import evaluate_rules
-from risk_rule_mining.scripts.rule_stability import assess_rule_stability
-from risk_rule_mining.scripts.rule_mining_pipeline import rules_by_group, export_rules
-
-# 1. 全样本规则挖掘
-rules_df = mine_rules(df, feature_cols, target='is_bad')
-
-# 2. 分群规则挖掘（每个行业/性质/分行分别挖掘）
-rules_grouped = rules_by_group(df, segment_col='所属行业',
-                               feature_cols=feature_cols, target='is_bad')
-
-# 3. 稳定性评估（5-fold CV）
-stable_rules = assess_rule_stability(df, rules_df, feature_cols, target='is_bad')
-
-# 4. 导出 CSV + LLM 文本
-export_rules(rules_df, project_name='征信特征分析')
-```
-
-## 关键配置（本步为主）
-
-取自 `risk_pipeline.config.RULE_MINING_CONFIG`：
+## 关键配置（`risk_pipeline.config.RULE_MINING_CONFIG`）
 
 | 参数 | 默认 | 作用 |
 |------|------|------|
-| `max_depth` | 3 | 树最大深度，限制规则可读性 |
-| `min_samples_leaf_ratio` | 0.05 | 叶子最少样本占比（防过拟合） |
+| `max_depth` | 3 | 树深，限制规则可读性 |
+| `min_samples_leaf_ratio` | 0.05 | 叶子最少样本占比 |
 | `min_bad_in_leaf` | 5 | 叶子最少坏客户数 |
 | `min_coverage` | 0.01 | 规则最小覆盖率 |
 | `min_lift` | 1.5 | 规则最小 Lift |
 | `top_k_per_segment` | 10 | 每群保留 Top-K |
-| `cv_splits` | 5 | 稳定性交叉验证折数 |
-| `stability_min_folds` | 3 | 判"稳定"的最少出现折数 |
-| `class_weight` | balanced | 样本不平衡权重策略 |
+| `cv_splits` / `stability_min_folds` | 5 / 3 | 稳定性 CV 折数 / 判"稳定"的最少出现折数 |
+| `class_weight` | balanced | 不平衡权重 |
 
-样本准入沿用 `SAMPLE_THRESHOLDS`：`MIN_BAD_LR`（20）、`MIN_GOOD_LR`（50）—— 规则挖掘对坏样本量的要求与 LR 一致。
+样本准入沿用 `SAMPLE_THRESHOLDS`：`MIN_BAD_LR`(20)、`MIN_GOOD_LR`(50)。
 
-## 方法与规范（本 Skill 专有）
+## 方法要点
 
-- **规则定义**：从根到叶的**完整路径**即为一条规则；每条规则为若干 `特征 op 阈值` 的合取（AND）。
-- **规则筛选**：叶节点坏账率 > 整体坏账率（Lift > 1）且满足 `min_coverage` / `min_lift` / `min_bad_in_leaf` 三道闸门。
-- **规则排序**：优先按 Lift 降序，次按覆盖率降序（Lift 相同时优先覆盖广的）。
-- **稳定性**：k-fold 交叉验证，同一规则在 holdout 的坏账率 mean/std，出现在 `stability_min_folds` 折以上视为稳定。
-- **去重**：不同树路径可能产生等价规则，按 `(特征集合, 阈值四舍五入)` 去重。
-- **输出语言**：规则以中文业务语言呈现（如 `资产负债率 大于 0.75`），避免技术符号。
+- **规则**：根→叶完整路径，即若干 `特征 op 阈值` 的合取（AND）
+- **筛选**：叶坏账率 > 整体（Lift>1）且过 `min_coverage`/`min_lift`/`min_bad_in_leaf` 三闸门
+- **排序**：先 Lift 降序，次覆盖率降序
+- **稳定性**：k-fold CV，按 holdout 坏账率离散系数判 `稳定/较稳定/不稳定`
+- **去重**：按 `(特征集合, 阈值四舍五入)` 去重
+- **输出语言**：中文业务语言（如 `资产负债率 大于 0.75`）
+
+## 输出
+
+**`{项目名}_风险规则表.csv`** 关键列：`分群维度` / `分群名称` / `规则编号` / `规则条件` / `涉及特征` / `特征数量` / `覆盖样本数` / `覆盖率` / `覆盖坏客户数` / `坏账率` / `整体坏账率` / `Lift` / `CV坏账率均值` / `CV坏账率标准差` / `稳定性等级` / `建议用途`（预警 / 审批红线 / 参考）。
+阈值精度按特征名自适应：比率类→2 位小数；金额类→整数+千分位；其它 `:.4g`。
+
+> ⚠️ `export` 完成时若有 `稳定性等级=不稳定` 的规则，stdout 会列出前 5 条，并落到 `_audit.json` 的 `unstable_rules`。**不稳定规则不得直接写进政策，须附人工复核标注。**
+
+> 注：规则**目前只落 CSV + `_audit.json`**，不并入 `_LLM报告数据.json`（`build_llm_rules_payload` 已实现但未接线）。
+
+## 底层脚本（仅 notebook/单测，agent 走 CLI）
+
+> 实现在本目录 `scripts/`，**仅供 notebook/单测/调试直接 import；agent 一律用上面的 `analyze --steps …,rules`**（`AGENTS.md` 三禁止在 Bash 里 import 模块手抄）。
 
 ## 主要脚本映射
 
 | 模块 | 作用 |
 |------|------|
-| `scripts/rule_extraction.py` | 决策树拟合 + 路径→规则转换 + 规则去重 |
-| `scripts/rule_evaluation.py` | 单规则/批量规则评估：覆盖率、坏账率、Lift、置信区间 |
-| `scripts/rule_stability.py` | K-fold 交叉验证稳定性评估 |
+| `scripts/rule_extraction.py` | 决策树拟合 + 路径→规则 + 去重 |
+| `scripts/rule_evaluation.py` | 覆盖率、坏账率、Lift、置信区间 |
+| `scripts/rule_stability.py` | K-fold 稳定性 |
 | `scripts/rule_mining_pipeline.py` | 分群挖掘编排 + 导出 |
-| `scripts/config.py` | 模块配置（`from risk_pipeline.config import *`） |
-
-## 输出形态（字段级）
-
-**CSV：`{项目名}_风险规则表.csv`**
-
-| 字段 | 含义 |
-|------|------|
-| 分群维度 / 分群名称 | 规则所属分群（全样本时填"全样本"。历史 CSV 中可能为旧列名 `分群值`，列名变更史见 `CHANGELOG.md`） |
-| 规则编号 | 分群内递增 |
-| 规则条件 | 中文业务语言（合取串联）。阈值精度按特征名自适应：比率类（占比/比率/率/系数）→ 2 位小数；金额类（金额/余额/资产/收入/负债/现金/存款/贷款）→ 整数 + 千分位；其它沿用 `:.4g` |
-| 涉及特征 | 规则中出现的特征列表 |
-| 特征数量 | 交互深度 |
-| 覆盖样本数 / 覆盖率 | 命中规则的客户数与占比 |
-| 覆盖坏客户数 / 坏账率 | 命中客户中坏客户数与坏账率 |
-| 整体坏账率 | 分群整体坏账率（用于计算 Lift） |
-| Lift | 规则坏账率 / 整体坏账率 |
-| CV 坏账率均值 / 标准差 | 交叉验证稳定性 |
-| 稳定性等级 | 稳定 / 较稳定 / 不稳定（CV 离散系数 ≤ 0.20 / ≤ 0.40 / > 0.40） |
-| 建议用途 | 预警 / 审批红线 / 参考 |
-
-> ⚠️ export 完成时若有 `稳定性等级=不稳定` 的规则，stdout 会列出前 5 条段-规则编号-CV 折数；同时落到 `_audit.json` 的 `unstable_rules` 字段，agent 可以一次性 cat 对照人工复核。**不稳定规则不得直接写进政策，须附人工复核标注**（业务解释口径见 `docs/GLOSSARY.md`「判定标准」）。
-
-**LLM JSON 节点**（供 `risk_export_report` 合并）：
-```json
-{
-  "rules": [
-    {
-      "segment": "制造业",
-      "rule": "资产负债率 > 0.75 且 利息覆盖倍数 < 2.0",
-      "coverage": 0.08,
-      "bad_rate": 0.32,
-      "lift": 3.4,
-      "stability": "稳定",
-      "suggestion": "预警规则"
-    }
-  ]
-}
-```

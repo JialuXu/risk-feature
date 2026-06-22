@@ -18,7 +18,6 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy import stats
-from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold, cross_val_score
@@ -35,17 +34,13 @@ from .config import (
     COL_REPORT_DATE, COL_QUAL_PREFIX,
     COL_INDUSTRY_DATA_COLS, COL_AMOUNT_COLS, COL_SEGMENT_DIMS,
 )
-from .io_utils import get_project_root, read_csv_auto_encoding, ensure_dir, _clean_id, safe_divide
-
-import sys as _sys
-from pathlib import Path as _Path
-_MY_SKILLS_ROOT = str(_Path(__file__).resolve().parent.parent.parent)
-if _MY_SKILLS_ROOT not in _sys.path:
-    _sys.path.insert(0, _MY_SKILLS_ROOT)
+from .io_utils import read_csv_auto_encoding, ensure_dir
+from risk_pipeline.paths import get_project_root
 from risk_pipeline.column_mapper import ColumnMapper
 
 _mapper = ColumnMapper()
-from .iv_analysis import calc_iv as _calc_iv_base, _assess_iv_reliability
+from .iv_analysis import calc_iv as _calc_iv_base, _assess_iv_reliability, iv_power_label
+from .report_insights import rate_feature
 
 warnings.filterwarnings('ignore')
 
@@ -196,8 +191,8 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
             )
             exported.append(f'{pname}_IV值透视表.csv')
             exported.append(f'{pname}_IV可信度透视表.csv')
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  [警告] IV 透视表导出失败: {e}")
 
     # 6. IV可信度诊断 (原分群样本概况)
     _save(results.get('reliability_summary'), f'{pname}_IV可信度诊断.csv')
@@ -268,18 +263,9 @@ def build_comprehensive_table(iv_full_df, corr_results, lr_coef_results,
             return ''
         df['特征类型'] = df['特征名称'].apply(_feat_type)
 
-    # 衍生预测能力标签
-    def _iv_power(v):
-        if v >= 0.3:
-            return '强'
-        if v >= 0.1:
-            return '中'
-        if v >= 0.02:
-            return '弱'
-        return '无'
-
+    # 衍生预测能力标签（口径见 iv_core.iv_power_label）
     if '预测能力' not in df.columns:
-        df['预测能力'] = df['iv_all'].apply(_iv_power)
+        df['预测能力'] = df['iv_all'].apply(iv_power_label)
 
     # 添加全量相关系数
     for dim_name, corr_df in corr_results.items():
@@ -355,12 +341,7 @@ def build_llm_report_data(df, iv_full_df, corr_results, meta_results,
         if '特征' in iv_full_df.columns and '特征名称' not in iv_full_df.columns:
             iv_full_df = iv_full_df.rename(columns={'特征': '特征名称'})
         if '预测能力' not in iv_full_df.columns:
-            def _iv_power(v):
-                if v >= 0.3: return '强'
-                if v >= 0.1: return '中'
-                if v >= 0.02: return '弱'
-                return '无'
-            iv_full_df['预测能力'] = iv_full_df['IV值'].apply(_iv_power)
+            iv_full_df['预测能力'] = iv_full_df['IV值'].apply(iv_power_label)
 
     # ==================================================================
     # 第1层：分析概览
@@ -482,23 +463,9 @@ def build_llm_report_data(df, iv_full_df, corr_results, meta_results,
             }
 
     # -- 综合评级逻辑
+    # 综合评级：强度 + 跨分群稳定性（唯一实现见 report_insights.rate_feature）
     def _rate_feature(iv_val, corr_mean, corr_range, sign_consistent):
-        """
-        综合评级规则：
-        - 核心特征：全局IV >= 0.2 且跨分群方向一致
-        - 重要特征：全局IV >= 0.1 或跨分群相关性均值绝对值 >= 0.05
-        - 辅助特征：全局IV 0.02~0.1
-        - 无效特征：全局IV < 0.02
-        """
-        if iv_val >= 0.2 and sign_consistent:
-            return '核心特征'
-        if iv_val >= 0.2:
-            return '重要特征'
-        if iv_val >= 0.1:
-            return '重要特征'
-        if iv_val >= 0.02 or (corr_mean is not None and abs(corr_mean) >= 0.05):
-            return '辅助特征'
-        return '无效特征'
+        return rate_feature(iv_val, corr_mean, sign_consistent)
 
     # -- 跨分群一致性评级
     def _consistency_level(corr_range, sign_consistent):

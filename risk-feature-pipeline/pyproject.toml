@@ -20,11 +20,13 @@ classifiers = [
 ]
 
 # 核心依赖：管线运行 + 数据处理
+# 数值/ML 库加主版本上界，避免 pip 自动拉到引入破坏性变更的下一个大版本
+# （如 sklearn 跨小版本移除 LogisticRegression 的 penalty 参数）。
 dependencies = [
-    "pandas>=1.5",
-    "numpy>=1.23",
-    "scikit-learn>=1.1",
-    "scipy>=1.9",
+    "pandas>=1.5,<4",
+    "numpy>=1.23,<3",
+    "scikit-learn>=1.1,<2",
+    "scipy>=1.9,<2",
     "pyyaml>=6.0",
     "optbinning>=0.19",
 ]

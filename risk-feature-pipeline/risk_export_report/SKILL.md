@@ -48,8 +48,8 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 
 | 文件后缀 | 内容 |
 |----------|------|
-| `_IV分析结果_全量.csv` ⭐ | 全量 IV（旧名 `_IV分析结果.csv` 仍写一份兼容副本，下版本移除；文件名变更史见 `CHANGELOG.md`） |
-| `_IV分析结果_分群.csv` ⭐ | 分群 IV 明细 + 可信度（旧名 `_IV值分析.csv` 仍写一份兼容副本） |
+| `_IV分析结果_全量.csv` ⭐ | 全量 IV |
+| `_IV分析结果_分群.csv` ⭐ | 分群 IV 明细 + 可信度 |
 | `_特征风险相关性.csv` | 分群相关系数 + 样本元信息 |
 | `_逻辑回归系数.csv` | 分群 LR 系数 + AUC + AUC类型 |
 | `_IV值透视表.csv` | 分群×特征 IV 透视（行=分群，列=特征；查 top N 最快） |
@@ -57,7 +57,7 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 | `_IV可信度诊断.csv` | 分群层面样本/坏率/可信率概况 |
 | `_综合特征分析结果.csv` | 汇总全局 IV、跨分群一致性、综合评级 |
 | `_风险规则表.csv` | 决策树规则（仅在 `analyze --steps univariate,iv,lr,rules` 后产生） |
-| `_audit.json` ⭐ | 机器可读自检：IV>2 过拟合特征、不稳定规则、Level 状态 |
+| `_audit.json` ⭐ | 机器可读自检：IV>2 疑似数据穿越特征、不稳定规则、Level 状态 |
 
 **输出目录（默认 `output/...`，可通过 `output_base` 参数自定义）**
 
@@ -79,7 +79,7 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 
 ### 用户要证据链
 
-4. `_IV分析结果_分群.csv`（旧名 `_IV值分析.csv` 仍可兼容读取）
+4. `_IV分析结果_分群.csv`
 5. `_逻辑回归系数.csv`
 6. `_特征风险相关性.csv`
 7. `_IV可信度诊断.csv`
@@ -90,7 +90,7 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 
 ## 列名速查（常用文件关键列）
 
-> 对外列名已统一为「特征 / 分群维度 / 分群名称」三件套（历史 CSV 旧列名对照见 `CHANGELOG.md`）；详见 `docs/SCHEMA.md` 与 `risk_result_query/references/columns.md`（同时适用于磁盘 CSV 与内存 DataFrame）。
+> 对外列名为「特征 / 分群维度 / 分群名称」三件套；完整列名见 `docs/SCHEMA.md` 与 `risk_result_query/references/columns.md`（磁盘 CSV 与内存 DataFrame 通用）。
 
 **`_IV分析结果_全量.csv`**：`特征` / `特征类型` / `IV值` / `预测能力` / `IV可信度` / `总样本数` / `总坏客户数`
 
@@ -98,51 +98,21 @@ description: 分析结果导出与报告读取技能：标准 CSV、综合汇总
 
 **`_逻辑回归系数.csv`**：`分群维度` / `分群名称` / `系数`（标准化后，**不是** `LR系数`）/ `AUC` / `AUC类型`
 
-**`_综合特征分析结果.csv`**：`特征` / `iv_all`（**不是** `IV值`）/ `IV可信度` / `预测能力`（历史 CSV 中可能仍是旧列名 `特征名称`，`load_results()` 自动 rename）
+**`_综合特征分析结果.csv`**：`特征` / `iv_all`（**不是** `IV值`）/ `IV可信度` / `预测能力`
 
-**`_风险规则表.csv`**：`分群维度` / `分群名称`（A4 后已从「分群值」统一）/ `规则编号` / `规则条件` / `涉及特征` / `Lift` / `稳定性等级`
+**`_风险规则表.csv`**：`分群维度` / `分群名称` / `规则编号` / `规则条件` / `涉及特征` / `Lift` / `稳定性等级`
 
-**`_LLM_分群画像.csv`**：`分群维度` / `分群名称` / `样本数` / `坏客户数` / `坏客户率` / `模型AUC` / `AUC类型` / `Top3_IV特征` / `Top3_风险相关特征`
+**`_LLM_分群画像.csv`**：`分群维度` / `分群名称` / `样本数` / `坏客户数` / `坏客户率` / `模型AUC` / `AUC类型` / `Top3预测特征_IV` / `Top3风险特征_相关性`
 
 **`_LLM报告数据.json`** 顶层键：`报告目标` / `分析概览` / `核心发现` / `特征有效性汇总` / `无效特征列表` / `分群画像_重点` / `分群画像_简略`
 
 ## 调用入口
 
-CLI（推荐，agent 工作流唯一合法入口）：
-
 ```bash
-python -m risk_pipeline export --project <项目名>   # 须先完成 analyze
+python -m risk_pipeline export --project <项目名>   # 须先完成 analyze；agent 唯一合法入口
 ```
 
-Python 统一链路（notebook 调研用）：
-
-```python
-from risk_pipeline.pipeline import run_generic_pipeline
-
-run_generic_pipeline(
-    df=df, feature_cols=feature_cols, target_col='is_bad',
-    project_name='<项目名>',
-    category_dims=['企业规模'],
-    qual_dims=[],
-    steps=['univariate', 'iv', 'lr', 'export'],  # export 必须包含
-    verbose=False,
-)
-```
-
-直接调用脚本（高级用法，需自行管理路径）：
-
-> `results_base` 和 `output_base` 是可配置参数，默认值为 `data/results` 和 `output`，可替换为任意可访问路径。
-
-```python
-from risk_export_report.scripts.report_analysis import export_results, build_comprehensive_table
-
-exported = export_results(
-    project_root, results,
-    project_name='<项目名>',
-    results_base='<结果目录路径>',   # 默认 'data/results'，可自定义
-    output_base='<输出目录路径>',    # 默认 'output'，可自定义
-)
-```
+> notebook 调研可用 `risk_pipeline.pipeline.run_generic_pipeline(..., steps=[...,'export'])`，或直接 `risk_export_report.scripts.report_analysis.export_results(...)`（`results_base`/`output_base` 默认 `data/results`/`output`，可自定义）；**agent 一律走上面 CLI**（`AGENTS.md` 三）。
 
 ## 本 Skill 强制规范
 

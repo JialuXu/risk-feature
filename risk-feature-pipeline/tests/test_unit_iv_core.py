@@ -72,7 +72,7 @@ def test_adaptive_bins(n_samples, n_bad, expected):
 
 @pytest.mark.parametrize('iv,n,bad,expected', [
     (float('nan'), 500, 50, '无法计算'),
-    (2.5, 500, 50, '不可信-过拟合嫌疑'),   # > suspect(2.0)
+    (2.5, 500, 50, '不可信-疑似数据穿越'),   # > suspect(2.0)
     (0.6, 500, 10, '不可信-样本不足'),     # bad<20 且 iv>0.5
     (0.3, 500, 10, '参考'),                # bad<20 但 iv<=0.5
     (0.3, 150, 50, '参考'),                # n<200

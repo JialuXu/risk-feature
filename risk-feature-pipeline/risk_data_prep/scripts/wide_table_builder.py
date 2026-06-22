@@ -78,9 +78,22 @@ def build_wide_table(data):
         df[tgt] = 0
         print("[WARN] 未找到坏客户标记文件，所有客户标记为好客户")
 
+    # 清洗全部金额列：去千分位 ','、占位符 '-' 等非数值统一转 0。
+    # （只清洗 COL_AMOUNT_COLS[0] 会让表内/表外/类信贷余额等列保持字符串，
+    #   下游财务特征工程「授信匹配度指标」做除法时即 TypeError；pandas 3.x string dtype 必现。）
+    for _amt_c in (COL_AMOUNT_COLS or ['授信总金额']):
+        if _amt_c in df.columns and not pd.api.types.is_numeric_dtype(df[_amt_c]):
+            _cleaned = (
+                df[_amt_c].astype(str)
+                .str.replace(',', '', regex=False)
+                .str.strip()
+            )
+            df[_amt_c] = pd.to_numeric(_cleaned, errors='coerce').fillna(0)
+        elif _amt_c in df.columns:
+            df[_amt_c] = df[_amt_c].fillna(0)
+
     amt_col = COL_AMOUNT_COLS[0] if COL_AMOUNT_COLS else '授信总金额'
     if amt_col in df.columns:
-        df[amt_col] = pd.to_numeric(df[amt_col], errors='coerce').fillna(0)
         _amt = df[amt_col]
         if '内部评级' in df.columns:
             _is_hr = df['内部评级'].isin(WAIST_HIGH_RATINGS)

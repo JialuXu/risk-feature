@@ -16,7 +16,7 @@ from .config import (
     GSFC_LLM_PROJECT_NAME,
     COL_TARGET,
 )
-from .report_insights import build_segment_summary
+from .report_insights import build_segment_summary, rate_feature
 from .io_utils import ensure_dir
 
 
@@ -268,7 +268,7 @@ def export_results(project_root, df_segment, df_univariate, df_lr, df_iv):
                     lr_coef.columns = ['特征', 'LR系数_全量']
                     summary = summary.merge(lr_coef, on='特征', how='left')
 
-        # IV 预测能力等级（增强版：识别过拟合嫌疑）
+        # IV 预测能力等级（增强版：识别 IV 过高的疑似数据穿越特征）
         condlist = [
             summary['IV值'].isna(),
             summary['IV值'] > IV_SUSPECT_THRESHOLD,
@@ -514,14 +514,8 @@ def build_llm_report_data_gsfc(df, df_univariate, df_lr, df_iv, feature_cols):
                     }
 
     # ===================== 综合评级逻辑 =====================
-    def _rate_feature(iv_val, corr_mean, sign_consistent):
-        if iv_val >= 0.2 and sign_consistent:
-            return '核心特征'
-        if iv_val >= 0.1:
-            return '重要特征'
-        if iv_val >= 0.02 or (corr_mean is not None and abs(corr_mean) >= 0.05):
-            return '辅助特征'
-        return '无效特征'
+    # 唯一实现见 report_insights.rate_feature（强度 + 跨分群稳定性）
+    _rate_feature = rate_feature
 
     def _consistency_level(corr_range, sign_consistent):
         if sign_consistent:
