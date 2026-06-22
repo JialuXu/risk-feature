@@ -26,7 +26,7 @@ def _iv_level(iv: float) -> str:
     for label, lo, hi in IV_LEVEL_BINS:
         if lo <= iv < hi:
             return label
-    return '过拟合嫌疑'
+    return '疑似数据穿越'
 
 
 def chart_iv_full(
@@ -54,9 +54,9 @@ def chart_iv_full(
     fig, ax = plt.subplots(figsize=FIGSIZE_BAR_TALL)
     bars = ax.barh(df['特征'], df['IV值'], color=colors, edgecolor='white')
 
-    # 过拟合嫌疑用斜线标注
+    # 疑似数据穿越（IV 过高）用斜线标注
     for bar, lv in zip(bars, df['等级']):
-        if lv == '过拟合嫌疑':
+        if lv == '疑似数据穿越':
             bar.set_hatch('//')
 
     # 数值标注
@@ -66,9 +66,9 @@ def chart_iv_full(
                 f'{val:.3f}', va='center', fontsize=9, color='#2C3E50')
 
     ax.axvline(IV_SUSPECT_THRESHOLD, color='#7B241C', linestyle='--', linewidth=1, alpha=0.5,
-               label=f'过拟合嫌疑线 ({IV_SUSPECT_THRESHOLD})')
+               label=f'疑似数据穿越线 ({IV_SUSPECT_THRESHOLD})')
     ax.set_xlabel('IV 值')
-    ax.set_title(f'全量 IV Top-{top_n}（按预测能力着色，斜线=过拟合嫌疑）')
+    ax.set_title(f'全量 IV Top-{top_n}（按预测能力着色，斜线=疑似数据穿越）')
     ax.grid(axis='x', color=GRID_COLOR, linewidth=0.6)
     ax.set_axisbelow(True)
 
@@ -167,7 +167,7 @@ def chart_iv_heatmap(
         data = pivot.values.astype(float)
 
         vmax = float(np.nanmax(data)) if not np.all(np.isnan(data)) else 1.0
-        vmax = min(max(vmax, 0.3), IV_SUSPECT_THRESHOLD)  # 过拟合嫌疑值不主导色阶
+        vmax = min(max(vmax, 0.3), IV_SUSPECT_THRESHOLD)  # 疑似数据穿越的高 IV 值不主导色阶
         im = ax.imshow(data, aspect='auto', cmap='RdBu_r', vmin=0, vmax=vmax)
 
         ax.set_xticks(range(n_cols))

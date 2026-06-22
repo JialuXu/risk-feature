@@ -493,22 +493,75 @@ def run_gsfc_pipeline(steps=None, verbose=True):
         results['lr_auc_results'] = lr_auc_results
 
     # Step 6: 导出
+    # 统一走 report_analysis（与 credit/generic 三链路对齐）。gsfc 的 univariate/iv/lr
+    # 步骤已写入与 generic 完全一致的中间结果键（corr_results / meta_results / iv_full /
+    # iv_group_all / reliability_summary / lr_coef_results / lr_auc_results），
+    # 因此这里直接复用 generic 的导出装配；旧 report_export 因仍按 '分群' 旧 schema 取列，
+    # 在新 schema 下会 KeyError，是 gsfc 无法到 Level 1 的根因。
     if 'export' in steps:
         if verbose:
             _banner(6, '结果导出')
 
-        mod_export = _load_module('risk_export_report', 'report_export')
+        mod_report = _load_module('risk_export_report', 'report_analysis')
         mod_io = _load_module('risk_export_report', 'io_utils')
+        mod_export_cfg = _load_module('risk_export_report', 'config')
 
         project_root = results.get('project_root') or mod_io.get_project_root()
-        exported = mod_export.export_results(
-            project_root,
-            results.get('segment_stats'),
-            results.get('univariate_long'),
-            results.get('lr_coef_results', {}).get(category_dims[0]) if category_dims else None,
-            results.get('iv_group_all'),
+        project_name = mod_export_cfg.GSFC_LLM_PROJECT_NAME
+
+        corr_results = results.get('corr_results', {}) or {}
+        meta_results = results.get('meta_results', {}) or {}
+        lr_coef_results = results.get('lr_coef_results', {}) or {}
+        lr_auc_results = results.get('lr_auc_results', {}) or {}
+
+        if corr_results:
+            results['corr_exports'] = mod_report.build_corr_export(
+                corr_results, meta_results
+            )
+        if lr_coef_results:
+            results['lr_exports'] = mod_report.build_lr_export(
+                lr_coef_results, lr_auc_results
+            )
+
+        iv_full_df = results.get('iv_full')
+        if iv_full_df is not None and not iv_full_df.empty:
+            results['comprehensive'] = mod_report.build_comprehensive_table(
+                iv_full_df, corr_results, lr_coef_results,
+                results.get('iv_group_all'),
+            )
+
+        if iv_full_df is not None and not iv_full_df.empty:
+            try:
+                results['llm_report_data'] = mod_report.build_llm_report_data(
+                    df=df,
+                    iv_full_df=iv_full_df,
+                    corr_results=corr_results,
+                    meta_results=meta_results,
+                    lr_coef_results=lr_coef_results,
+                    lr_auc_results=lr_auc_results,
+                    iv_group_all=results.get('iv_group_all'),
+                    rel_summary=results.get('reliability_summary'),
+                    rel_warnings=results.get('reliability_warnings', []),
+                    comp_all=results.get('feature_set_comparison'),
+                    feature_cols=feature_cols,
+                    category_dims=category_dims,
+                    qual_dims=qual_dims,
+                    target_col=COL_TARGET,
+                )
+            except Exception as e:
+                print(f"  [警告] LLM 报告数据构建失败：{e}")
+
+        exported = mod_report.export_results(
+            project_root, results,
+            project_name=project_name,
+            output_subdir=project_name,   # 稳定子目录，供 query/visualize/load_results 按项目名定位
+            results_base=mod_export_cfg.RESULTS_DIR_GSFC,
+            output_base=mod_export_cfg.OUTPUT_DIR_GSFC,
         )
         results['exported_files'] = exported
+
+        if verbose:
+            print(f"\n  共导出 {len(exported)} 个文件")
 
     if verbose:
         print(f"\n{'=' * 60}")

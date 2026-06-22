@@ -12,6 +12,30 @@ from .config import (
 from .iv_analysis import _adaptive_bins as _adaptive_bins_for_woe
 
 
+def rate_feature(iv_val, corr_mean, sign_consistent):
+    """特征综合评级（强度 + 跨分群稳定性）。
+
+    本 Skill 服务于贷前业务建议 / 贷后预警规则，而非评分卡建模：除单变量 IV
+    强度外，**跨分群方向一致的中等信号同样值得纳入**——一个在各客群里方向都
+    一致的特征，比孤立的高 IV 更可信、更能落成对全组合生效的规则。
+
+    - 核心特征：全局 IV >= 0.2 且跨分群方向一致（又强又稳，可直接写建议/做规则）
+    - 重要特征：全局 IV >= 0.1，或（跨分群方向一致 且 |相关系数均值| >= 0.05）
+    - 辅助特征：全局 IV >= 0.02，或 |相关系数均值| >= 0.05
+    - 无效特征：以上均不满足
+
+    收敛说明：此前 report_analysis / report_export 各有一份逐字相近的内联实现
+    （且都漏掉了"方向一致的中等信号提升为重要特征"这条），现统一到这里，避免再次漂移。
+    """
+    if iv_val >= 0.2 and sign_consistent:
+        return '核心特征'
+    if iv_val >= 0.1 or (sign_consistent and corr_mean is not None and abs(corr_mean) >= 0.05):
+        return '重要特征'
+    if iv_val >= 0.02 or (corr_mean is not None and abs(corr_mean) >= 0.05):
+        return '辅助特征'
+    return '无效特征'
+
+
 def build_group_iv_pivot(df_iv, group_prefixes=None, max_groups=12, top_n=20, base_group='全量'):
     """
     构建分群IV透视表，便于绘制热力图。

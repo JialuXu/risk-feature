@@ -23,5 +23,5 @@ IV_LEVEL_BINS = [
     ('弱', 0.02, 0.1),
     ('中', 0.1, 0.3),
     ('强', 0.3, IV_SUSPECT_THRESHOLD),
-    ('过拟合嫌疑', IV_SUSPECT_THRESHOLD, float('inf')),
+    ('疑似数据穿越', IV_SUSPECT_THRESHOLD, float('inf')),
 ]
