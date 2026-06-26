@@ -2,7 +2,8 @@
 import json
 from typing import Optional
 
-_VALID_KINDS = {"iv", "lr", "corr"}
+# 与 results_loader.top_features 支持的四类对齐；iv_group = 带可信度的分群 IV
+_VALID_KINDS = {"iv", "iv_group", "lr", "corr"}
 
 
 def execute_query(
