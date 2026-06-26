@@ -19,11 +19,14 @@ PIPELINE_ROOT: Path = next(
     (p for p in _CANDIDATES if p is not None and p.exists()), Path("NOT_FOUND")
 )
 
-# 结果扫描路径：链路的 get_project_root() 可能定位到 PIPELINE_ROOT 或其父级
-# 两处都扫描，避免漏检
+# 结果扫描路径：只扫 PIPELINE_ROOT。
+# setup() 已把 RISK_PROJECT_ROOT/RISK_OUTPUT_ROOT 钉到 PIPELINE_ROOT，链路读写都落在这里，
+# 不再有"可能定位到父级"的歧义。曾经为兜底而附带扫描 PIPELINE_ROOT.parent（仓库根），
+# 但那里堆着历史 scratch 项目（如 舆情*/征信/财务 等旧实验产物），会被 list_projects 误列出来，
+# 让"我只分析了工商变更，却看到舆情"成为困惑来源——故移除父级扫描。
+# 若确需访问仓库根下的旧项目，请把 RISK_PIPELINE_ROOT 指到对应根。
 RESULT_SEARCH_ROOTS: list[Path] = [
     PIPELINE_ROOT,
-    PIPELINE_ROOT.parent,
 ]
 
 
@@ -49,3 +52,10 @@ def setup() -> None:
         )
     if str(PIPELINE_ROOT) not in sys.path:
         sys.path.insert(0, str(PIPELINE_ROOT))
+
+    # 显式锁定项目根/输出根，避免 pipeline 退回"从 CWD 向上找 data/"的探测逻辑而漂移
+    # （MCP server 的 CWD 往往不是 pipeline 根）。子进程会继承这两个 env，
+    # 进程内的 query/list 也据此定位，确保读写落在同一处。
+    # 用 setdefault：外部 claude_desktop_config.json 已显式指定时不覆盖。
+    os.environ.setdefault("RISK_PROJECT_ROOT", str(PIPELINE_ROOT))
+    os.environ.setdefault("RISK_OUTPUT_ROOT", str(PIPELINE_ROOT))
