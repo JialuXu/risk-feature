@@ -30,12 +30,12 @@ def __getattr__(name: str) -> Path:
     覆盖该默认，不受影响。
     """
     if name == 'DEFAULT_OUTPUT_DIR':
-        # risk_pipeline.paths 需要 risk-feature-pipeline/（= PROJECT_ROOT）在
+        # risk_core.paths 需要 risk-feature-pipeline/（= PROJECT_ROOT）在
         # sys.path 上；CLI 入口在 cli.py:25-27 已做注入。直调 Python API 时若
         # sys.path 未含该目录则在此兜底加一次。
         if str(PROJECT_ROOT) not in sys.path:
             sys.path.insert(0, str(PROJECT_ROOT))
-        from risk_pipeline.paths import get_output_root
+        from risk_core.paths import get_output_root
         return Path(get_output_root()) / "output" / "docx-report"
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

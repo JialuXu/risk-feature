@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEPENDENT_SKILLS = [
     'risk_data_prep',
     'risk_trigger_extraction',
+    'risk_docx_report',
 ]
 
 
