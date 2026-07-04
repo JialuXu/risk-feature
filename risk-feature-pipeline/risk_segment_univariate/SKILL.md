@@ -3,6 +3,8 @@ name: risk_segment_univariate
 description: 分群摸底与单变量风险分析：类别维度统计、二值标签对比、点二列相关、T 检验与跨分群差异（与特征主题无关）
 ---
 
+> **何时读我**：只有需要单变量方法口径（相关系数/均值差/T 检验）细节时才读本文件；常规分析走 `python -m risk_pipeline analyze`（见 `references/cli/analyze.md`）。
+
 > **本步是 `analyze` 的一个步骤，agent 不单独跑它。** 用 CLI：
 > `python -m risk_pipeline analyze --project X --steps univariate --category-dims 所属行业`
 > （通常与 `iv,lr` 一起跑：`--steps univariate,iv,lr`）。下方为方法论与 Python API 参考。

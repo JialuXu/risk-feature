@@ -1,0 +1,31 @@
+# 路径环境变量（沙盒 / skill 安装模式必设）
+
+路径定位的唯一权威是 `risk_core/paths.py`（旧 import 路径 `risk_pipeline.paths` 是同一模块的兼容别名），行为由两个环境变量控制：
+
+| 变量 | 作用 | 未设置时的行为 |
+|---|---|---|
+| `RISK_PROJECT_ROOT` | 输入读自何处（`data/raw/...` 的根） | 自 CWD 向上找首个含 `data/` 的目录，找不到回落 CWD（带一次性 WARN） |
+| `RISK_OUTPUT_ROOT` | 产物写到何处（`data/results/`、`output/` 的根） | 复用 `RISK_PROJECT_ROOT` 的解析结果 |
+
+优先级：**env > 函数入参 > 自 CWD 探测 `data/` > CWD 兜底**。
+
+当 skill 代码目录与用户数据目录**不是同一个目录**（典型：skill 被安装/拷贝到沙盒里，代码目录可能只读），必须在会话开始时设置一次：
+
+```bash
+export RISK_PROJECT_ROOT=<用户数据所在工作区>
+export RISK_OUTPUT_ROOT=<可写的输出工作区>    # 通常与上面同值
+```
+
+## 读取时序（⚠ 最易踩的坑）
+
+- **`RISK_OUTPUT_ROOT` 必须在 Python 进程启动前就位**：`config.py` 的路径常量在
+  **import 时冻结**，进程跑到一半再改 env 无效；`paths.py` / state 目录是调用时
+  实时解析的——两者时序不同，以更严的 config 为准。每条 Bash 是新 shell，
+  也可写成单行前缀：`RISK_OUTPUT_ROOT=... python -m risk_pipeline ...`。
+- `--wide` / `--bad-customer` 等文件参数**按 CWD 解析，不按项目根**；
+  沙盒模式建议一律传绝对路径。
+- 每条 CLI 子命令启动时会打印一行 `[路径] 项目根=... 输出根=...`，
+  **报结果前先核对这行**，确认产物落点符合预期。
+- docx 校验脚本（可选依赖）默认找本机开发布局的兄弟目录 `skills/skills/docx`；
+  沙盒中如需校验，用 `RISK_DOCX_VALIDATE_SCRIPT=<validate.py 路径>` 指定，
+  未指定且不存在时自动跳过（WARN）。

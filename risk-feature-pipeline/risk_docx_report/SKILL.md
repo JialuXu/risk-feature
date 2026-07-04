@@ -3,6 +3,8 @@ name: risk_docx_report
 description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 docx 生成能力产出正式 Word 报告。用户要把最终分析结果整理成 `.docx` 交付件时使用。
 ---
 
+> **何时读我**：只有需要渲染器/docx 校验脚本配置细节时才读本文件；常规出报告走 `python -m risk_pipeline report`（见 `references/cli/report.md`，对外交付先过阻断节点 3）。
+
 # Risk DOCX Report（→ Level 3）
 
 > **这是分析链路的最后一跳（正式交付），agent 走 CLI：**
