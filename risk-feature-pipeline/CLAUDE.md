@@ -38,9 +38,9 @@
 | 0 基线存档 | ✅ 已完成（196 passed，见 §2） |
 | 1 抽 `risk_core` + 立 `contracts.py` | ✅ 已完成（commit `b91c2a9`；196→**201 passed**，+5 不变量锁；6 底座+results_loader 平移，contracts.py 立 §5 单一真源，`risk_pipeline` 转模块别名 shim，2 条跨 skill import 消除；3 路对抗性审计通过） |
 | 2 命令拆包 + 入口保号 | ✅ 已完成（commit `f7e80db`；201→**205 passed**，+4 转发不变量锁；建 `risk_mining` 组合根，`cli_commands.py` 拆成 `commands/<cmd>.py` 九文件+`_common`，`cli.py` 迁入，`risk_pipeline.cli/cli_commands` 降 shim，`__main__`+`pyproject` 转发 `risk_mining.cli:main`；--help md5 逐字不变 + 25 函数体 AST 逐字等价） |
-| 3 `assemble_exports()` 去重 | ✅ 已完成（commit `1d88b58`；205→**210 passed**，+5；建 `risk_mining/export.py::assemble_exports` 唯一装配点，credit/gsfc/generic/cmd_export 四调用点全部改调、旧 builder 序列清零；credit 补 `target_col=COL_TARGET`（一致性对齐，`None≡[]`+`is_bad` 默认逐字等价）；新增 `test_smoke_run_credit`（补 call-site #1 零覆盖）+ `test_unit_assemble_exports`（schema 一致/df=None 跳 LLM/target 默认等价/generic API #3）；--help 与 HEAD 字节一致；批次 A 完成） |
-| 4 argspec 单一注册表 | ⬜ **下一步（从这里开始）** |
-| 5 拆 `result_query`（样板） | ⬜ |
+| 3 `assemble_exports()` 去重 | ✅ 已完成（commit `1d88b58`；205→**210 passed**，+5；建 `risk_mining/export.py::assemble_exports` 唯一装配点，credit/gsfc/generic/cmd_export 四调用点全部改调、旧 builder 序列清零；credit 补 `target_col=COL_TARGET`（一致性对齐，`None≡[]`+`is_bad` 默认逐字等价）；新增 `test_smoke_run_credit`（补 call-site #1 零覆盖）+ `test_unit_assemble_exports`（schema 一致/df=None 跳 LLM/target 默认等价/generic API #3）；--help 与 HEAD 字节一致；补锁 commit `8d065e1`：对抗审计发现 `<=` 子集断言抓不住 raw/derived 透传断裂→`特征类型` 列静默丢失，已补正向/值级/落盘文件级断言并用变异实验验证补锁生效） |
+| 4 argspec 单一注册表 | ✅ 已完成（commit `8eb6e6c`；210→**217 passed**，+7 不变量锁；建组合根 `risk_mining/argspec.py` 每 flag 一条唯一声明，`cli._build_parser` 遍历构建（删 ~197 行手抄）；run 由 prepare∪analyze 并集派生（option-string 去重、required 降 False、`--steps` 覆盖 default=None 保 `...,rules` 兜底与 credit/gsfc 全跑语义）；`cmd_run` 删手工 Namespace 改 `_forward_ns`+`dests_for` 派生转发，run 新增 `--prepared/--features-file/--qual-dims/--project-name` 自动透传；顶层+8 非 run 子命令 --help 逐字节一致（10 份基线 diff），端到端 generic 14 产物+Level 1 验证；**批次 A 全部完成**） |
+| 5 拆 `result_query`（样板） | ⬜ **下一步（从这里开始；批次 B 第一步 = 独立-skill 试金石）** |
 | 6 拆 docx_report / trigger / data_prep | ⬜ |
 | 7 拆 visualization / threshold_explore | ⬜ |
 | 8 references/ 懒加载文档（可并行） | ⬜ |
