@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import argparse as _argparse
-import os
 import sys
 import time
 
 from risk_pipeline.pipeline_state import load_state
 
 from ..argspec import dests_for
-from ._common import _err, _is_quiet, _is_verbose, _output_root, _state_dir
+from ._common import _err, _is_quiet, _is_verbose, _state_dir
 from .analyze import cmd_analyze
 from .export import cmd_export
 from .prepare import cmd_prepare
@@ -47,12 +46,12 @@ def cmd_run(args) -> int:
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_credit_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
-        # credit 用 'credit' 作为 project，state 写入 data/results/征信/credit/
+        # credit 用 'credit' 作为 project。state 目录不再特判「征信/」前缀（解耦阶段9）：
+        # 与 analyze/export/trigger 统一走 _resolve_state_dir → data/results/<project>/，
+        # 否则 run credit 推进的 Level 1 对下游 require_level（trigger/report/explore）不可见。
+        # 注意：结果 CSV 目录仍带「征信/」前缀（config.RESULTS_DIR_CREDIT，不在本次统一范围）。
         project = args.project or 'credit'
-        state_dir = _state_dir(args) or os.path.join(
-            _output_root(), 'data', 'results', '征信', project,
-        )
-        state = load_state(project, state_dir=state_dir)
+        state = load_state(project, state_dir=_state_dir(args))
         # 只有 export 真的跑了才推进到 Level 1；steps=None 表示全跑（含 export）
         has_export = steps is None or 'export' in steps
         state.append_history({
@@ -72,11 +71,9 @@ def cmd_run(args) -> int:
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
+        # 同 credit：state 目录统一（解耦阶段9），结果 CSV 仍带「工商财务/」前缀
         project = args.project or 'gsfc'
-        state_dir = _state_dir(args) or os.path.join(
-            _output_root(), 'data', 'results', '工商财务', project,
-        )
-        state = load_state(project, state_dir=state_dir)
+        state = load_state(project, state_dir=_state_dir(args))
         has_export = steps is None or 'export' in steps
         state.append_history({
             'cmd': 'run',

@@ -159,11 +159,10 @@ def _project_root_from_cwd() -> str:
 def _resolve_state_dir(project: str, state_dir: Optional[str], project_root: str) -> str:
     if state_dir:
         return state_dir
-    # state.json 跟随写盘根（RISK_OUTPUT_ROOT 设置时落到那里）
-    from .paths import get_output_root
-    if os.environ.get('RISK_OUTPUT_ROOT'):
-        return os.path.join(get_output_root(), 'data', 'results', project)
-    return os.path.join(project_root, 'data', 'results', project)
+    # 目录派生收敛到契约单一真源（解耦阶段9 接入；语义与原实现逐字等价：
+    # state.json 跟随写盘根，RISK_OUTPUT_ROOT 设置时落到那里）
+    from risk_core.contracts import state_results_dir
+    return state_results_dir(project, project_root=project_root)
 
 
 def load_state(
