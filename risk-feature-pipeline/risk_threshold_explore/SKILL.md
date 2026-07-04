@@ -3,6 +3,8 @@ name: risk_threshold_explore
 description: 候选规则阈值探索：对人工挑选的 (分群维度, 分群名称, 特征) 三元组跑 optbinning 单变量最优切点，结合卡方检验与风险倍数判定是否值得纳入预警/审批清单。产物为候选阈值表 + 分箱明细 + audit 节点。
 ---
 
+> **何时读我**：只有需要五道门槛定义、optbinning 参数细节时才读本文件；常规阈值探索走 `python -m risk_pipeline explore_thresholds`（见 `references/cli/explore_thresholds.md`）。
+
 ## 定位
 
 `risk_rule_mining` 用决策树做**多变量**自动规则发现；本 skill 是其互补的**单变量人工探索**通道：

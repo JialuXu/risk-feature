@@ -3,6 +3,8 @@ name: risk_visualization
 description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相关性 / LR / 分群画像 / 规则 / 指标组合）渲染成**面向业务报告**的 PNG 图表。当用户说"画图/可视化/出图/IV 条形图/AUC 图/指标组合图"或在 query 之外要求"看图"时触发。本 skill 只读磁盘快照 + 出 PNG，不重跑链路、不改 CSV。
 ---
 
+> **何时读我**：只有需要各图含义解读（本目录 `references/chart_types.md`）或 Python API 直调时才读本文件；常规出图走 `python -m risk_pipeline visualize`（见 `references/cli/visualize.md`）。
+
 ## 核心规矩
 
 1. **只读后置**：所有图都基于 `data/results/<project>/` 下已经落盘的 8 张 CSV + 1 份 JSON + 可选的 `_风险规则表.csv`，与 `risk_result_query` 同源

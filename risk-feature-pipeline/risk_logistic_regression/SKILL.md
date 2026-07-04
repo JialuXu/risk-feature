@@ -3,6 +3,8 @@ name: risk_logistic_regression
 description: 分群多变量逻辑回归（诊断用，非部署模型）：标准化 + L2、按样本量选 CV 或训练集 AUC、两套特征子集 AUC 对比（与特征主题无关）
 ---
 
+> **何时读我**：只有需要 LR 建模细节（标准化、L2、AUC 类型判定）时才读本文件；常规分析与查询走 analyze/query CLI 卡。
+
 > **本步是 `analyze` 的一个步骤，agent 不单独跑它。** 用 CLI：
 > `python -m risk_pipeline analyze --project X --steps lr`（通常 `--steps univariate,iv,lr`）。
 > 下方为方法论与 Python API 参考。

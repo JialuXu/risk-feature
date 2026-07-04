@@ -504,7 +504,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 3. **二选一选取特征配置**：
    - 默认 `RISK_FEATURES_GSFC`：仅工商财务主题适用（30+ 项默认特征）。
    - 用户提供 JSON：项目专属特征列表，含 `report_name` / `source_col` / `risk_direction` / `iv` / `category` / 可选 `explicit_threshold` 与 `scope`。
-4. **匹配率守门**：默认特征匹配宽表实际列名 < 50% 时直接 `RuntimeError` 阻断（避免输出全 0 名单）。
+4. **匹配率守门**：默认特征匹配宽表实际列名 < 70% 时直接 `RuntimeError` 阻断（避免输出全 0 名单；数值单一真源 = `MIN_DEFAULT_FEATURE_MATCH_RATE`，历史上为 50%，已收紧）。
 5. **scope 维度筛选**：每个特征支持 4 种 scope 形态：
    - `'full'`（默认）：全量客户。
    - `'waist'`：仅腰部企业（兼容旧写法）。
@@ -535,7 +535,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 
 **强制规范**：
 - 阻断节点 2：必须传 `--confirmed`。
-- 默认特征匹配率 < 50% 必须阻断。
+- 默认特征匹配率 < 70% 必须阻断。
 - 不在输出中暴露客户姓名 / 证件号 / 手机号。
 
 ---
@@ -740,7 +740,7 @@ column_mapping:
 | 新数据集首跑未加确认 flag | 阻断节点 1 报错，列出两条确认路径 |
 | 项目 Level 1 后跑 `query` | 不重跑、不改 Level、stdout 输出表格 |
 | `analyze` 含 `rules` 后跑 `visualize` | 决策树 / 规则散点 / 指标组合都生成 |
-| `trigger` 默认特征匹配率 < 50% | RuntimeError 阻断，提示主题不匹配 |
+| `trigger` 默认特征匹配率 < 70% | RuntimeError 阻断，提示主题不匹配 |
 | `report --purpose external` 未加 final 确认 | 阻断节点 3 报错 |
 | 设置 `RISK_OUTPUT_ROOT=/tmp/out` 后跑全流程 | 所有产物落到 `/tmp/out/` 下 |
 | matplotlib 未安装时跑 `visualize` | 友好提示安装命令，不抛 traceback |

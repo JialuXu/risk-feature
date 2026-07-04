@@ -3,6 +3,8 @@ name: risk_trigger_extraction
 description: 逆向提取风险特征触碰客户清单：基于已筛选的有效风险特征（IV可信、中等以上预测能力），从宽表判断每个客户是否触碰风险阈值；产出客户触碰宽表/长表/阈值说明表，并给出 IV 加权风险得分排名。注意：默认特征配置仅适用 GSFC（工商财务）主题，征信/舆情/generic 等其他主题必须传项目专属 features 配置（--features-file）
 ---
 
+> **何时读我**：只有需要 features 配置结构、阈值计算/IV 加权得分细节时才读本文件；常规触碰提取走 `python -m risk_pipeline trigger`（见 `references/cli/trigger.md`，先过阻断节点 2）。
+
 > **这是 Level 2 操作（把风险结论落到每个客户），agent 必须走 CLI：**
 > `python -m risk_pipeline trigger --project X --use-default-features --confirmed`
 > ⚠️ **必须带 `--confirmed`（阻断节点 2，见 `AGENTS.md` 五）**——预警名单推送给业务后不可撤回。

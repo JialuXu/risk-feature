@@ -150,7 +150,7 @@
   PYTHONPATH=$(pwd) RISK_OUTPUT_ROOT=/data/output \
   python -m risk_pipeline explore_thresholds --project xxx --pairs-file pairs.csv
   ```
-- **不要**让 agent 把 `risk_threshold_explore` 当独立 Python 包 import 调用 —— 它依赖 `risk_pipeline.paths` 等模块在同一 sys.path 下。`python -m risk_pipeline` 已经在 `cli.py` 第 25-27 行做了 sys.path 注入，最干净。
+- **不要**让 agent 把 `risk_threshold_explore` 当独立 Python 包 import 调用 —— 它依赖 `risk_core` 底座在同一 sys.path 下（解耦阶段7 后只依赖 risk_core）。`python -m risk_pipeline` 已经在 `cli.py` 第 25-27 行做了 sys.path 注入，最干净。
 
 ### I. matplotlib backend
 

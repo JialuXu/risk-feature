@@ -189,7 +189,8 @@ df_wide, df_long, df_threshold = extract_triggers(
 )
 # 默认 features=None → 走 RISK_FEATURES_GSFC（仅工商财务主题适用）。其它主题
 # （征信、舆情、generic）必须传 features=YOUR_LIST 或 CLI --features-file，
-# 否则若匹配率 < 50% 会抛 RuntimeError 阻断（避免输出全 0 名单）。
+# 否则若匹配率 < 70% 会抛 RuntimeError 阻断（避免输出全 0 名单；数值单一真源
+# 见 risk-feature-pipeline/references/blocking-gates.md 与 MIN_DEFAULT_FEATURE_MATCH_RATE）。
 # 默认会从宽表 CSV 剔除 is_bad/企业规模 等元信息列防 merge 冲突；
 # 需保留可传 keep_metadata_cols=['企业规模', ...]。
 
@@ -312,8 +313,9 @@ Centralized in `config/default.yaml` (Python: `shared.config`):
 
 ### Standard Output Files
 
-Pattern: `{project_name}_{type}.csv` (UTF-8 with BOM), written under
-`data/results/征信/{project_name}/` and `output/征信/{project_name}/`.
+Pattern: `{project_name}_{type}.csv` (UTF-8 with BOM). generic 链路写
+`data/results/{project_name}/` 与 `output/{project_name}/`（无主题前缀）；
+credit/gsfc 老链路带 `征信/`、`工商财务/` 前缀（发散点，对应解耦阶段 9 待统一）。
 
 A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本，下版本移除）：
 - 列：`特征` / `分群维度` / `分群名称`（旧 `特征名称` / `分群值` 在 `load_results()` 读取时自动 rename）
