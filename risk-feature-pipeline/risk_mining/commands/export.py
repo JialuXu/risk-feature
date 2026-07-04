@@ -15,6 +15,7 @@ from risk_pipeline.pipeline_state import format_status_stamp, load_state
 
 from ._common import (
     _err,
+    _id_col_from_features,
     _intermediate_dir,
     _output_root,
     _prepared_csv_path,
@@ -150,7 +151,7 @@ def cmd_export(args) -> int:
     df = None
     df_path = _prepared_csv_path(project)
     if os.path.isfile(df_path) and iv_full_df is not None and not iv_full_df.empty:
-        df = pd.read_csv(df_path, encoding='utf-8-sig')
+        df = cli_io.read_prepared(df_path, id_col=_id_col_from_features(project))  # §5.1
 
     assemble_exports(
         results,
