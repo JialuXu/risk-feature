@@ -38,8 +38,8 @@
 | 0 基线存档 | ✅ 已完成（196 passed，见 §2） |
 | 1 抽 `risk_core` + 立 `contracts.py` | ✅ 已完成（commit `b91c2a9`；196→**201 passed**，+5 不变量锁；6 底座+results_loader 平移，contracts.py 立 §5 单一真源，`risk_pipeline` 转模块别名 shim，2 条跨 skill import 消除；3 路对抗性审计通过） |
 | 2 命令拆包 + 入口保号 | ✅ 已完成（commit `f7e80db`；201→**205 passed**，+4 转发不变量锁；建 `risk_mining` 组合根，`cli_commands.py` 拆成 `commands/<cmd>.py` 九文件+`_common`，`cli.py` 迁入，`risk_pipeline.cli/cli_commands` 降 shim，`__main__`+`pyproject` 转发 `risk_mining.cli:main`；--help md5 逐字不变 + 25 函数体 AST 逐字等价） |
-| 3 `assemble_exports()` 去重 | ⬜ **下一步（从这里开始）** |
-| 4 argspec 单一注册表 | ⬜ |
+| 3 `assemble_exports()` 去重 | ✅ 已完成（commit `1d88b58`；205→**210 passed**，+5；建 `risk_mining/export.py::assemble_exports` 唯一装配点，credit/gsfc/generic/cmd_export 四调用点全部改调、旧 builder 序列清零；credit 补 `target_col=COL_TARGET`（一致性对齐，`None≡[]`+`is_bad` 默认逐字等价）；新增 `test_smoke_run_credit`（补 call-site #1 零覆盖）+ `test_unit_assemble_exports`（schema 一致/df=None 跳 LLM/target 默认等价/generic API #3）；--help 与 HEAD 字节一致；批次 A 完成） |
+| 4 argspec 单一注册表 | ⬜ **下一步（从这里开始）** |
 | 5 拆 `result_query`（样板） | ⬜ |
 | 6 拆 docx_report / trigger / data_prep | ⬜ |
 | 7 拆 visualization / threshold_explore | ⬜ |
