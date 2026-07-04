@@ -315,7 +315,8 @@ Centralized in `config/default.yaml` (Python: `shared.config`):
 
 Pattern: `{project_name}_{type}.csv` (UTF-8 with BOM). generic 链路写
 `data/results/{project_name}/` 与 `output/{project_name}/`（无主题前缀）；
-credit/gsfc 老链路带 `征信/`、`工商财务/` 前缀（发散点，对应解耦阶段 9 待统一）。
+credit/gsfc 老链路的**结果 CSV** 带 `征信/`、`工商财务/` 前缀（保留不动）。
+`.pipeline_state.json` 已于解耦阶段 9 统一：所有链路都落 `data/results/{project}/`。
 
 A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本，下版本移除）：
 - 列：`特征` / `分群维度` / `分群名称`（旧 `特征名称` / `分群值` 在 `load_results()` 读取时自动 rename）

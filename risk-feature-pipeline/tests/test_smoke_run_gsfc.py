@@ -129,9 +129,11 @@ def test_run_gsfc_reaches_level_1(gsfc_workdir):
     )
     assert len(df_pivot.columns) >= 2, 'IV透视表至少应有一个特征列'
 
-    # --- state 推进到 Level 1 ---
-    state_path = root / 'data' / 'results' / '工商财务' / 'gsfc' / '.pipeline_state.json'
+    # --- state 推进到 Level 1（解耦阶段9：与 analyze/export/trigger 统一目录，无前缀）---
+    state_path = root / 'data' / 'results' / 'gsfc' / '.pipeline_state.json'
     assert state_path.exists(), f'缺失 gsfc state: {state_path}'
+    legacy_state = root / 'data' / 'results' / '工商财务' / 'gsfc' / '.pipeline_state.json'
+    assert not legacy_state.exists(), '不应再写带「工商财务」前缀的旧 state 目录（阶段9 已统一）'
     with open(state_path, 'r', encoding='utf-8') as f:
         state = json.load(f)
     assert state['current_level'] == 'Level 1'

@@ -113,3 +113,37 @@ def test_run_credit_reaches_export(credit_workdir):
     assert exported, 'credit 导出段未落任何文件'
     assert any('综合特征分析结果' in p for p in exported), '缺 综合特征分析结果 导出'
     assert any('IV分析结果' in p for p in exported), '缺 IV分析结果 导出'
+
+
+def test_run_credit_state_unified_and_visible_downstream(credit_workdir):
+    """解耦阶段9 锁：run credit 的 state 落 data/results/credit/（无「征信」前缀），
+    且下游 require_level（trigger/report/explore 的默认解析路径）能看见 Level 1。
+
+    修复前 cmd_run credit 把 state 特判到 data/results/征信/credit/，而下游命令
+    默认从 data/results/credit/ 读 → run credit 推进的 Level 1 对下游不可见，
+    trigger/report 会被 require_level 误拦。
+    """
+    import json as _json
+
+    from risk_pipeline import cli
+    from risk_pipeline.pipeline_state import load_state
+
+    rc = cli.main([
+        'run', '--pipeline', 'credit', '--quiet',
+        '--steps', 'data_prep,univariate,iv,lr,export',  # 跳过 FE（合成数据无衍生公式列）
+    ])
+    assert rc == 0
+
+    root = credit_workdir['root']
+    unified = root / 'data' / 'results' / 'credit' / '.pipeline_state.json'
+    legacy = root / 'data' / 'results' / '征信' / 'credit' / '.pipeline_state.json'
+    assert unified.exists(), f'state 未落统一目录: {unified}'
+    assert not legacy.exists(), '不应再写带「征信」前缀的旧 state 目录（阶段9 已统一）'
+
+    with open(unified, 'r', encoding='utf-8') as f:
+        raw = _json.load(f)
+    assert raw['current_level'] == 'Level 1'
+
+    # 下游可见性：与 trigger/report/explore 相同的默认解析路径必须直接看到 Level 1
+    st = load_state('credit', project_root=str(root))
+    st.require_level('Level 1')  # 不抛 = 下游命令不再被误拦

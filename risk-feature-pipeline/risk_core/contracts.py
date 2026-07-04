@@ -340,11 +340,12 @@ LEVEL_ORDER = ['前置', '过渡态', 'Level 1', 'Level 2', 'Level 3']
 
 
 def state_results_dir(project: str, *, project_root: str) -> str:
-    """.pipeline_state.json 所在的结果目录派生（§5.6 单一真源；阶段 9 由 pipeline_state 接入）。
+    """.pipeline_state.json 所在的结果目录派生（§5.6 单一真源；pipeline_state 已接入）。
 
     设 RISK_OUTPUT_ROOT 时落到写盘根，否则落项目根，**均无「征信」前缀**。
-    ⚠ 已知偏差：credit/gsfc 结果目录带「征信」/「工商财务」前缀，而此处无前缀——
-    对应 DECOUPLING-DESIGN §9 阶段 9 修复；本函数刻意保留现状以待统一。
+    阶段 9 已统一：cmd_run credit/gsfc 的 state 特判前缀已删，全部命令的 state
+    落同一规则目录。注意仅统一 state 文件——credit/gsfc 的**结果 CSV** 目录仍带
+    「征信」/「工商财务」前缀（config.RESULTS_DIR_*，不在统一范围）。
     """
     from .paths import get_output_root, ENV_OUTPUT_ROOT
     if os.environ.get(ENV_OUTPUT_ROOT):
