@@ -2,7 +2,7 @@
 """risk_threshold_explore 专用配置。继承公共 SAMPLE_THRESHOLDS / IV_THRESHOLD。"""
 from __future__ import annotations
 
-from risk_pipeline.config import (  # noqa: F401（重新导出供脚本使用）
+from risk_core.config import (  # noqa: F401（重新导出供脚本使用）
     IV_THRESHOLD,
     MIN_SAMPLES,
     MIN_BAD_SAMPLES,
