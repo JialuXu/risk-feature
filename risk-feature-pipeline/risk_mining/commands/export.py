@@ -127,10 +127,9 @@ def _maybe_export_rules_csv(
 
 
 def cmd_export(args) -> int:
-    from risk_export_report.scripts.report_analysis import (
-        export_results, build_corr_export, build_lr_export,
-        build_comprehensive_table, build_llm_report_data,
-    )
+    from risk_export_report.scripts.report_analysis import export_results
+
+    from risk_mining.export import assemble_exports
 
     started = time.time()
     project = args.project
@@ -145,49 +144,24 @@ def cmd_export(args) -> int:
 
     results, manifest = cli_io.load_intermediate(inter_dir)
 
-    corr_results = results.get('corr_results') or {}
-    meta_results = results.get('meta_results') or {}
-    lr_coef_results = results.get('lr_coef_results') or {}
-    lr_auc_results = results.get('lr_auc_results') or {}
-
-    if corr_results:
-        results['corr_exports'] = build_corr_export(corr_results, meta_results)
-    if lr_coef_results:
-        results['lr_exports'] = build_lr_export(lr_coef_results, lr_auc_results)
-
+    # prepared.csv 缺失时 df=None → assemble_exports 跳过 LLM 报告数据构建（与历史行为一致）；
+    # 仅当 iv_full 非空时才读宽表（沿用旧门控，避免无谓 IO 与边缘态发散）。
     iv_full_df = results.get('iv_full')
-    if iv_full_df is not None and not iv_full_df.empty:
-        results['comprehensive'] = build_comprehensive_table(
-            iv_full_df, corr_results, lr_coef_results,
-            results.get('iv_group_all'),
-            raw_features=results.get('raw_features', []),
-            derived_features=results.get('derived_features', []),
-        )
-
+    df = None
     df_path = _prepared_csv_path(project)
     if os.path.isfile(df_path) and iv_full_df is not None and not iv_full_df.empty:
         df = pd.read_csv(df_path, encoding='utf-8-sig')
-        try:
-            results['llm_report_data'] = build_llm_report_data(
-                df=df,
-                iv_full_df=iv_full_df,
-                corr_results=corr_results,
-                meta_results=meta_results,
-                lr_coef_results=lr_coef_results,
-                lr_auc_results=lr_auc_results,
-                iv_group_all=results.get('iv_group_all'),
-                rel_summary=results.get('reliability_summary'),
-                rel_warnings=[],
-                comp_all=results.get('feature_set_comparison'),
-                feature_cols=results.get('feature_cols', []),
-                category_dims=results.get('category_dims', []),
-                qual_dims=results.get('qual_dims', []),
-                raw_features=results.get('raw_features', []),
-                derived_features=results.get('derived_features', []),
-                target_col=manifest.get('target_col', 'is_bad'),
-            )
-        except Exception as e:
-            print(f'  [警告] LLM 报告数据构建失败: {e}', file=sys.stderr)
+
+    assemble_exports(
+        results,
+        df=df,
+        feature_cols=results.get('feature_cols', []),
+        category_dims=results.get('category_dims', []),
+        qual_dims=results.get('qual_dims', []),
+        raw_features=results.get('raw_features', []),
+        derived_features=results.get('derived_features', []),
+        target_col=manifest.get('target_col', 'is_bad'),
+    )
 
     project_root = _output_root()  # export 写产物 → output_root
     exported = export_results(
