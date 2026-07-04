@@ -37,8 +37,8 @@
 |---|---|
 | 0 基线存档 | ✅ 已完成（196 passed，见 §2） |
 | 1 抽 `risk_core` + 立 `contracts.py` | ✅ 已完成（commit `b91c2a9`；196→**201 passed**，+5 不变量锁；6 底座+results_loader 平移，contracts.py 立 §5 单一真源，`risk_pipeline` 转模块别名 shim，2 条跨 skill import 消除；3 路对抗性审计通过） |
-| 2 命令拆包 + 入口保号 | ⬜ **下一步（从这里开始）** |
-| 3 `assemble_exports()` 去重 | ⬜ |
+| 2 命令拆包 + 入口保号 | ✅ 已完成（commit `f7e80db`；201→**205 passed**，+4 转发不变量锁；建 `risk_mining` 组合根，`cli_commands.py` 拆成 `commands/<cmd>.py` 九文件+`_common`，`cli.py` 迁入，`risk_pipeline.cli/cli_commands` 降 shim，`__main__`+`pyproject` 转发 `risk_mining.cli:main`；--help md5 逐字不变 + 25 函数体 AST 逐字等价） |
+| 3 `assemble_exports()` 去重 | ⬜ **下一步（从这里开始）** |
 | 4 argspec 单一注册表 | ⬜ |
 | 5 拆 `result_query`（样板） | ⬜ |
 | 6 拆 docx_report / trigger / data_prep | ⬜ |
