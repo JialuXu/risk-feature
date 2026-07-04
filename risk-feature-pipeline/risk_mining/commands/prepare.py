@@ -6,7 +6,6 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
 
 from risk_core import contracts as cli_io
 from risk_pipeline.pipeline_state import format_status_stamp, load_state
@@ -133,8 +132,7 @@ def cmd_prepare(args) -> int:
 
     prepared_path = _prepared_csv_path(project)
     features_path = _features_json_path(project)
-    Path(prepared_path).parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(prepared_path, index=False, encoding='utf-8-sig')
+    cli_io.write_prepared(df, prepared_path)  # §5.1 唯一写点（含 mkdir）
 
     n_bad = int(df[args.target_col].sum()) if args.target_col in df.columns else 0
     confirmation = {

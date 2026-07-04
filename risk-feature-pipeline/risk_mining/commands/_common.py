@@ -37,6 +37,21 @@ def _features_json_path(project: str) -> str:
     return os.path.join(_project_processed_dir(project), 'features.json')
 
 
+def _id_col_from_features(project: str) -> Optional[str]:
+    """从 features.json 取主键列名（§5.1 读契约：read_prepared 需要它锁 str dtype）。
+
+    features.json 缺失/损坏时返回 None → read_prepared 退化普通读，不阻断只读路径。
+    """
+    path = _features_json_path(project)
+    if os.path.isfile(path):
+        try:
+            from risk_core.contracts import read_features_json
+            return read_features_json(path).get('id_col')
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
 def _project_root() -> str:
     """读源数据用（data/raw/...）；遵循 RISK_PROJECT_ROOT。"""
     from risk_core.paths import get_project_root

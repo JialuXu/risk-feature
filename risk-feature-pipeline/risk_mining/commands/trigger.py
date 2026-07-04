@@ -7,8 +7,6 @@ import os
 import time
 from pathlib import Path
 
-import pandas as pd
-
 from risk_core import contracts as cli_io
 from risk_pipeline.pipeline_state import PipelineLevelError, format_status_stamp, load_state
 
@@ -60,8 +58,6 @@ def cmd_trigger(args) -> int:
             f'  若确认无误，重新执行并加 `--confirmed`。'
         )
 
-    df = pd.read_csv(prepared, encoding='utf-8-sig')
-
     features = None
     if args.features_file:
         if not os.path.isfile(args.features_file):
@@ -76,6 +72,10 @@ def cmd_trigger(args) -> int:
 
     id_col = args.id_col or info.get('id_col', '客户编号')
     target_col = args.target_col or info.get('target_col', 'is_bad')
+
+    # §5.1 主键 str 契约（本重构点名必修的真 bug）：先解析 id_col 再读，
+    # 否则带前导零的客户编号被推断成 int → 下游与客户宽表 merge 0 命中 → 全 0 预警名单
+    df = cli_io.read_prepared(prepared, id_col=id_col)
 
     output_dir = os.path.join(_output_root(), 'output', project)  # trigger 写三件套
     Path(output_dir).mkdir(parents=True, exist_ok=True)

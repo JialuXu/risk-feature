@@ -64,13 +64,18 @@ def write_prepared(df: pd.DataFrame, path) -> None:
     df.to_csv(path, index=PREPARED_CSV_INDEX, encoding=PREPARED_CSV_ENCODING)
 
 
-def read_prepared(path, id_col: str) -> pd.DataFrame:
+def read_prepared(path, id_col: Optional[str] = None) -> pd.DataFrame:
     """读 prepared.csv（§5.1 唯一读点）：强制 ``dtype={id_col: str}`` 保住前导零。
 
     失败场景（此契约要修的 bug）：带前导零的客户编号经 CSV 往返被推断成 int →
     与客户宽表 merge 0 命中 → trigger 匹配率 < 阈值 → 全 0 预警名单。
+
+    id_col=None（features.json 缺失/损坏拿不到主键名）时退化为普通读——
+    此时前导零保护不生效，但不阻断只读路径；pandas 对 dtype 里不存在的列名
+    静默忽略，故传入的 id_col 不在 CSV 中也安全。
     """
-    return pd.read_csv(path, encoding=PREPARED_CSV_ENCODING, dtype={id_col: PREPARED_ID_DTYPE})
+    dtype = {id_col: PREPARED_ID_DTYPE} if id_col else None
+    return pd.read_csv(path, encoding=PREPARED_CSV_ENCODING, dtype=dtype)
 
 
 # =============================================================================

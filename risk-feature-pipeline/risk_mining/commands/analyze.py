@@ -111,7 +111,7 @@ def cmd_analyze(args) -> int:
 
     state = load_state(project, state_dir=_state_dir(args))
 
-    df = pd.read_csv(prepared, encoding='utf-8-sig')
+    df = cli_io.read_prepared(prepared, id_col=info.get('id_col'))  # §5.1 主键 str 契约
     verbose = _is_verbose(args) and not _is_quiet(args)
 
     # rules 是 CLI 层独立步骤；run_generic_pipeline 不识别它，剥离后再传

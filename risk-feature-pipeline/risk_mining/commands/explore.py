@@ -6,14 +6,13 @@ import os
 import sys
 import time
 
-import pandas as pd
-
 from risk_core import contracts as cli_io
 from risk_pipeline.pipeline_state import PipelineLevelError, format_status_stamp, load_state
 
 from ._common import (
     _err,
     _features_json_path,
+    _id_col_from_features,
     _is_quiet,
     _is_verbose,
     _output_root,
@@ -67,7 +66,7 @@ def cmd_explore_thresholds(args) -> int:
         else:
             target_col = 'is_bad'
 
-    df = pd.read_csv(prepared, encoding='utf-8-sig')
+    df = cli_io.read_prepared(prepared, id_col=_id_col_from_features(project))  # §5.1
 
     try:
         results = load_results(project, project_root=_output_root())  # 读 export 写过的产物
