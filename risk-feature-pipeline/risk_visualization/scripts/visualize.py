@@ -17,7 +17,7 @@ _SKILL_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _SKILL_ROOT not in sys.path:
     sys.path.insert(0, _SKILL_ROOT)
 
-from risk_result_query.scripts.results_loader import load_results, Results
+from risk_core.results_loader import load_results, Results
 
 # matplotlib / seaborn 是可视化的硬依赖；缺失时给出可执行的安装提示，
 # 避免用户面对一大堆 traceback 不知道该装什么。

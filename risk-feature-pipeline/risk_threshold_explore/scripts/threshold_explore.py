@@ -26,7 +26,7 @@ from .config import (
 
 # `Results` 仅用于类型提示，运行时按 duck-typing 取属性；避免硬依赖循环 import
 try:
-    from risk_result_query.scripts.results_loader import Results  # noqa: F401
+    from risk_core.results_loader import Results  # noqa: F401
 except Exception:  # pragma: no cover
     Results = None  # type: ignore
 

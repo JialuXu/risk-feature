@@ -62,6 +62,7 @@ risk-pipeline = "risk_pipeline.cli:main"
 
 [tool.setuptools.packages.find]
 include = [
+    "risk_core*",
     "risk_pipeline*",
     "shared*",
     "risk_data_prep*",
