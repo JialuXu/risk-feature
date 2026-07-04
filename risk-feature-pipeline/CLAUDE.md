@@ -41,8 +41,8 @@
 | 3 `assemble_exports()` 去重 | ✅ 已完成（commit `1d88b58`；205→**210 passed**，+5；建 `risk_mining/export.py::assemble_exports` 唯一装配点，credit/gsfc/generic/cmd_export 四调用点全部改调、旧 builder 序列清零；credit 补 `target_col=COL_TARGET`（一致性对齐，`None≡[]`+`is_bad` 默认逐字等价）；新增 `test_smoke_run_credit`（补 call-site #1 零覆盖）+ `test_unit_assemble_exports`（schema 一致/df=None 跳 LLM/target 默认等价/generic API #3）；--help 与 HEAD 字节一致；补锁 commit `8d065e1`：对抗审计发现 `<=` 子集断言抓不住 raw/derived 透传断裂→`特征类型` 列静默丢失，已补正向/值级/落盘文件级断言并用变异实验验证补锁生效） |
 | 4 argspec 单一注册表 | ✅ 已完成（commit `8eb6e6c`；210→**217 passed**，+7 不变量锁；建组合根 `risk_mining/argspec.py` 每 flag 一条唯一声明，`cli._build_parser` 遍历构建（删 ~197 行手抄）；run 由 prepare∪analyze 并集派生（option-string 去重、required 降 False、`--steps` 覆盖 default=None 保 `...,rules` 兜底与 credit/gsfc 全跑语义）；`cmd_run` 删手工 Namespace 改 `_forward_ns`+`dests_for` 派生转发，run 新增 `--prepared/--features-file/--qual-dims/--project-name` 自动透传；顶层+8 非 run 子命令 --help 逐字节一致（10 份基线 diff），端到端 generic 14 产物+Level 1 验证；**批次 A 全部完成**） |
 | 5 拆 `result_query`（样板） | ✅ 已完成（commit `577157e`；217→**223 passed**，+6 独立性锁；新增薄 `__main__`（不参与 argspec、不进 agent 模板），cmd_explore 的 `load_results` 改从 `risk_core` 取→全仓唯一 importer=cmd_query；五把锁：AST 红线/唯一 importer/`python -m` 端到端/子进程 import 隔离/**运行时 sys.modules 隔离**（对抗审查发现 importlib 字符串式动态 import 可逃逸静态锁，补锁并变异实验验证）；--help 10/10 逐字节一致） |
-| 6 拆 docx_report / trigger / data_prep | ⬜ **下一步（含 §5.1 前导零真 bug 必修）** |
-| 7 拆 visualization / threshold_explore | ⬜ |
+| 6 拆 docx_report / trigger / data_prep | ✅ 已完成（5 commit；227→**235 passed**；`432b462` 6a=§5.1 前导零真 bug 修复——实测丢失点有两处：prepare_df 三处源头读 + prepared.csv 往返，写点/四读点收敛 contracts.write/read_prepared、trigger 读点移到 id_col 解析后，四把契约锁（往返/容错/features.json 15键 schema/前导零 e2e）+变异实验×2；`9513f58`/`6564296`/`0e3494d` 6b-6d=三 skill import 切 risk_core + `test_unit_skill_independence.py` 参数化独立性锁（AST 红线+进程隔离）；`f6cd812` 6e=对抗审查确认 2 major 补修：credit 链路源头读补对称 dtype 锁（gsfc 早已锁、credit 是唯一残留，静默漏标已复现）+ merge 路径变异逃逸补锁，变异实验×2 验证） |
+| 7 拆 visualization / threshold_explore | ⬜ **下一步** |
 | 8 references/ 懒加载文档（可并行） | ⬜ |
 | 9（可选）修 state_dir 发散 | ⬜ |
 | 10（可选·可砍）内核去重 | ⬜ |
