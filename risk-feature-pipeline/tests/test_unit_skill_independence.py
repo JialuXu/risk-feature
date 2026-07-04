@@ -28,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # 已完成独立化的子 skill（阶段 6b: data_prep；6c: trigger；6d: docx；7: vis/threshold）
 INDEPENDENT_SKILLS = [
     'risk_data_prep',
+    'risk_trigger_extraction',
 ]
 
 
