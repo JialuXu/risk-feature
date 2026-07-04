@@ -58,11 +58,12 @@ all = [
 ]
 
 [project.scripts]
-risk-pipeline = "risk_pipeline.cli:main"
+risk-pipeline = "risk_mining.cli:main"
 
 [tool.setuptools.packages.find]
 include = [
     "risk_core*",
+    "risk_mining*",
     "risk_pipeline*",
     "shared*",
     "risk_data_prep*",

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""支持 `python -m risk_pipeline <subcommand>` 调用统一 CLI。"""
+"""支持 `python -m risk_pipeline <subcommand>`：转发组合根 risk_mining.cli:main。"""
 import sys
 
-from .cli import main
+from risk_mining.cli import main
 
 sys.exit(main())
