@@ -31,6 +31,7 @@ INDEPENDENT_SKILLS = [
     'risk_trigger_extraction',
     'risk_docx_report',
     'risk_visualization',
+    'risk_threshold_explore',
 ]
 
 
