@@ -9,10 +9,28 @@ import time
 
 from risk_pipeline.pipeline_state import load_state
 
+from ..argspec import dests_for
 from ._common import _err, _is_quiet, _is_verbose, _output_root, _state_dir
 from .analyze import cmd_analyze
 from .export import cmd_export
 from .prepare import cmd_prepare
+
+
+def _forward_ns(cmd: str, args, **overrides) -> _argparse.Namespace:
+    """从 argspec 派生目标子命令的转发 Namespace（解耦重构 Stage 4）。
+
+    该命令在 argspec 声明的每个 dest 一律从 run 的 args 透传（run 的 flag 集就是
+    prepare∪analyze 并集，故 prepare/analyze 的 dest 必在）；run 未声明的 dest
+    （如 export 的 intermediate_dir/output_subdir）取 None，与旧手抄行为一致。
+    这样给 prepare/analyze 新增 flag 只改 argspec 一处，run 路径自动透传——
+    根除原手抄 Namespace「漏一个字段 → 运行期静默 None」的 C15 错误源。
+    """
+    values = {dest: getattr(args, dest, None) for dest in dests_for(cmd)}
+    values.update(
+        quiet=_is_quiet(args), verbose=_is_verbose(args), state_dir=_state_dir(args),
+    )
+    values.update(overrides)
+    return _argparse.Namespace(**values)
 
 
 def cmd_run(args) -> int:
@@ -80,45 +98,19 @@ def cmd_run(args) -> int:
     if not args.project:
         _err('[run] --pipeline generic 必须提供 --project')
 
-    rc = cmd_prepare(_argparse.Namespace(
-        wide=args.wide, bad_customer=args.bad_customer,
-        id_col=args.id_col, target_col=args.target_col,
-        bad_id_col=getattr(args, 'bad_id_col', None),
-        merge_table=getattr(args, 'merge_table', None),
-        merge_id_col=getattr(args, 'merge_id_col', None),
-        merge_cols=getattr(args, 'merge_cols', None),
-        filter_file=getattr(args, 'filter_file', None),
-        exclude_features_file=getattr(args, 'exclude_features_file', None),
-        project=args.project,
-        confirmed_new_dataset=getattr(args, 'confirmed_new_dataset', False),
-        # C15 拆分确认 flag：原 cmd_run 漏传导致 run 路径仅支持一键确认
-        confirmed_id_col=getattr(args, 'confirmed_id_col', None),
-        confirmed_target_col=getattr(args, 'confirmed_target_col', None),
-        confirmed_target_positive=getattr(args, 'confirmed_target_positive', None),
-        skip_preflight=getattr(args, 'skip_preflight', False),
-        quiet=_is_quiet(args), verbose=_is_verbose(args),
-        state_dir=_state_dir(args),
+    rc = cmd_prepare(_forward_ns('prepare', args))
+    if rc:
+        return rc
+
+    # --steps 缺省时兜底含 rules，让 visualize 立即能出决策树/规则散点/共现网络
+    # （run 专属默认；argspec 里 run 的 --steps 覆盖为 default=None 正是为给这里让路）
+    rc = cmd_analyze(_forward_ns(
+        'analyze', args, steps=args.steps or 'univariate,iv,lr,rules',
     ))
     if rc:
         return rc
 
-    rc = cmd_analyze(_argparse.Namespace(
-        project=args.project, prepared=None, features_file=None,
-        # 默认含 rules，让 visualize 立即能出决策树/规则散点/共现网络
-        steps=args.steps or 'univariate,iv,lr,rules',
-        category_dims=getattr(args, 'category_dims', None),
-        qual_dims=None, target_col=None,
-        quiet=_is_quiet(args), verbose=_is_verbose(args),
-        state_dir=_state_dir(args),
-    ))
-    if rc:
-        return rc
-
-    rc = cmd_export(_argparse.Namespace(
-        project=args.project, intermediate_dir=None, output_subdir=None,
-        quiet=_is_quiet(args), verbose=_is_verbose(args),
-        state_dir=_state_dir(args),
-    ))
+    rc = cmd_export(_forward_ns('export', args))
     if rc:
         return rc
 
