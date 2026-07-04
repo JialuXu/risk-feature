@@ -18,6 +18,7 @@
 | "候选阈值/单变量阈值评审/给这几个 (分群,特征) 探阈值" | `python -m risk_pipeline explore_thresholds --pairs-file ...` | 手写 optbinning / 在 notebook 里散落跑 |
 | "生成 Word/正式报告" | `python -m risk_pipeline report` | 直接输出 Markdown |
 | 任何 IV > 2.0 的特征 | 标记"疑似数据穿越"并强制排除出结论推荐 | 正常纳入结论 |
+| 代码目录与数据/输出目录分离（沙盒 / skill 安装模式） | 跑任何 CLI 前先 `export RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根>`（见"四之二"） | 直接在 skill 代码目录里跑、让产物写进代码树 |
 
 ### 绝对排斥（无条件禁止，不因上下文而例外）
 
@@ -119,6 +120,27 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 如未来真要做多 YAML 切换，新加 flag 时务必同步在 `cli_commands.py` 里把它消费掉，不要再让"声明而不读"的 flag 静默吞用户输入。
 
+### 路径环境变量（沙盒 / skill 安装模式必设）
+
+路径定位的唯一权威是 `risk_pipeline/paths.py`，行为由两个环境变量控制：
+
+| 变量 | 作用 | 未设置时的行为 |
+|---|---|---|
+| `RISK_PROJECT_ROOT` | 输入读自何处（`data/raw/...` 的根） | 自 CWD 向上找首个含 `data/` 的目录，找不到回落 CWD |
+| `RISK_OUTPUT_ROOT` | 产物写到何处（`data/results/`、`output/` 的根） | 复用 `RISK_PROJECT_ROOT` 的解析结果 |
+
+当 skill 代码目录与用户数据目录**不是同一个目录**（典型：skill 被安装/拷贝到沙盒里，代码目录可能只读），必须在会话开始时设置一次：
+
+```bash
+export RISK_PROJECT_ROOT=<用户数据所在工作区>
+export RISK_OUTPUT_ROOT=<可写的输出工作区>    # 通常与上面同值
+```
+
+注意：
+- env 在 **Python 进程启动时**读取（`risk_pipeline/config.py` import 时解析），跑到一半再改无效；每条 Bash 是新 shell，也可写成单行前缀 `RISK_OUTPUT_ROOT=... python -m risk_pipeline ...`。
+- 每条 CLI 子命令启动时会打印一行 `[路径] 项目根=... 输出根=...`，报结果前先核对这行，确认产物落点符合预期。
+- docx 校验脚本（可选依赖）默认找本机开发布局的兄弟目录 `skills/skills/docx`；沙盒中如需校验，用 `RISK_DOCX_VALIDATE_SCRIPT=<validate.py 路径>` 指定，未指定且不存在时自动跳过（WARN）。
+
 ---
 
 ## 五、必须物理阻断、等待人类确认的节点
@@ -168,6 +190,8 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 **全流程 generic（最常用）**：
 ```bash
+# 沙盒/安装模式：先 export RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT（见"四之二"），
+# 且 --wide / --bad-customer 建议传绝对路径（相对路径按 CWD 解析，不按项目根）
 python -m risk_pipeline run --pipeline generic \
   --wide data/raw/<宽表>.csv \
   --bad-customer data/raw/<坏客户清单>.csv \

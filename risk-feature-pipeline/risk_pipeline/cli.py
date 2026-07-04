@@ -263,6 +263,11 @@ def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if not getattr(args, 'quiet', False):
+        from .paths import get_output_root, get_project_root
+        print(f'[路径] 项目根={get_project_root()}  输出根={get_output_root()}'
+              f'（可用 RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT 覆盖）')
+
     from . import cli_commands
 
     func = getattr(cli_commands, f'cmd_{args.cmd}', None)

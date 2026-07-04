@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import sys
 from pathlib import Path
 
@@ -9,8 +10,15 @@ WORKSPACE_ROOT = PROJECT_ROOT.parent
 
 DEFAULT_PROMPT_TEMPLATE = PROJECT_ROOT / "report-prompt.md"
 
+# docx 校验脚本：兄弟目录 skills/ 是本机开发布局，沙盒/skill 安装模式下不存在，
+# 此时用 RISK_DOCX_VALIDATE_SCRIPT 环境变量指定（不存在则跳过校验，只打 WARN）。
 DOCX_SKILL_ROOT = WORKSPACE_ROOT / "skills" / "skills" / "docx"
-DOCX_VALIDATE_SCRIPT = DOCX_SKILL_ROOT / "scripts" / "office" / "validate.py"
+_env_validate = os.environ.get("RISK_DOCX_VALIDATE_SCRIPT")
+DOCX_VALIDATE_SCRIPT = (
+    Path(_env_validate).expanduser()
+    if _env_validate
+    else DOCX_SKILL_ROOT / "scripts" / "office" / "validate.py"
+)
 
 
 def __getattr__(name: str) -> Path:
@@ -22,11 +30,11 @@ def __getattr__(name: str) -> Path:
     覆盖该默认，不受影响。
     """
     if name == 'DEFAULT_OUTPUT_DIR':
-        # risk_pipeline.paths 需要 risk-feature-pipeline/ 在 sys.path 上；
-        # CLI 入口在 cli.py:25-27 已做注入。直调 Python API 时若 sys.path
-        # 未含该目录则在此兜底加一次。
-        if str(WORKSPACE_ROOT) not in sys.path:
-            sys.path.insert(0, str(WORKSPACE_ROOT))
+        # risk_pipeline.paths 需要 risk-feature-pipeline/（= PROJECT_ROOT）在
+        # sys.path 上；CLI 入口在 cli.py:25-27 已做注入。直调 Python API 时若
+        # sys.path 未含该目录则在此兜底加一次。
+        if str(PROJECT_ROOT) not in sys.path:
+            sys.path.insert(0, str(PROJECT_ROOT))
         from risk_pipeline.paths import get_output_root
         return Path(get_output_root()) / "output" / "docx-report"
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
