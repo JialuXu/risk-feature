@@ -8,11 +8,15 @@
 ``paths._warned_no_data_dir``）亦可达——这是 ``import *`` 做不到、而 20+ 测试
 依赖的性质。
 
-仍物理留在本包的子模块（下阶段迁移）:
-  cli / cli_commands / cli_io   - 统一 CLI（9 子命令）；cli_io 已退化为 contracts 的 shim
-  pipeline                      - run_credit / run_gsfc / run_generic_pipeline
-  pipeline_state                - Level 状态机
-  analysis                      - 共享分析内核（iv_core / engine）
+已退化为 shim 的子模块（转发到组合根 risk_mining）:
+  cli           - 转发 risk_mining.cli（统一 CLI 入口，阶段 2）
+  cli_commands  - 转发 risk_mining.commands（9 子命令实现，阶段 2）
+  cli_io        - 转发 risk_core.contracts（wire/指纹/features.json，阶段 1）
+
+仍物理留在本包的挖掘内核（下阶段迁移）:
+  pipeline       - run_credit / run_gsfc / run_generic_pipeline
+  pipeline_state - Level 状态机
+  analysis       - 共享分析内核（iv_core / engine）
 
 已升入 risk_core 的子模块（经下面的别名转发）:
   paths / config / config_loader / column_mapper / io_utils / font_utils / results_loader
