@@ -31,6 +31,7 @@ if _MY_SKILLS_ROOT not in sys.path:
     sys.path.insert(0, _MY_SKILLS_ROOT)
 
 from risk_pipeline.config import COL_TARGET
+from risk_mining.export import assemble_exports
 
 
 def _load_module(skill_name, module_name):
@@ -247,50 +248,17 @@ def run_credit_pipeline(steps=None, verbose=True):
         mod_io = _load_module('risk_export_report', 'io_utils')
         project_root = mod_io.get_project_root()
 
-        # 构建 export_results 期望的扁平化产物
-        # （pipeline 中间产物是 dict 形式，需用 builder 转成扁平 DataFrame）
-        corr_results = results.get('corr_results', {}) or {}
-        meta_results = results.get('meta_results', {}) or {}
-        lr_coef_results = results.get('lr_coef_results', {}) or {}
-        lr_auc_results = results.get('lr_auc_results', {}) or {}
-
-        if corr_results:
-            results['corr_exports'] = mod_report.build_corr_export(
-                corr_results, meta_results
-            )
-        if lr_coef_results:
-            results['lr_exports'] = mod_report.build_lr_export(
-                lr_coef_results, lr_auc_results
-            )
-
-        # 综合特征分析结果（写入 output/）
-        iv_full_df = results.get('iv_full')
-        if iv_full_df is not None and not iv_full_df.empty:
-            results['comprehensive'] = mod_report.build_comprehensive_table(
-                iv_full_df, corr_results, lr_coef_results,
-                results.get('iv_group_all'),
-            )
-
-        # LLM 报告数据（JSON + 两张 LLM CSV，写入 output/）
-        if iv_full_df is not None and not iv_full_df.empty:
-            try:
-                results['llm_report_data'] = mod_report.build_llm_report_data(
-                    df=df,
-                    iv_full_df=iv_full_df,
-                    corr_results=corr_results,
-                    meta_results=meta_results,
-                    lr_coef_results=lr_coef_results,
-                    lr_auc_results=lr_auc_results,
-                    iv_group_all=results.get('iv_group_all'),
-                    rel_summary=results.get('reliability_summary'),
-                    rel_warnings=results.get('reliability_warnings', []),
-                    comp_all=results.get('feature_set_comparison'),
-                    feature_cols=feature_cols,
-                    category_dims=category_dims,
-                    qual_dims=qual_dims,
-                )
-            except Exception as e:
-                print(f"  [警告] LLM 报告数据构建失败：{e}")
+        # 装配 4 张导出表（corr/lr/comprehensive/llm_report_data）→ results
+        # 唯一实现见 risk_mining.export.assemble_exports；credit 显式补 target_col=COL_TARGET
+        # 为一致性对齐（其目标列本就是 is_bad，行为与旧实现逐字一致）。
+        assemble_exports(
+            results,
+            df=df,
+            feature_cols=feature_cols,
+            category_dims=category_dims,
+            qual_dims=qual_dims,
+            target_col=COL_TARGET,
+        )
 
         exported = mod_report.export_results(project_root, results)
         results['exported_files'] = exported
@@ -509,47 +477,16 @@ def run_gsfc_pipeline(steps=None, verbose=True):
         project_root = results.get('project_root') or mod_io.get_project_root()
         project_name = mod_export_cfg.GSFC_LLM_PROJECT_NAME
 
-        corr_results = results.get('corr_results', {}) or {}
-        meta_results = results.get('meta_results', {}) or {}
-        lr_coef_results = results.get('lr_coef_results', {}) or {}
-        lr_auc_results = results.get('lr_auc_results', {}) or {}
-
-        if corr_results:
-            results['corr_exports'] = mod_report.build_corr_export(
-                corr_results, meta_results
-            )
-        if lr_coef_results:
-            results['lr_exports'] = mod_report.build_lr_export(
-                lr_coef_results, lr_auc_results
-            )
-
-        iv_full_df = results.get('iv_full')
-        if iv_full_df is not None and not iv_full_df.empty:
-            results['comprehensive'] = mod_report.build_comprehensive_table(
-                iv_full_df, corr_results, lr_coef_results,
-                results.get('iv_group_all'),
-            )
-
-        if iv_full_df is not None and not iv_full_df.empty:
-            try:
-                results['llm_report_data'] = mod_report.build_llm_report_data(
-                    df=df,
-                    iv_full_df=iv_full_df,
-                    corr_results=corr_results,
-                    meta_results=meta_results,
-                    lr_coef_results=lr_coef_results,
-                    lr_auc_results=lr_auc_results,
-                    iv_group_all=results.get('iv_group_all'),
-                    rel_summary=results.get('reliability_summary'),
-                    rel_warnings=results.get('reliability_warnings', []),
-                    comp_all=results.get('feature_set_comparison'),
-                    feature_cols=feature_cols,
-                    category_dims=category_dims,
-                    qual_dims=qual_dims,
-                    target_col=COL_TARGET,
-                )
-            except Exception as e:
-                print(f"  [警告] LLM 报告数据构建失败：{e}")
+        # 装配 4 张导出表（唯一实现 risk_mining.export.assemble_exports）；
+        # gsfc 目标列固定为 COL_TARGET，与 credit 一致、行为逐字保住。
+        assemble_exports(
+            results,
+            df=df,
+            feature_cols=feature_cols,
+            category_dims=category_dims,
+            qual_dims=qual_dims,
+            target_col=COL_TARGET,
+        )
 
         exported = mod_report.export_results(
             project_root, results,
@@ -719,51 +656,18 @@ def run_generic_pipeline(
             _banner(6, '结果导出')
 
         project_root = mod_io.get_project_root()
-        corr_results = results.get('corr_results', {}) or {}
-        meta_results = results.get('meta_results', {}) or {}
-        lr_coef_results = results.get('lr_coef_results', {}) or {}
-        lr_auc_results = results.get('lr_auc_results', {}) or {}
-
-        if corr_results:
-            results['corr_exports'] = mod_report.build_corr_export(
-                corr_results, meta_results
-            )
-        if lr_coef_results:
-            results['lr_exports'] = mod_report.build_lr_export(
-                lr_coef_results, lr_auc_results
-            )
-
-        iv_full_df = results.get('iv_full')
-        if iv_full_df is not None and not iv_full_df.empty:
-            results['comprehensive'] = mod_report.build_comprehensive_table(
-                iv_full_df, corr_results, lr_coef_results,
-                results.get('iv_group_all'),
-                raw_features=results.get('raw_features', []),
-                derived_features=results.get('derived_features', []),
-            )
-
-        if iv_full_df is not None and not iv_full_df.empty:
-            try:
-                results['llm_report_data'] = mod_report.build_llm_report_data(
-                    df=df,
-                    iv_full_df=iv_full_df,
-                    corr_results=corr_results,
-                    meta_results=meta_results,
-                    lr_coef_results=lr_coef_results,
-                    lr_auc_results=lr_auc_results,
-                    iv_group_all=results.get('iv_group_all'),
-                    rel_summary=results.get('reliability_summary'),
-                    rel_warnings=results.get('reliability_warnings', []),
-                    comp_all=results.get('feature_set_comparison'),
-                    feature_cols=feature_cols,
-                    category_dims=category_dims,
-                    qual_dims=qual_dims,
-                    raw_features=results.get('raw_features', []),
-                    derived_features=results.get('derived_features', []),
-                    target_col=target_col,
-                )
-            except Exception as e:
-                print(f"  [警告] LLM 报告数据构建失败：{e}")
+        # 装配 4 张导出表（唯一实现 risk_mining.export.assemble_exports）；
+        # generic 传入原始/衍生特征与自定义 target_col。
+        assemble_exports(
+            results,
+            df=df,
+            feature_cols=feature_cols,
+            category_dims=category_dims,
+            qual_dims=qual_dims,
+            raw_features=results.get('raw_features', []),
+            derived_features=results.get('derived_features', []),
+            target_col=target_col,
+        )
 
         exported = mod_report.export_results(
             project_root, results,
