@@ -28,7 +28,7 @@ def cmd_explore_thresholds(args) -> int:
 
     只读 Level 1 已落盘的 LR/相关/IV 全量结果作为风险方向来源；不推进 level。
     """
-    from risk_result_query.scripts.results_loader import load_results
+    from risk_core.results_loader import load_results
     from risk_threshold_explore.scripts.threshold_explore import explore_thresholds
     from risk_threshold_explore.scripts.io_utils import (
         read_pair_list, write_threshold_outputs, append_audit_node,
