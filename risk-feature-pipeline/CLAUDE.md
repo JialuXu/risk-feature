@@ -42,8 +42,8 @@
 | 4 argspec 单一注册表 | ✅ 已完成（commit `8eb6e6c`；210→**217 passed**，+7 不变量锁；建组合根 `risk_mining/argspec.py` 每 flag 一条唯一声明，`cli._build_parser` 遍历构建（删 ~197 行手抄）；run 由 prepare∪analyze 并集派生（option-string 去重、required 降 False、`--steps` 覆盖 default=None 保 `...,rules` 兜底与 credit/gsfc 全跑语义）；`cmd_run` 删手工 Namespace 改 `_forward_ns`+`dests_for` 派生转发，run 新增 `--prepared/--features-file/--qual-dims/--project-name` 自动透传；顶层+8 非 run 子命令 --help 逐字节一致（10 份基线 diff），端到端 generic 14 产物+Level 1 验证；**批次 A 全部完成**） |
 | 5 拆 `result_query`（样板） | ✅ 已完成（commit `577157e`；217→**223 passed**，+6 独立性锁；新增薄 `__main__`（不参与 argspec、不进 agent 模板），cmd_explore 的 `load_results` 改从 `risk_core` 取→全仓唯一 importer=cmd_query；五把锁：AST 红线/唯一 importer/`python -m` 端到端/子进程 import 隔离/**运行时 sys.modules 隔离**（对抗审查发现 importlib 字符串式动态 import 可逃逸静态锁，补锁并变异实验验证）；--help 10/10 逐字节一致） |
 | 6 拆 docx_report / trigger / data_prep | ✅ 已完成（5 commit；227→**235 passed**；`432b462` 6a=§5.1 前导零真 bug 修复——实测丢失点有两处：prepare_df 三处源头读 + prepared.csv 往返，写点/四读点收敛 contracts.write/read_prepared、trigger 读点移到 id_col 解析后，四把契约锁（往返/容错/features.json 15键 schema/前导零 e2e）+变异实验×2；`9513f58`/`6564296`/`0e3494d` 6b-6d=三 skill import 切 risk_core + `test_unit_skill_independence.py` 参数化独立性锁（AST 红线+进程隔离）；`f6cd812` 6e=对抗审查确认 2 major 补修：credit 链路源头读补对称 dtype 锁（gsfc 早已锁、credit 是唯一残留，静默漏标已复现）+ merge 路径变异逃逸补锁，变异实验×2 验证） |
-| 7 拆 visualization / threshold_explore | ⬜ **下一步** |
-| 8 references/ 懒加载文档（可并行） | ⬜ |
+| 7 拆 visualization / threshold_explore | ✅ 已完成（commit `56f2761`+`1dfb1e7`；235→**239 passed**；两 skill import 全量切 risk_core，§5.7 文件名手拼（规则表/候选阈值表×写读两端）收敛 contracts.RESULT_FILE_TEMPLATE，INDEPENDENT_SKILLS 达 6 个；**批次 B 收官验收全过**：红线1 内核零子 skill import、红线2 六独立 skill 零 risk_pipeline/横向依赖（AST 级机器化）、--help 10/10 字节一致、e2e 真跑 visualize 8 张 PNG、对抗审查 0 缺陷（模板 13 极端值等价/config 同对象/写读往返实测）） |
+| 8 references/ 懒加载文档（可并行） | ⬜ **下一步** |
 | 9（可选）修 state_dir 发散 | ⬜ |
 | 10（可选·可砍）内核去重 | ⬜ |
 
