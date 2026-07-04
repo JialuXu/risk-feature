@@ -10,6 +10,8 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 > **执行任何步骤前先读 `AGENTS.md`**：硬规矩（阻断节点、结果层次、CLI 模板全集、工具雷区、响应自检）都在那里，本文件不重复，只做路由。
 >
 > **铁律**：agent 工作流一律走 `python -m risk_pipeline <子命令>`，**禁止**在 Bash 里 import 模块手抄代码（详见 `AGENTS.md` 一、三）。
+>
+> **沙盒/安装模式**（skill 代码目录 ≠ 数据目录）：跑任何 CLI 前先 `export RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根>`，否则产物会写进代码树（详见 `AGENTS.md` 四之二）。
 
 ---
 
@@ -42,8 +44,8 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 | 链路 | 何时选 |
 |---|---|
 | `generic` | 用户已给宽表 CSV，不想重走内置数据准备（最常用） |
-| `credit` | 跑征信主题，数据走 `config/` 默认路径 |
-| `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径 |
+| `credit` | 跑征信主题，数据走 `config/` 默认路径；要求内置数据已按 `config/default.yaml` 布局放在项目根下（沙盒里默认没有，只有 `generic` 开箱可用） |
+| `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径；同上要求内置数据存在 |
 
 ---
 

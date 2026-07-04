@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -46,6 +47,13 @@ def build_docx_report(
 ) -> Path:
     script_dir = Path(__file__).resolve().parent
     renderer_path = script_dir / "render_docx_report.js"
+
+    if shutil.which("node") is None:
+        raise RuntimeError(
+            "未找到 node 可执行文件：docx 渲染依赖 Node.js。\n"
+            "  请先安装 Node.js（建议 >= 16），并确认 risk_docx_report/node_modules/ 存在\n"
+            "  （缺失时在 risk_docx_report/ 目录执行 npm install）。"
+        )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
