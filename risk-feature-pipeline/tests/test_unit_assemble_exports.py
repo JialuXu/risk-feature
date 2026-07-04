@@ -100,15 +100,33 @@ def test_credit_and_generic_style_schema_consistent(analysis_results):
             f'{key} 列名在两种参数化下应逐字一致'
         )
 
-    # comprehensive：两种参数化的差异必须**仅限** `特征类型` 列
+    # comprehensive：两种参数化的差异必须**恰好是** `特征类型` 一列。
+    # 注意用 `==` 而非 `<=`：变异实验证明子集断言抓不住「raw/derived 透传整体断掉、
+    # 特征类型 列从对外 综合特征分析结果.csv 静默消失」的回归（差集为空也满足子集）。
     cols_credit = set(r_credit['comprehensive'].columns)
     cols_generic = set(r_generic['comprehensive'].columns)
     assert cols_credit - cols_generic == set(), (
         f'credit 型不应多出 generic 型没有的列：{cols_credit - cols_generic}'
     )
-    assert cols_generic - cols_credit <= {'特征类型'}, (
-        f'generic 型相对 credit 型只应因 raw/derived 多出 `特征类型`，'
+    assert cols_generic - cols_credit == {'特征类型'}, (
+        f'generic 型（传 raw/derived）相对 credit 型必须**且只**多出 `特征类型`，'
         f'实际多出：{cols_generic - cols_credit}'
+    )
+    # 值级锁：RAW∪DERIVED 覆盖全部特征 → generic 型每行 特征类型 必为 原始/衍生，
+    # 空串意味着透传的列表没有真正抵达构建器
+    types_generic = set(r_generic['comprehensive']['特征类型'])
+    assert types_generic <= {'原始', '衍生'} and types_generic, (
+        f'generic 型 特征类型 取值应为 原始/衍生（RAW∪DERIVED 全覆盖），实际：{types_generic}'
+    )
+    # LLM JSON 侧同样锁正向存在（report_analysis 的 iv_type_map 同吃 raw/derived）：
+    # generic 型 feature_summary.特征类型 已填充；credit 型（不传）保持全空串（双向锁）
+    fs_generic = r_generic['llm_report_data']['feature_summary']
+    assert set(fs_generic['特征类型']) <= {'原始', '衍生'} and not fs_generic.empty, (
+        'generic 型 LLM feature_summary.特征类型 应按 raw/derived 填充为 原始/衍生'
+    )
+    fs_credit = r_credit['llm_report_data']['feature_summary']
+    assert set(fs_credit['特征类型']) == {''}, (
+        'credit 型（不传 raw/derived）LLM feature_summary.特征类型 应保持全空串（历史行为）'
     )
     # 核心列在两侧都必须在（下游 query/visualize 依赖）
     for col in ('特征名称', 'IV可信度'):
@@ -173,3 +191,13 @@ def test_run_generic_pipeline_api_reaches_export(tmp_path, monkeypatch):
     res_dir = tmp_path / 'data' / 'results' / pname
     assert (res_dir / f'{pname}_综合特征分析结果.csv').exists()
     assert (res_dir / f'{pname}_IV分析结果_全量.csv').exists()
+
+    # 对外文件级锁：generic 传了 raw/derived → 落盘的综合表必须带 特征类型 列
+    # （raw/derived 透传断掉时该列静默消失，这里在磁盘契约层面把它锁死）
+    comp_csv = pd.read_csv(
+        res_dir / f'{pname}_综合特征分析结果.csv', encoding='utf-8-sig',
+    )
+    assert '特征类型' in comp_csv.columns, '落盘综合表丢失 特征类型 列（raw/derived 透传回归？）'
+    assert set(comp_csv['特征类型'].fillna('')) <= {'原始', '衍生'}, (
+        '落盘综合表 特征类型 取值异常（RAW∪DERIVED 全覆盖下不应有空值）'
+    )
