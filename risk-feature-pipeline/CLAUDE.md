@@ -43,9 +43,9 @@
 | 5 拆 `result_query`（样板） | ✅ 已完成（commit `577157e`；217→**223 passed**，+6 独立性锁；新增薄 `__main__`（不参与 argspec、不进 agent 模板），cmd_explore 的 `load_results` 改从 `risk_core` 取→全仓唯一 importer=cmd_query；五把锁：AST 红线/唯一 importer/`python -m` 端到端/子进程 import 隔离/**运行时 sys.modules 隔离**（对抗审查发现 importlib 字符串式动态 import 可逃逸静态锁，补锁并变异实验验证）；--help 10/10 逐字节一致） |
 | 6 拆 docx_report / trigger / data_prep | ✅ 已完成（5 commit；227→**235 passed**；`432b462` 6a=§5.1 前导零真 bug 修复——实测丢失点有两处：prepare_df 三处源头读 + prepared.csv 往返，写点/四读点收敛 contracts.write/read_prepared、trigger 读点移到 id_col 解析后，四把契约锁（往返/容错/features.json 15键 schema/前导零 e2e）+变异实验×2；`9513f58`/`6564296`/`0e3494d` 6b-6d=三 skill import 切 risk_core + `test_unit_skill_independence.py` 参数化独立性锁（AST 红线+进程隔离）；`f6cd812` 6e=对抗审查确认 2 major 补修：credit 链路源头读补对称 dtype 锁（gsfc 早已锁、credit 是唯一残留，静默漏标已复现）+ merge 路径变异逃逸补锁，变异实验×2 验证） |
 | 7 拆 visualization / threshold_explore | ✅ 已完成（commit `56f2761`+`1dfb1e7`；235→**239 passed**；两 skill import 全量切 risk_core，§5.7 文件名手拼（规则表/候选阈值表×写读两端）收敛 contracts.RESULT_FILE_TEMPLATE，INDEPENDENT_SKILLS 达 6 个；**批次 B 收官验收全过**：红线1 内核零子 skill import、红线2 六独立 skill 零 risk_pipeline/横向依赖（AST 级机器化）、--help 10/10 字节一致、e2e 真跑 visualize 8 张 PNG、对抗审查 0 缺陷（模板 13 极端值等价/config 同对象/写读往返实测）） |
-| 8 references/ 懒加载文档（可并行） | ⬜ **下一步** |
-| 9（可选）修 state_dir 发散 | ⬜ |
-| 10（可选·可砍）内核去重 | ⬜ |
+| 8 references/ 懒加载文档（可并行） | ✅ 已完成（commit `2d203d9`；239→**243 passed**，+4 纯 grep 文档锁；references/ 13 文件（_index 路由 + blocking-gates/paths-env/levels + 9 张 cli 卡），AGENTS.md 358→148 行，12 子 SKILL 加「何时读我」，消 50/70 漂移（上层 CLAUDE.md+PRD ×4 处，测试锁死并当场抓到存量漂移）+ 征信/ 层级描述修正；冷启动 eval 4 任务全通、硬断链 0、单任务阅读量 ~26KB→~300 行；零运行时代码。**批次 C 完成；必做批次 A/B/C 全部收官**） |
+| 9（可选）修 state_dir 发散 | ⬜ 可选（改 credit/gsfc state 落盘位置属用户可见行为变化，建议先确认再做） |
+| 10（可选·可砍）内核去重 | ⬜ 可选·可砍 |
 
 > 完成一个阶段后，把对应行改成 ✅ 并一句话记结果（commit hash / 新增用例）。批次：**A(1→4) 必做 → B(5→7) 拆分 → C(8) 可并行 → D(9,10) 可选**。
 
