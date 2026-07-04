@@ -30,6 +30,7 @@ INDEPENDENT_SKILLS = [
     'risk_data_prep',
     'risk_trigger_extraction',
     'risk_docx_report',
+    'risk_visualization',
 ]
 
 
