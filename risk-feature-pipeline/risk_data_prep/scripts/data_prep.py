@@ -37,7 +37,10 @@ def load_credit_data(project_root=None):
     for name, rel_path in data_config.items():
         full_path = os.path.join(project_root, rel_path)
         if os.path.exists(full_path):
-            data[name] = read_csv_auto_encoding(full_path)
+            # §5.1 主键 str 契约：与 risk_core.io_utils.load_data:49（gsfc 链路）对称。
+            # 不锁则 '00123' 被推断成 int，_clean_id 无法找回前导零；若各表推断
+            # 形态不一（如坏客户表混入字母数字 ID 而保留 str），isin 静默漏标。
+            data[name] = read_csv_auto_encoding(full_path, dtype={COL_CUSTOMER_ID: str})
             print(f"  {name}: {data[name].shape}")
         else:
             print(f"  [警告] {name} 文件不存在: {full_path}")

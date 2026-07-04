@@ -173,3 +173,72 @@ def test_trigger_e2e_preserves_leading_zero_ids(leading_zero_workdir, tmp_path):
         f'trigger 宽表客户编号未保住前导零（§5.1 回归）：'
         f'样例 {sorted(got)[:3]} vs 期望 {sorted(leading_zero_workdir["ids"])[:3]}'
     )
+
+
+# ---------------------------------------------------------------------------
+# 锁4：credit 链路源头读（阶段6 对抗审查确认的同族残留，data_prep.py 读点）
+# ---------------------------------------------------------------------------
+
+def test_credit_load_preserves_leading_zero_ids(tmp_path):
+    """credit 链路 load_credit_data 必须锁主键 str（与 gsfc load_data 对称）。
+
+    审查复现的静默漏标场景：客户信息主键全数字（'00123' → int 推断 → '123'），
+    坏客户标记混入一个字母数字 ID（→ object 推断 → '00123' 原样保留）——
+    两表 _clean_id 后互不命中，is_bad 全 0 且无任何报错。
+    """
+    raw = tmp_path / 'data' / 'raw'
+    raw.mkdir(parents=True)
+    (raw / '客户信息.csv').write_text(
+        '客户编号,企业规模,授信总金额\n00123,小型企业,100\n00456,中型企业,200\n00789,大型企业,300\n',
+        encoding='utf-8-sig')
+    (raw / '坏客户标记.csv').write_text(
+        '客户编号\n00123\nA9999\n', encoding='utf-8-sig')
+
+    from risk_data_prep.scripts.data_prep import (
+        load_credit_data, prepare_credit_wide_table,
+    )
+    data = load_credit_data(project_root=str(tmp_path))
+    df, _summary = prepare_credit_wide_table(
+        {k: v for k, v in data.items() if v is not None})
+
+    assert int(df['is_bad'].sum()) == 1, (
+        'credit 前导零主键静默漏标（data_prep 源头读丢 dtype 锁？）')
+    assert '00123' in set(df['客户编号'].astype(str)), (
+        f"credit 宽表主键丢前导零：{sorted(set(df['客户编号'].astype(str)))[:3]}")
+
+
+# ---------------------------------------------------------------------------
+# 锁5：merge 补充表路径（阶段6 对抗审查实测的变异逃逸补锁）
+# ---------------------------------------------------------------------------
+
+def test_merge_table_preserves_leading_zero_keys(tmp_path):
+    """prepare_df 三处源头读中 merge 补充表曾是唯一无承重锁的一处：
+    删其 dtype 后 233 用例仍全绿（实测逃逸）。本锁：宽表+补充表主键均为
+    带前导零纯数字 → left-join 后分群维度不得有 NaN。变异下补充表键失去
+    前导零 → 0 匹配撞 prepare_df 的响亮 ValueError（红）。"""
+    from risk_data_prep.scripts.prepare_df import prepare_df
+
+    n = 8
+    ids = [f'{i:05d}' for i in range(1, n + 1)]
+    wide = pd.DataFrame({
+        '客户编号': ids,
+        'feat_1': range(n),
+        'feat_2': [x * 1.5 for x in range(n)],
+        'is_bad': [1, 0, 1, 0, 0, 0, 1, 0],
+    })
+    dims = pd.DataFrame({
+        '客户编号': ids,
+        '企业规模': ['小型企业', '中型企业'] * (n // 2),
+    })
+    wide_path = tmp_path / 'wide.csv'
+    dims_path = tmp_path / 'dims.csv'
+    wide.to_csv(wide_path, index=False, encoding='utf-8-sig')
+    dims.to_csv(dims_path, index=False, encoding='utf-8-sig')
+
+    df, _cols = prepare_df(
+        str(wide_path), None, id_col='客户编号', target_col='is_bad',
+        merge_table_path=str(dims_path),
+    )
+    assert df['企业规模'].notna().all(), (
+        'merge 补充表主键前导零丢失 → left-join 部分/全部 NaN（§5.1 同族静默损坏）')
+    assert set(df['客户编号']) == set(ids)
