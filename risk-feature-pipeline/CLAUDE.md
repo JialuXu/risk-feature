@@ -36,8 +36,8 @@
 | 阶段 | 状态 |
 |---|---|
 | 0 基线存档 | ✅ 已完成（196 passed，见 §2） |
-| 1 抽 `risk_core` + 立 `contracts.py` | ⬜ **下一步（从这里开始）** |
-| 2 命令拆包 + 入口保号 | ⬜ |
+| 1 抽 `risk_core` + 立 `contracts.py` | ✅ 已完成（commit `b91c2a9`；196→**201 passed**，+5 不变量锁；6 底座+results_loader 平移，contracts.py 立 §5 单一真源，`risk_pipeline` 转模块别名 shim，2 条跨 skill import 消除；3 路对抗性审计通过） |
+| 2 命令拆包 + 入口保号 | ⬜ **下一步（从这里开始）** |
 | 3 `assemble_exports()` 去重 | ⬜ |
 | 4 argspec 单一注册表 | ⬜ |
 | 5 拆 `result_query`（样板） | ⬜ |
