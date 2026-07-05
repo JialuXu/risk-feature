@@ -64,6 +64,7 @@ risk-pipeline = "risk_mining.cli:main"
 include = [
     "risk_core*",
     "risk_mining*",
+    "risk_legacy_chains*",
     "risk_pipeline*",
     "shared*",
     "risk_data_prep*",
