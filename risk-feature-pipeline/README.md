@@ -27,6 +27,8 @@ risk-pipeline run --pipeline generic --wide data/raw/x.csv \
   --id-col 客户编号 --target-col is_bad --project 我的项目 --confirmed-new-dataset
 ```
 
+> **不做 pip 安装也能跑**（如技能包直接拷贝部署）：`PYTHONPATH=<仓库根> python -m risk_pipeline ...`，或直接在仓库根目录下 `python -m risk_pipeline ...`。代码可导入性与数据落点是两件事，详见 [`references/paths-env.md`](references/paths-env.md)。
+>
 > **默认配置随包分发**：`risk_core/config/default.yaml`（阈值 / IV 参数 / 路径）与 `risk_core/config/column_mapping.yaml`（字段映射）已打进 wheel，安装后自动加载，不需要仓库目录布局。
 >
 > **docx 报告不在 pip 范围**：`report` 子命令渲染 `.docx` 依赖 Node.js + 内置 `.js` 渲染器 + `report-prompt.md`（仓库相对布局），pip 安装不包含这些。需要正式 Word 报告时，用技能包发布（`python release/pack.py`）部署完整目录树，并另装 Node（`cd risk_docx_report && npm ci`）。分析链路与出图不受影响。
@@ -94,7 +96,8 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 ## 集成改造要点
 
-- 新银行或新数据源接入：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
+- 新银行或新数据源**长期接入**（开发仓库维护动作）：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
+- **一次性分析某份列名不同的数据**：不要改 YAML（沙盒/安装模式下等于改写随包分发的默认配置），走 CLI flag——`--id-col` / `--target-col` / `--category-dims <实际列名>`，预检拦截时加 `--skip-preflight` 放行。
 - `prepare` 是数据进入链路的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
 - `trigger` 会进入客户级运营结果，必须在 Level 1 后执行，并显式确认 features 配置。

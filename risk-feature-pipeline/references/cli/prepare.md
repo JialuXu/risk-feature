@@ -21,5 +21,7 @@ python -m risk_pipeline prepare \
 - `--id-col` / `--target-col` 传错会静默通过但目标列语义错误——阻断节点 1 就是为此设的，认真核对。
 - `--filter-file` 的 `exclude` / `include` 逻辑相反，别混。
 - 列名预检：`column_mapping.yaml` 的分群维度在宽表 0% 命中时 CLI 直接 exit 1 并列出实际列；
-  处理：改 YAML 重跑（最常用）/ analyze 传 `--category-dims` / 有意全样本加 `--skip-preflight`。
+  处理：加 `--skip-preflight` 放行 + analyze/run 传 `--category-dims <实际列名>`（最常用，不改配置文件）/
+  有意只跑全样本则单加 `--skip-preflight`。编辑 `risk_core/config/column_mapping.yaml` 仅限开发仓库
+  长期接入新数据源——**沙盒/安装模式禁止改随包分发的默认配置**（污染其它数据集的运行）。
 - 主键契约：prepared.csv 读写强制主键 str（保前导零），源头读也已锁——不要绕过 CLI 手写合并。
