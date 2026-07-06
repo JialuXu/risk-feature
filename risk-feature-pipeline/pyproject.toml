@@ -29,6 +29,7 @@ dependencies = [
     "scipy>=1.9,<2",
     "pyyaml>=6.0",
     "optbinning>=0.19",
+    "joblib>=1.1",       # rule_extraction 直接 import（dump 决策树模型），不只靠 sklearn 间接带
 ]
 
 [project.optional-dependencies]
@@ -86,6 +87,11 @@ exclude = [
     "output*",
     "skills*",
 ]
+
+# 非 .py 资产随 wheel 分发：默认阈值 + 列映射模板（config/ 已并入 risk_core/）。
+# setuptools 的 packages.find 只装包内 .py，故这里显式声明 package-data。
+[tool.setuptools.package-data]
+risk_core = ["config/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -76,7 +76,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 |---|---|---|
 | 字段是否存在 | 读 `df.columns` 或 CSV 表头，不猜测 | `ColumnMapper.detect_qual_cols(df.columns)` 自动推断分群维度 |
 | 结果文件是否已生成 | 检查 `data/results/<project_name>/` 目录是否有 `*_IV分析结果_全量.csv` | 提示用户先跑 `export`，不允许用空结果假装有数据 |
-| 列映射是否正确 | `df.columns` 与 `config/default.yaml`/`config/column_mapping.yaml` 中的 `customer_id` / `target` 做交集验证 | 字段对不上时硬错并提示用户，不允许悄悄回退到默认列名 |
+| 列映射是否正确 | `df.columns` 与 `risk_core/config/default.yaml`/`risk_core/config/column_mapping.yaml` 中的 `customer_id` / `target` 做交集验证 | 字段对不上时硬错并提示用户，不允许悄悄回退到默认列名 |
 
 **任何情况下不允许的退路：** 假设字段存在后继续执行。错误必须在 `prepare` 阶段暴露，不能延迟到 `analyze` / `export` 内部。
 
@@ -84,7 +84,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 ## 四之二、配置覆盖
 
-本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。需要调整阈值 / 字段映射 / IV 参数时，直接编辑 `config/default.yaml` 与 `config/column_mapping.yaml` 后重跑；prepare 时如有差异通过 `--id-col` / `--target-col` / `--bad-id-col` 直接传。
+本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。需要调整阈值 / 字段映射 / IV 参数时，直接编辑 `risk_core/config/default.yaml` 与 `risk_core/config/column_mapping.yaml` 后重跑；prepare 时如有差异通过 `--id-col` / `--target-col` / `--bad-id-col` 直接传。
 
 新银行 / 新数据集接入时，prepare 阶段会自动做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` 与 `credit_category_dims` 在宽表中均 0% 命中，CLI 直接 exit 1 并列出实际列（处理方式见 `references/cli/prepare.md` 雷区段）。
 
