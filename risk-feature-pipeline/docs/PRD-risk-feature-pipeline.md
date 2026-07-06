@@ -845,10 +845,21 @@ cat data/results/新行业_v1/新行业_v1_audit.json
 
 > 我们行的字段命名跟默认不一样，主键叫"客户号"、目标列叫"是否不良"。
 
-**CLI 路径（推荐）**：直接覆盖 `risk_core/config/column_mapping.yaml` / `risk_core/config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
+**CLI 路径（推荐，适配当前这份数据）**：字段名差异一律走 flag，不改任何配置文件——CLI 不接受 `--config` / `--columns-file` 运行时切换，但主键/目标/分群列都能直接传：
+
+```bash
+python -m risk_pipeline run --pipeline generic \
+  --wide /abs/宽表.csv --id-col 客户号 --target-col 是否不良 \
+  --category-dims <实际分群列> --project <项目名> \
+  --skip-preflight --confirmed-new-dataset   # 分群列与默认 YAML 不同 → 加 --skip-preflight 放行预检
+```
+
+prepare 阶段除阻断节点 1 之外，还会做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` / `credit_category_dims` 在宽表中完全缺失，CLI 会硬错并列出实际列名（处理见 `references/cli/prepare.md` 雷区段：加 `--skip-preflight` + `--category-dims`）。
+
+**编辑随包 YAML 属开发仓库维护动作（长期接入新银行/新数据源），不在一次性分析里做**：改 `risk_core/config/column_mapping.yaml` / `default.yaml` 会改写随包分发的默认配置，沙盒/skill 安装模式下会污染其它数据集的运行——仅当把某行长期设为默认时才在开发仓库改。
 
 ```yaml
-# 直接编辑 risk_core/config/column_mapping.yaml
+# 开发仓库长期接入：编辑 risk_core/config/column_mapping.yaml
 required:
   customer_id: "客户号"
   target: "是否不良"
@@ -857,8 +868,6 @@ required:
 thresholds:
   min_samples: 30
 ```
-
-prepare 阶段除阻断节点 1 之外，还会做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` / `credit_category_dims` 在宽表中完全缺失，CLI 会硬错并列出实际列名，避免下游分群分析全空跑。
 
 **Python API 路径（高级用法）**：当不走 CLI、直接在 notebook 调研时，可以传入自定义路径深度合并：
 
