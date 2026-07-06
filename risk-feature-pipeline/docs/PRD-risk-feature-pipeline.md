@@ -161,7 +161,7 @@
 横切机制：
 
 1. **项目状态档案 `.pipeline_state.json`**：记录每次执行的参数、产物、Level 推进、数据集指纹。
-2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）来自 `config/default.yaml`，用户 YAML 深度合并覆盖。
+2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）来自 `risk_core/config/default.yaml`，用户 YAML 深度合并覆盖。
 3. **路径可移植**：`RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 环境变量优先；写盘失败时给出清晰解决路径。
 4. **三处阻断节点**：在不可逆动作前强制确认。
 
@@ -650,7 +650,7 @@ LLM 已基于 `_LLM报告数据.json` 写好一份 Markdown 正文；`risk_docx_
 ### 4.3 配置驱动
 
 - **唯一 Python 配置源**：`risk_pipeline/config.py`。
-- **YAML 数据源**：`config/default.yaml` + `config/column_mapping.yaml`。
+- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`。
 - **多银行适配**：用户写一份覆盖 YAML，深度合并默认值。
 - **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异。
 
@@ -676,7 +676,7 @@ column_mapping:
 
 ### 4.5 样本量阈值统一
 
-所有样本准入门槛集中在 `config/default.yaml`：
+所有样本准入门槛集中在 `risk_core/config/default.yaml`：
 
 | 阈值 | 默认 | 用途 |
 |---|---|---|
@@ -845,15 +845,15 @@ cat data/results/新行业_v1/新行业_v1_audit.json
 
 > 我们行的字段命名跟默认不一样，主键叫"客户号"、目标列叫"是否不良"。
 
-**CLI 路径（推荐）**：直接覆盖 `config/column_mapping.yaml` / `config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
+**CLI 路径（推荐）**：直接覆盖 `risk_core/config/column_mapping.yaml` / `risk_core/config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
 
 ```yaml
-# 直接编辑 config/column_mapping.yaml
+# 直接编辑 risk_core/config/column_mapping.yaml
 required:
   customer_id: "客户号"
   target: "是否不良"
 
-# 或编辑 config/default.yaml
+# 或编辑 risk_core/config/default.yaml
 thresholds:
   min_samples: 30
 ```

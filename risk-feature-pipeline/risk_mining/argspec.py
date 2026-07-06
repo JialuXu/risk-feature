@@ -88,6 +88,8 @@ SPECS = {
             'help': '[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit'}},
         {'opts': ('--skip-preflight',), 'kwargs': {
             'action': 'store_true',
+            # 注意：config/ 已迁到 risk_core/config/，但此 help 串刻意保留旧写法，
+            # 以维持 `prepare`/`run --help` 字节不变（铁律2 冻结 --help）。勿改此路径。
             'help': '跳过 column_mapping.yaml 与宽表的字段映射预检（仅当你确认只跑全样本、'
                     '不需要分群分析时使用；否则建议先编辑 config/column_mapping.yaml）'}},
     ],

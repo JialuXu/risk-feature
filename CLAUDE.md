@@ -273,7 +273,7 @@ pytest -k smoke                                 # 仅 smoke
 All configuration is centralized and YAML-driven:
 
 - **唯一 Python 配置源**: `risk-feature-pipeline/risk_pipeline/config.py` — 所有模块 `from risk_pipeline.config import *`（旧 `shared/config.py` 已是转发 shim）
-- **YAML 数据源**: `config/default.yaml` + `config/column_mapping.yaml`（IV 可信度阈值见 `iv.credibility`）
+- **YAML 数据源**: `risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（IV 可信度阈值见 `iv.credibility`）
 - **各子模块 `scripts/config.py`**: 仅 `from risk_pipeline.config import *` + 模块专属常量
 - **用户覆盖**: 只覆盖差异项的自定义 YAML；其余自动回退默认值
 
@@ -292,7 +292,7 @@ mapper.detect_qual_cols(df.columns)
 
 ### Sample Thresholds
 
-Centralized in `config/default.yaml` (Python: `shared.config`):
+Centralized in `risk_core/config/default.yaml` (Python: `shared.config`):
 
 | Threshold | Value | Purpose |
 |-----------|-------|---------|
@@ -373,7 +373,7 @@ column_mapping:
 
 ## Data Paths
 
-All data paths are configurable via `config/default.yaml`. Defaults:
+All data paths are configurable via `risk_core/config/default.yaml`. Defaults:
 
 - `data/raw/` — Source data (read-only)
 - `data/processed/` — Cleaned intermediate data

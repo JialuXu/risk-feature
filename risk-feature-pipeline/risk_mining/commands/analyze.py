@@ -89,7 +89,7 @@ def cmd_analyze(args) -> int:
             _err(
                 f'[analyze] --category-dims 中以下列在 prepared.csv 不存在: {invalid}\n'
                 f'  prepared.csv 前 30 列: {prepared_cols[:30]}{hint}\n'
-                '  建议: 编辑 config/column_mapping.yaml 后重跑 prepare，或直接传实际列名'
+                '  建议: 编辑 risk_core/config/column_mapping.yaml 后重跑 prepare，或直接传实际列名'
             )
     else:
         # 自动检测路径：若 prepare 阶段命中率为 0，提示用户分析会退化到全样本
@@ -102,7 +102,7 @@ def cmd_analyze(args) -> int:
                     print(
                         '⚠️ [analyze] features.json 显示 segment_dims 自动检测为空；'
                         '本次分析将仅在全样本范围进行，不会有分群对比。'
-                        '如需分群，请编辑 config/column_mapping.yaml 后重跑 prepare，'
+                        '如需分群，请编辑 risk_core/config/column_mapping.yaml 后重跑 prepare，'
                         '或直接给 analyze 传 --category-dims <实际列名>。',
                         file=sys.stderr,
                     )

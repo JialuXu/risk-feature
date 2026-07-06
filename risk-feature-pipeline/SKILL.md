@@ -44,7 +44,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 | 链路 | 何时选 |
 |---|---|
 | `generic` | 用户已给宽表 CSV，不想重走内置数据准备（最常用） |
-| `credit` | 跑征信主题，数据走 `config/` 默认路径；要求内置数据已按 `config/default.yaml` 布局放在项目根下（沙盒里默认没有，只有 `generic` 开箱可用） |
+| `credit` | 跑征信主题，数据走 `config/` 默认路径；要求内置数据已按 `risk_core/config/default.yaml` 布局放在项目根下（沙盒里默认没有，只有 `generic` 开箱可用） |
 | `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径；同上要求内置数据存在 |
 
 ---
