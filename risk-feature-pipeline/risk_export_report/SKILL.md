@@ -3,6 +3,8 @@ name: risk_export_report
 description: 分析结果导出与报告读取技能：标准 CSV、综合汇总表、LLM JSON/CSV、分群画像、核心发现提炼，以及结果文件的真实导出契约与推荐读取顺序。
 ---
 
+> **何时读我**：只有需要导出装配/LLM JSON 结构细节时才读本文件；常规导出走 `python -m risk_pipeline export`（见 `references/cli/export.md`）。
+
 ## 先读这里
 
 本 Skill 不只负责"导出"，也是**读结果的契约文档**：

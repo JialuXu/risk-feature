@@ -17,7 +17,8 @@ _SKILL_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _SKILL_ROOT not in sys.path:
     sys.path.insert(0, _SKILL_ROOT)
 
-from risk_result_query.scripts.results_loader import load_results, Results
+from risk_core.contracts import RESULT_FILE_TEMPLATE
+from risk_core.results_loader import load_results, Results
 
 # matplotlib / seaborn 是可视化的硬依赖；缺失时给出可执行的安装提示，
 # 避免用户面对一大堆 traceback 不知道该装什么。
@@ -61,7 +62,8 @@ def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
     for base in (results.results_dir, results.output_dir):
         if not base:
             continue
-        path = os.path.join(base, f'{results.project_name}_风险规则表.csv')
+        path = os.path.join(base, RESULT_FILE_TEMPLATE.format(
+            project=results.project_name, type='风险规则表'))
         if os.path.isfile(path):
             for enc in ('utf-8-sig', 'utf-8', 'gbk'):
                 try:
@@ -73,7 +75,7 @@ def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
 
 def _load_csv_by_suffix(results: Results, suffix: str) -> Optional[pd.DataFrame]:
     """通用：按 `{project}_{suffix}.csv` 在 results_dir / output_dir 找并读取。"""
-    fname = f'{results.project_name}_{suffix}.csv'
+    fname = RESULT_FILE_TEMPLATE.format(project=results.project_name, type=suffix)
     for base in (results.results_dir, results.output_dir):
         if not base:
             continue
@@ -128,9 +130,9 @@ def generate_charts(
     elif r.output_dir:
         chart_dir = Path(r.output_dir) / 'charts'
     else:
-        from risk_pipeline.paths import output_dir as _output_dir_for
+        from risk_core.paths import output_dir as _output_dir_for
         chart_dir = Path(_output_dir_for(project_name)) / 'charts'
-    from risk_pipeline.paths import ensure_writable_dir
+    from risk_core.paths import ensure_writable_dir
     ensure_writable_dir(chart_dir)
 
     rules_df = _load_rules_csv(r)

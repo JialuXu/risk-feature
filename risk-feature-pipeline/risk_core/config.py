@@ -3,7 +3,7 @@
 风险特征分析流水线 - 共享配置（唯一数值来源）
 
 所有模块通过 from risk_pipeline.config import ... 引用此文件。
-配置值从 config/default.yaml 和 config/column_mapping.yaml 加载，
+配置值从 risk_core/config/default.yaml 和 risk_core/config/column_mapping.yaml 加载，
 Python 接口与改造前完全一致，保证向后兼容。
 """
 import os

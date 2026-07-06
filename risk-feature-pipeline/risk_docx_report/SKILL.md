@@ -3,6 +3,8 @@ name: risk_docx_report
 description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 docx 生成能力产出正式 Word 报告。用户要把最终分析结果整理成 `.docx` 交付件时使用。
 ---
 
+> **何时读我**：只有需要渲染器/docx 校验脚本配置细节时才读本文件；常规出报告走 `python -m risk_pipeline report`（见 `references/cli/report.md`，对外交付先过阻断节点 3）。
+
 # Risk DOCX Report（→ Level 3）
 
 > **这是分析链路的最后一跳（正式交付），agent 走 CLI：**
@@ -32,9 +34,13 @@ description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 doc
 - **模板**：仓库根 `report-prompt.md`（定义章节、写作风格、数据引用与业务建议口径）
 - **正文**：推荐由大模型先输出为 Markdown（纯文本会丢标题/表格结构）
 
+## 运行依赖
+
+- 需要 `node` 可执行文件（建议 >= 16）+ `docx` npm 包：`risk_docx_report/node_modules/` 随包分发；缺失时在 `risk_docx_report/` 目录执行 `npm install`。缺 node 会在渲染前抛带提示的 RuntimeError。
+
 ## 关于 docx 校验
 
-`build_docx_report` 会尝试调 `skills/skills/docx/scripts/office/validate.py` 校验，但**该仓库已不含 `skills/` 目录，校验会自动跳过并打 `[WARN] 未找到校验脚本`**——属预期行为，不是报错。需要校验时自行提供该脚本，或用 `--skip-validate` 显式跳过。
+`build_docx_report` 默认找本机开发布局的兄弟目录 `skills/skills/docx/scripts/office/validate.py` 校验；找不到时**自动跳过并打 `[WARN] 未找到校验脚本`**——属预期行为，不是报错。需要校验时用环境变量 `RISK_DOCX_VALIDATE_SCRIPT=<validate.py 路径>` 指定脚本，或用 `--skip-validate` 显式跳过。
 
 ## 操作规则
 

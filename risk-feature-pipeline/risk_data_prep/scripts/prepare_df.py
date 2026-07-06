@@ -29,15 +29,20 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import pandas as pd
 
 
-def _read_csv_robust(path: str) -> pd.DataFrame:
-    """兼容 utf-8-sig / utf-8 / gbk 的读取。"""
+def _read_csv_robust(path: str, dtype=None) -> pd.DataFrame:
+    """兼容 utf-8-sig / utf-8 / gbk 的读取。
+
+    dtype 用于把主键列锁成 str（§5.1）：若不锁，'00123' 会被推断成 int 123，
+    之后 astype(str) 只能得到 '123'——前导零在源头就没了。pandas 对 dtype
+    里不存在的列名静默忽略，故主键列名尚未校验时传入也安全。
+    """
     for enc in ('utf-8-sig', 'utf-8', 'gbk', 'gb18030'):
         try:
-            return pd.read_csv(path, encoding=enc)
+            return pd.read_csv(path, encoding=enc, dtype=dtype)
         except UnicodeDecodeError:
             continue
     # 最后兜底
-    return pd.read_csv(path, encoding='latin1')
+    return pd.read_csv(path, encoding='latin1', dtype=dtype)
 
 
 def prepare_df(
@@ -88,13 +93,13 @@ def prepare_df(
           - df 已打好 target_col 标签并按 filter 过滤
           - feature_cols 为自动识别的数值型特征列（剔除 id/target/指定排除/零方差）
     """
-    df = _read_csv_robust(wide_path)
+    df = _read_csv_robust(wide_path, dtype={id_col: str})
 
     # 可选：左连接一张维度/补充表（如分群维度在另一张 CSV）。
     # 在主键上 left-join，免去每个 agent 手抄 pandas merge（AGENTS.md 禁止手抄合并）。
     if merge_table_path is not None:
-        merge_df = _read_csv_robust(merge_table_path)
         mkey = merge_id_col or id_col
+        merge_df = _read_csv_robust(merge_table_path, dtype={mkey: str})
         if id_col not in df.columns:
             raise ValueError(f"宽表缺少主键列 {id_col!r}；实际列：{list(df.columns)[:20]}...")
         if mkey not in merge_df.columns:
@@ -143,8 +148,8 @@ def prepare_df(
             )
 
     if bad_customer_path is not None:
-        bad_df = _read_csv_robust(bad_customer_path)
         key = bad_id_col or id_col
+        bad_df = _read_csv_robust(bad_customer_path, dtype={key: str})
         if key not in bad_df.columns:
             raise ValueError(f"坏客户清单缺少主键列 {key!r}；实际列：{list(bad_df.columns)}")
         if id_col not in df.columns:

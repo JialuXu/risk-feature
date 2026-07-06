@@ -22,7 +22,7 @@ class ColumnMapper:
         """
         参数:
             config_path: 字段映射配置文件路径（可选）。
-                如果不提供，使用 config/column_mapping.yaml 默认值。
+                如果不提供，使用 risk_core/config/column_mapping.yaml 默认值。
         """
         self._mapping = load_column_mapping(config_path)
 
