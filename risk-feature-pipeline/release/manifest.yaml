@@ -1,0 +1,144 @@
+# risk-feature-pipeline 技能发布清单
+# 用途：从开发仓库按本文件拉取文件，打成可部署到沙盒 / 正式 agent 环境的发布包。
+# 执行：python release/pack.py [--profile <name>] [--out <dir>] [--archive]
+#
+# 设计原则：
+#   - 代码与数据分离：包内不含 data/、output/（运行时走 RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT）
+#   - agent 必读文档全收：SKILL.md、AGENTS.md、references/、各子 SKILL.md
+#   - 开发/internal 文档不收：docs/、CLAUDE.md、tests/、VALIDATION_NOTES.md
+#   - node_modules 不收：发布后在目标环境 npm ci 安装（见 post_install）
+
+schema_version: 1
+
+skill:
+  name: risk-feature-pipeline
+  # 版本号以 pyproject.toml [project].version 为准；打包时自动读取
+  version_source: pyproject.toml
+
+# 发布配置档（默认 agent-runtime = 沙盒→正式 agent 全功能包）
+profiles:
+  agent-runtime:
+    description: >
+      沙盒 / 正式 agent 默认发布包。覆盖 prepare→analyze→export→query→
+      visualize→trigger→explore_thresholds→report 全 CLI；含可视化与 Word 报告依赖声明。
+    pip_install: editable
+    pip_extras:
+      - viz
+    node_install:
+      - directory: risk_docx_report
+        command: npm ci --omit=dev
+
+  agent-core:
+    description: >
+      最小运行包：不含 visualize/report 的 pip 可选依赖与 Node 安装步骤。
+      适用只需 prepare/analyze/export/query/trigger 的场景。
+    pip_install: editable
+    pip_extras: []
+    node_install: []
+
+  agent-runtime-with-schema:
+    description: agent-runtime + 对外 schema/术语参考（docs/SCHEMA.md、docs/GLOSSARY.md）
+    extends: agent-runtime
+    extra_include:
+      globs:
+        - docs/SCHEMA.md
+        - docs/GLOSSARY.md
+
+# ── 文件纳入规则（相对 risk-feature-pipeline/ 根目录）──
+
+include:
+  # 顶层固定文件（agent 路由 + 安装元数据）
+  files:
+    - SKILL.md
+    - AGENTS.md
+    - pyproject.toml
+    - README.md
+    - report-prompt.md
+
+  # 目录通配（运行时 Python 包 + agent 文档）
+  globs:
+    # 懒加载参考卡（agent 按 references/_index.md 下钻）
+    - references/**
+
+    # 组合根 + 契约底座 + 挖掘内核 + 兼容 shim（含 risk_core/config/*.yaml 默认阈值+列映射）
+    - risk_core/**
+    - risk_mining/**
+    - risk_pipeline/**
+    - risk_legacy_chains/**
+    - shared/**
+
+    # 12 个子 skill（代码 + SKILL.md + 子目录 references/）
+    - risk_data_prep/**
+    - risk_feature_engineering/**
+    - risk_segment_univariate/**
+    - risk_iv_diagnosis/**
+    - risk_logistic_regression/**
+    - risk_rule_mining/**
+    - risk_export_report/**
+    - risk_result_query/**
+    - risk_trigger_extraction/**
+    - risk_docx_report/**
+    - risk_visualization/**
+    - risk_threshold_explore/**
+
+exclude:
+  # 始终排除（与 profile 无关）
+  globs:
+    - "**/__pycache__/**"
+    - "**/*.py[cod]"
+    - "**/.pytest_cache/**"
+    - "**/.DS_Store"
+    - "**/node_modules/**"
+    - "**/.claude/**"
+    - "**/*.lock"          # 仅排除仓库级锁；见下方 allow_lock_files 白名单回补
+
+  # 目录级排除
+  dirs:
+    - tests
+    - data
+    - output
+    - docs                # 默认不收；agent-runtime-with-schema 通过 extra_include 回补
+    - dist                # 打包输出目录，避免自包含
+    - .git
+    - .pytest_cache
+
+  # 开发/internal 单文件
+  files:
+    - CLAUDE.md
+    - risk_threshold_explore/VALIDATION_NOTES.md
+
+# package-lock.json 需要打进包以便目标环境 npm ci 可复现
+allow_lock_files:
+  - risk_docx_report/package-lock.json
+
+# ── 目标环境安装与运行约定 ──
+
+runtime:
+  cli_entry: python -m risk_pipeline
+  python_min: "3.10"
+
+  # 沙盒 / skill 安装模式：代码目录与数据目录分离时必设（import config 前）
+  required_env:
+    - name: RISK_PROJECT_ROOT
+      purpose: 用户数据根（data/raw/、data/processed/ 的父目录）
+    - name: RISK_OUTPUT_ROOT
+      purpose: 可写输出根（data/results/、output/ 的父目录）
+
+  optional_env:
+    - name: RISK_DOCX_VALIDATE_SCRIPT
+      purpose: Word 报告校验脚本路径（沙盒无兄弟 skills/docx 时跳过校验）
+
+  verify_after_install:
+    - python -m risk_pipeline --help
+    - python -c "import risk_core, risk_mining, risk_pipeline; print('ok')"
+
+# profile 级 post_install 步骤（由 pack.py 写入发布包内的 INSTALL.txt）
+post_install_template:
+  shared:
+    - cd <SKILL_ROOT>
+    - python -m pip install -e .
+  per_extra:
+    viz:
+      - python -m pip install -e ".[viz]"
+  per_node:
+    - cd <SKILL_ROOT>/risk_docx_report && npm ci --omit=dev
