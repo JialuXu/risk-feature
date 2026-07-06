@@ -116,8 +116,11 @@ def cmd_prepare(args) -> int:
             f'  宽表实际可用列（前 20 个）: {list(df.columns)[:20]}\n'
             '  原因：分群字段全军覆没意味着后续分群分析会全部空跑，结果只剩全样本 IV。\n'
             '  处理方式：\n'
-            '    a) 编辑 risk_core/config/column_mapping.yaml，把 segment_dims 改成实际列名后重跑\n'
-            '    b) 若有意只跑全样本（不分群），加 --skip-preflight'
+            '    a) 分群维度列名与默认配置不同（最常见）：加 --skip-preflight 放行本步，\n'
+            '       随后 analyze/run 传 --category-dims <实际列名>（不改任何配置文件）\n'
+            '    b) 有意只跑全样本（不分群）：加 --skip-preflight\n'
+            '    c) 编辑 risk_core/config/column_mapping.yaml 仅限开发仓库长期接入新数据源；\n'
+            '       沙盒/skill 安装模式禁止改随包分发的默认配置（会污染其它数据集的运行）'
         )
 
     # 软警告：>0 但 <30% 命中 → 不阻断，stderr 提示哪几个维度可用
@@ -126,7 +129,8 @@ def cmd_prepare(args) -> int:
             f'⚠️ [配置预检] segment_dims 命中率 {seg_hit:.0%}'
             f'（实际命中 {column_audit["segment_dims"]["actual"]} / '
             f'期望 {column_audit["segment_dims"]["expected"]}）；'
-            '其余维度的分群分析将自动跳过。如需补全请编辑 risk_core/config/column_mapping.yaml。',
+            '其余维度的分群分析将自动跳过。如需补全，analyze/run 时传 --category-dims <实际列名>；'
+            '编辑 risk_core/config/column_mapping.yaml 仅限开发仓库长期适配。',
             file=sys.stderr,
         )
 
