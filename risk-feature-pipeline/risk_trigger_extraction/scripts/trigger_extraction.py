@@ -371,9 +371,9 @@ def extract_triggers(
         features = RISK_FEATURES_GSFC
 
     if output_dir is None:
-        from risk_pipeline.paths import output_dir as _output_dir_for
+        from risk_core.paths import output_dir as _output_dir_for
         output_dir = _output_dir_for(project_name)
-    from risk_pipeline.paths import ensure_writable_dir
+    from risk_core.paths import ensure_writable_dir
     ensure_writable_dir(output_dir)
 
     if verbose:

@@ -8,6 +8,29 @@
 
 可编辑源文件见 [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio)。需要调整图时，使用 draw.io / diagrams.net 打开源文件，导出同名 SVG 后保持 README 引用不变。
 
+## 安装
+
+本项目是**单一 pip 分发**（`risk-feature-pipeline`），装完提供一个 `risk-pipeline` 控制台命令（等价于 `python -m risk_pipeline`）：
+
+```bash
+pip install .            # 核心：分析链路（prepare/analyze/export/query/trigger/run）
+pip install '.[viz]'     # 追加：visualize 出图（matplotlib）
+pip install '.[dev]'     # 追加：pytest 等开发依赖
+```
+
+安装后可在**任意目录**运行；产物默认落在**当前工作目录**下的 `data/results/<project>/` 与 `output/<project>/`。要固定输入/输出位置，设两个环境变量（优先级高于自动探测）：
+
+```bash
+export RISK_PROJECT_ROOT=<数据工作区>   # 输入读自何处
+export RISK_OUTPUT_ROOT=<可写输出区>    # 结果写到何处（默认复用 PROJECT_ROOT）
+risk-pipeline run --pipeline generic --wide data/raw/x.csv \
+  --id-col 客户编号 --target-col is_bad --project 我的项目 --confirmed-new-dataset
+```
+
+> **默认配置随包分发**：`risk_core/config/default.yaml`（阈值 / IV 参数 / 路径）与 `risk_core/config/column_mapping.yaml`（字段映射）已打进 wheel，安装后自动加载，不需要仓库目录布局。
+>
+> **docx 报告不在 pip 范围**：`report` 子命令渲染 `.docx` 依赖 Node.js + 内置 `.js` 渲染器 + `report-prompt.md`（仓库相对布局），pip 安装不包含这些。需要正式 Word 报告时，用技能包发布（`python release/pack.py`）部署完整目录树，并另装 Node（`cd risk_docx_report && npm ci`）。分析链路与出图不受影响。
+
 ## 统一入口
 
 所有 agent 工作流和集成调用优先使用统一 CLI：
@@ -71,7 +94,7 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 ## 集成改造要点
 
-- 新银行或新数据源接入：直接编辑 `config/column_mapping.yaml`（字段映射）与 `config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
+- 新银行或新数据源接入：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
 - `prepare` 是数据进入链路的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
 - `trigger` 会进入客户级运营结果，必须在 Level 1 后执行，并显式确认 features 配置。

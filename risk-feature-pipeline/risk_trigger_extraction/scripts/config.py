@@ -31,7 +31,7 @@ _pipeline_root = str(Path(__file__).resolve().parent.parent.parent)
 if _pipeline_root not in sys.path:
     sys.path.insert(0, _pipeline_root)
 
-from risk_pipeline.config import (  # noqa: F401
+from risk_core.config import (  # noqa: F401
     COL_CUSTOMER_ID,
     COL_TARGET,
     MIN_SAMPLES,

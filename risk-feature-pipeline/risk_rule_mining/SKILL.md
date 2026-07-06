@@ -3,6 +3,8 @@ name: risk_rule_mining
 description: 决策树规则挖掘：从宽表产出可读风险规则（非建模），用于预警策略、审批规则与贷后触发条件设计；产出规则表含覆盖率/坏账率/Lift/稳定性
 ---
 
+> **何时读我**：只有需要决策树规则挖掘算法细节时才读本文件；常规规则挖掘在 analyze 带 `--steps ...,rules`（见 `references/cli/analyze.md`）。
+
 > **本步是 `analyze` 的可选步骤，agent 不单独跑它。** 用 CLI：
 > `python -m risk_pipeline analyze --project X --steps univariate,iv,lr,rules --category-dims <dim>` 然后 `export`
 > （或一把梭 `run --pipeline generic --steps univariate,iv,lr,rules …`）。

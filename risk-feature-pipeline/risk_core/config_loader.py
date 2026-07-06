@@ -11,7 +11,9 @@ from pathlib import Path
 import yaml
 
 
-_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config'
+# config/ 已并入 risk_core/ 包内，随 wheel 分发（见 pyproject 的 package-data）。
+# .parent = risk_core/；源码树与解压安装的 wheel 都命中 risk_core/config/。
+_CONFIG_DIR = Path(__file__).resolve().parent / 'config'
 _DEFAULT_CONFIG_PATH = _CONFIG_DIR / 'default.yaml'
 _DEFAULT_MAPPING_PATH = _CONFIG_DIR / 'column_mapping.yaml'
 

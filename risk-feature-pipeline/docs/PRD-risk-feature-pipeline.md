@@ -161,7 +161,7 @@
 横切机制：
 
 1. **项目状态档案 `.pipeline_state.json`**：记录每次执行的参数、产物、Level 推进、数据集指纹。
-2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）来自 `config/default.yaml`，用户 YAML 深度合并覆盖。
+2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）来自 `risk_core/config/default.yaml`，用户 YAML 深度合并覆盖。
 3. **路径可移植**：`RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 环境变量优先；写盘失败时给出清晰解决路径。
 4. **三处阻断节点**：在不可逆动作前强制确认。
 
@@ -504,7 +504,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 3. **二选一选取特征配置**：
    - 默认 `RISK_FEATURES_GSFC`：仅工商财务主题适用（30+ 项默认特征）。
    - 用户提供 JSON：项目专属特征列表，含 `report_name` / `source_col` / `risk_direction` / `iv` / `category` / 可选 `explicit_threshold` 与 `scope`。
-4. **匹配率守门**：默认特征匹配宽表实际列名 < 50% 时直接 `RuntimeError` 阻断（避免输出全 0 名单）。
+4. **匹配率守门**：默认特征匹配宽表实际列名 < 70% 时直接 `RuntimeError` 阻断（避免输出全 0 名单；数值单一真源 = `MIN_DEFAULT_FEATURE_MATCH_RATE`，历史上为 50%，已收紧）。
 5. **scope 维度筛选**：每个特征支持 4 种 scope 形态：
    - `'full'`（默认）：全量客户。
    - `'waist'`：仅腰部企业（兼容旧写法）。
@@ -535,7 +535,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 
 **强制规范**：
 - 阻断节点 2：必须传 `--confirmed`。
-- 默认特征匹配率 < 50% 必须阻断。
+- 默认特征匹配率 < 70% 必须阻断。
 - 不在输出中暴露客户姓名 / 证件号 / 手机号。
 
 ---
@@ -650,7 +650,7 @@ LLM 已基于 `_LLM报告数据.json` 写好一份 Markdown 正文；`risk_docx_
 ### 4.3 配置驱动
 
 - **唯一 Python 配置源**：`risk_pipeline/config.py`。
-- **YAML 数据源**：`config/default.yaml` + `config/column_mapping.yaml`。
+- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`。
 - **多银行适配**：用户写一份覆盖 YAML，深度合并默认值。
 - **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异。
 
@@ -676,7 +676,7 @@ column_mapping:
 
 ### 4.5 样本量阈值统一
 
-所有样本准入门槛集中在 `config/default.yaml`：
+所有样本准入门槛集中在 `risk_core/config/default.yaml`：
 
 | 阈值 | 默认 | 用途 |
 |---|---|---|
@@ -740,7 +740,7 @@ column_mapping:
 | 新数据集首跑未加确认 flag | 阻断节点 1 报错，列出两条确认路径 |
 | 项目 Level 1 后跑 `query` | 不重跑、不改 Level、stdout 输出表格 |
 | `analyze` 含 `rules` 后跑 `visualize` | 决策树 / 规则散点 / 指标组合都生成 |
-| `trigger` 默认特征匹配率 < 50% | RuntimeError 阻断，提示主题不匹配 |
+| `trigger` 默认特征匹配率 < 70% | RuntimeError 阻断，提示主题不匹配 |
 | `report --purpose external` 未加 final 确认 | 阻断节点 3 报错 |
 | 设置 `RISK_OUTPUT_ROOT=/tmp/out` 后跑全流程 | 所有产物落到 `/tmp/out/` 下 |
 | matplotlib 未安装时跑 `visualize` | 友好提示安装命令，不抛 traceback |
@@ -845,15 +845,15 @@ cat data/results/新行业_v1/新行业_v1_audit.json
 
 > 我们行的字段命名跟默认不一样，主键叫"客户号"、目标列叫"是否不良"。
 
-**CLI 路径（推荐）**：直接覆盖 `config/column_mapping.yaml` / `config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
+**CLI 路径（推荐）**：直接覆盖 `risk_core/config/column_mapping.yaml` / `risk_core/config/default.yaml` 即可，CLI 不接受 `--config` / `--columns-file` 运行时切换。
 
 ```yaml
-# 直接编辑 config/column_mapping.yaml
+# 直接编辑 risk_core/config/column_mapping.yaml
 required:
   customer_id: "客户号"
   target: "是否不良"
 
-# 或编辑 config/default.yaml
+# 或编辑 risk_core/config/default.yaml
 thresholds:
   min_samples: 30
 ```

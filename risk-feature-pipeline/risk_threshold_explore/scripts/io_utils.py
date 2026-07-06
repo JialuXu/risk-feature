@@ -9,6 +9,8 @@ from typing import Any, List, Tuple
 
 import pandas as pd
 
+from risk_core.contracts import RESULT_FILE_TEMPLATE
+
 
 _REQUIRED_COLS = ('分群维度', '分群名称', '特征')
 
@@ -72,8 +74,10 @@ def write_threshold_outputs(
 ) -> dict:
     """写出两张 CSV，返回 {summary_path, detail_path}。空表也写表头占位。"""
     Path(results_dir).mkdir(parents=True, exist_ok=True)
-    summary_path = os.path.join(results_dir, f'{project}_候选阈值表.csv')
-    detail_path = os.path.join(results_dir, f'{project}_候选阈值_分箱明细.csv')
+    summary_path = os.path.join(
+        results_dir, RESULT_FILE_TEMPLATE.format(project=project, type='候选阈值表'))
+    detail_path = os.path.join(
+        results_dir, RESULT_FILE_TEMPLATE.format(project=project, type='候选阈值_分箱明细'))
 
     if summary_df is None:
         summary_df = pd.DataFrame()

@@ -7,15 +7,17 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 
 本 Skill 只负责**把用户意图映射到正确的 CLI 命令**，不重写分析逻辑。用户无需说出 `credit`/`IV`/`LR` 等技术词——由本 Skill 判断。
 
-> **执行任何步骤前先读 `AGENTS.md`**：硬规矩（阻断节点、结果层次、CLI 模板全集、工具雷区、响应自检）都在那里，本文件不重复，只做路由。
+> **执行任何步骤前先读 `AGENTS.md`**：硬规矩（绝对触发/排斥、核验路径、响应自检）都在那里，本文件不重复，只做路由。命令模板/阻断节点全文/Level 定义在 `references/` 按任务懒加载——**先查 `references/_index.md` 决定读哪张卡**。
 >
 > **铁律**：agent 工作流一律走 `python -m risk_pipeline <子命令>`，**禁止**在 Bash 里 import 模块手抄代码（详见 `AGENTS.md` 一、三）。
+>
+> **沙盒/安装模式**（skill 代码目录 ≠ 数据目录）：跑任何 CLI 前先 `export RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根>`，否则产物会写进代码树（详见 `references/paths-env.md`）。
 
 ---
 
 ## 第一步：是否需要阻断？
 
-下列情况**先输出确认请求，等用户回复再继续**（文案与清单见 `AGENTS.md` 五）：
+下列情况**先输出确认请求，等用户回复再继续**（文案与清单见 `references/blocking-gates.md`）：
 
 - 用户给的是**没见过的宽表 / 切了银行配置** → 阻断节点 1（`prepare`/`run` 须带 `--confirmed-new-dataset`）
 - 要做**触碰提取**但未明确 features 配置 → 阻断节点 2（`trigger` 须带 `--confirmed`）
@@ -35,15 +37,15 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 | "画图/可视化/IV 条形图/AUC 图" | `python -m risk_pipeline visualize --project X` | Level 1 后只读出图 |
 | "生成 Word/正式报告" | `python -m risk_pipeline report --project X --report-markdown r.md --purpose internal` | 先过阻断节点 3 |
 
-> 完整命令模板（全部 flag、复杂 filter 走 `--xxx-file *.json` 等）见 `AGENTS.md` 六。
+> 完整命令模板（全部 flag、复杂 filter 走 `--xxx-file *.json` 等）见 `references/cli/<子命令>.md`。
 
 ## 第三步：全流程时选链路
 
 | 链路 | 何时选 |
 |---|---|
 | `generic` | 用户已给宽表 CSV，不想重走内置数据准备（最常用） |
-| `credit` | 跑征信主题，数据走 `config/` 默认路径 |
-| `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径 |
+| `credit` | 跑征信主题，数据走 `config/` 默认路径；要求内置数据已按 `risk_core/config/default.yaml` 布局放在项目根下（沙盒里默认没有，只有 `generic` 开箱可用） |
+| `gsfc` | 跑工商财务主题，数据走 `config/` 默认路径；同上要求内置数据存在 |
 
 ---
 
@@ -85,7 +87,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 | `risk_visualization` | IV/相关/LR/分群/规则 PNG 图表 | `visualize` | Level 1 后 |
 | `risk_docx_report` | LLM JSON → 正式 Word 报告 | `report` | **→ Level 3** |
 
-结果层次（Level 1/2/3）的达成条件与"能做/不能做"清单见 `AGENTS.md` 二。**开始执行前先告诉用户本次目标是 Level 几。**
+结果层次（Level 1/2/3）的达成条件与"能做/不能做"清单见 `references/levels.md`。**开始执行前先告诉用户本次目标是 Level 几。**
 
 ---
 

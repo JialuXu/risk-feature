@@ -8,6 +8,8 @@ data/
 node_modules/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+*.egg-info/
 .DS_Store
 
 # IDE / 工具状态目录（不入库）
@@ -16,3 +18,7 @@ __pycache__/
 
 # 本地备份与归档包（不入库）
 *.zip
+*.tar.gz
+
+# risk-feature-pipeline 发布产物（清单与打包脚本入库，dist 不入库）
+risk-feature-pipeline/dist/

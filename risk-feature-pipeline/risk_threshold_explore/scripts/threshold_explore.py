@@ -26,7 +26,7 @@ from .config import (
 
 # `Results` 仅用于类型提示，运行时按 duck-typing 取属性；避免硬依赖循环 import
 try:
-    from risk_result_query.scripts.results_loader import Results  # noqa: F401
+    from risk_core.results_loader import Results  # noqa: F401
 except Exception:  # pragma: no cover
     Results = None  # type: ignore
 
@@ -79,7 +79,7 @@ def explore_thresholds(
         df: 已经过 prepare_df 处理的宽表（含 target_col + 分群列 + 特征列）。
         pair_list: 列表，元素为 (分群维度, 分群名称, 特征)。
         project_name: 项目名，仅用于日志。
-        results: risk_result_query.load_results() 的返回值；用于推断风险方向 + 查全局 IV。
+        results: risk_core.results_loader.load_results() 的返回值；用于推断风险方向 + 查全局 IV。
                  缺省时风险方向回落到分箱跳变方向，全局 IV 记 NaN。
         target_col: 二分类目标列名。
         cfg: 覆盖 THRESHOLD_EXPLORE_CFG 的字段；CLI 用此传 --min-risk-ratio 等。

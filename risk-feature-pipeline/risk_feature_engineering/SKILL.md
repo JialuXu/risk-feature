@@ -3,6 +3,8 @@ name: risk_feature_engineering
 description: 风险特征工程：比率/占比/效率类衍生、安全除法与缩尾，并产出可分析数值特征列（内置多类主题模板，可扩展）
 ---
 
+> **何时读我**：只有需要理解或修改衍生特征公式时才读本文件；agent 常规工作流不直接调用本 skill（特征工程内嵌在 credit/gsfc 链路中）。
+
 > **本步在 `python -m risk_pipeline run --pipeline credit/gsfc` 内部自动执行，没有独立 CLI 子命令，agent 不单独跑它。**
 > `generic` 链路默认用用户宽表里已有的数值列（`prepare` 自动选列）；如需衍生比率特征，
 > 在调用 `run` 前于 notebook 造好列、并入宽表再喂 `--wide`（见文末「底层脚本」）。

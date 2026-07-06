@@ -39,7 +39,7 @@ def load_data(config, project_root):
 
     主键列按 ``COL_CUSTOMER_ID`` 以字符串读入，避免被推断成数值丢精度。
     """
-    from risk_pipeline.config import COL_CUSTOMER_ID
+    from .config import COL_CUSTOMER_ID
 
     data = {}
     for name, rel_path in config.items():

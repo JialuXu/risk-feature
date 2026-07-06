@@ -3,6 +3,8 @@ name: risk_data_prep
 description: 风险特征宽表的数据准备：主实体多表合并、清洗、二分类标签打标与分群摸底（内置企业信贷场景脚本，可替换为任意主题宽表）
 ---
 
+> **何时读我**：只有需要 Python API 级数据准备（`prepare_df` 参数细节、多表合并策略）时才读本文件；常规进数据走 `python -m risk_pipeline prepare`（见 `references/cli/prepare.md`）。
+
 > **本步是 `prepare` / `run` 的数据入口。** agent 一律走 CLI：
 > `python -m risk_pipeline prepare ...` 或 `python -m risk_pipeline run --pipeline generic ...`。
 > **禁止**在 Bash 里手抄"读宽表 + merge 坏客户 + 筛特征列"——这正是 `prepare` 封装的事。

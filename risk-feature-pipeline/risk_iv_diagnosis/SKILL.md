@@ -3,6 +3,8 @@ name: risk_iv_diagnosis
 description: IV 与可信度诊断：自适应分箱、WOE 截断、缺失分离、分群 IV、稳健性评级与可选 optbinning 阈值（适用于任意数值特征宽表）
 ---
 
+> **何时读我**：只有需要 IV/自适应分箱/可信度算法细节时才读本文件；常规分析与查询走 analyze/query CLI 卡。
+
 > **本步是 `analyze` 的一个步骤，agent 不单独跑它。** 用 CLI：
 > `python -m risk_pipeline analyze --project X --steps iv`（通常 `--steps univariate,iv,lr`）。
 > 下方为方法论与 Python API 参考。
