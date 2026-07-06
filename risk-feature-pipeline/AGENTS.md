@@ -20,7 +20,7 @@
 | "候选阈值/单变量阈值评审/给这几个 (分群,特征) 探阈值" | `python -m risk_pipeline explore_thresholds --pairs-file ...` | 手写 optbinning / 在 notebook 里散落跑 |
 | "生成 Word/正式报告" | `python -m risk_pipeline report` | 直接输出 Markdown |
 | 任何 IV > 2.0 的特征 | 标记"疑似数据穿越"并强制排除出结论推荐 | 正常纳入结论 |
-| 代码目录与数据/输出目录分离（沙盒 / skill 安装模式） | 跑任何 CLI 前先 `export RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根>`（细节见 `references/paths-env.md`） | 直接在 skill 代码目录里跑、让产物写进代码树 |
+| 代码目录与数据/输出目录分离（沙盒 / skill 安装模式） | 每条 CLI 用单行前缀 `PYTHONPATH=<本skill目录> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根> python -m risk_pipeline ...`（已 `pip install` 可省 `PYTHONPATH`；细节见 `references/paths-env.md`） | 直接在 skill 代码目录里跑、让产物写进代码树；报 `No module named risk_pipeline` 后去**猜**代码路径（必须用读到 SKILL.md 的真实目录） |
 
 ### 绝对排斥（无条件禁止，不因上下文而例外）
 
@@ -31,6 +31,7 @@
 - 输出中出现客户姓名、客户编号、手机号任意一项
 - 跳过 segment 不记录原因（必须 log "跳过：{原因}"）
 - `verbose=True`（会淹没关键错误信息，默认 `verbose=False`）
+- 为适配当前这份数据而**改写随包分发的默认配置** `risk_core/config/*.yaml`——列名差异走 `--id-col`/`--target-col`/`--category-dims`（预检拦截时加 `--skip-preflight`）；改 YAML 属开发仓库维护动作，不在分析会话内做
 
 ---
 
@@ -84,7 +85,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 
 ## 四之二、配置覆盖
 
-本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。需要调整阈值 / 字段映射 / IV 参数时，直接编辑 `risk_core/config/default.yaml` 与 `risk_core/config/column_mapping.yaml` 后重跑；prepare 时如有差异通过 `--id-col` / `--target-col` / `--bad-id-col` 直接传。
+本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。**适配当前这份数据一律走 flag**：主键/目标列差异传 `--id-col` / `--target-col` / `--bad-id-col`，分群维度差异传 `--category-dims <实际列名>`（预检拦截时加 `--skip-preflight` 放行）。编辑 `risk_core/config/default.yaml` / `risk_core/config/column_mapping.yaml` 属**开发仓库维护动作**（长期接入新银行/新数据源），不在分析会话内做——沙盒/skill 安装模式改它等于改写随包分发的默认配置，会污染其它数据集的运行。
 
 新银行 / 新数据集接入时，prepare 阶段会自动做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` 与 `credit_category_dims` 在宽表中均 0% 命中，CLI 直接 exit 1 并列出实际列（处理方式见 `references/cli/prepare.md` 雷区段）。
 

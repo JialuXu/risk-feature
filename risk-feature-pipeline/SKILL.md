@@ -11,7 +11,14 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 >
 > **铁律**：agent 工作流一律走 `python -m risk_pipeline <子命令>`，**禁止**在 Bash 里 import 模块手抄代码（详见 `AGENTS.md` 一、三）。
 >
-> **沙盒/安装模式**（skill 代码目录 ≠ 数据目录）：跑任何 CLI 前先 `export RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根>`，否则产物会写进代码树（详见 `references/paths-env.md`）。
+> **沙盒/安装模式**（skill 代码目录 ≠ 数据目录）：两个数据 env 只管产物落点，**不管 `risk_pipeline` 能否被 import**。未 `pip install` 时（沙盒常态），每条 CLI 都用单行前缀，`<本skill目录>` = 本文件所在目录——**用你读到本文件的真实路径，不要猜**：
+>
+> ```bash
+> PYTHONPATH=<本skill目录> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根> \
+>   python -m risk_pipeline <子命令> ...    # 文件参数一律传绝对路径
+> ```
+>
+> 已 `pip install` 本包时可省 `PYTHONPATH`。详见 `references/paths-env.md`。
 
 ---
 

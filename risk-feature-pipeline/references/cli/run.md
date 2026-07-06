@@ -5,14 +5,20 @@ generic 内部串 `prepare → analyze → export`；credit/gsfc 转发既有黑
 ## 全流程 generic（最常用）
 
 ```bash
-# 沙盒/安装模式：先 export RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT（见 paths-env.md），
-# 且 --wide / --bad-customer 建议传绝对路径（相对路径按 CWD 解析，不按项目根）
+# 沙盒/安装模式（未 pip install）：每条命令用单行前缀，三样都要给——
+# PYTHONPATH=<本skill目录> 让 python -m risk_pipeline 可导入，
+# RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT 定输入/输出落点（完整说明见 paths-env.md）。
+# --wide / --bad-customer 一律传绝对路径（相对路径按 CWD 解析，不按项目根）。
+PYTHONPATH=<本skill目录> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<可写输出根> \
 python -m risk_pipeline run --pipeline generic \
-  --wide data/raw/<宽表>.csv \
-  --bad-customer data/raw/<坏客户清单>.csv \
+  --wide /abs/path/<宽表>.csv \
+  --bad-customer /abs/path/<坏客户清单>.csv \
   --id-col 客户编号 --target-col is_bad \
   --project <项目名> \
   --confirmed-new-dataset      # 首次跑该数据集时必带（阻断节点 1，见 blocking-gates.md）
+# 已 pip install 本包时可省 PYTHONPATH。
+# 宽表本身已含 0/1 目标列（如 UCI 的 default.payment.next.month）时，--bad-customer 可省，
+# 只给 --target-col 指向该列即可（prepare_df 直接用，不再合并外部坏客户清单）。
 ```
 
 ## 带规则挖掘的一把梭（推荐，供 visualize 出规则/组合图）

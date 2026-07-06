@@ -88,10 +88,11 @@ SPECS = {
             'help': '[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit'}},
         {'opts': ('--skip-preflight',), 'kwargs': {
             'action': 'store_true',
-            # 注意：config/ 已迁到 risk_core/config/，但此 help 串刻意保留旧写法，
-            # 以维持 `prepare`/`run --help` 字节不变（铁律2 冻结 --help）。勿改此路径。
-            'help': '跳过 column_mapping.yaml 与宽表的字段映射预检（仅当你确认只跑全样本、'
-                    '不需要分群分析时使用；否则建议先编辑 config/column_mapping.yaml）'}},
+            # 打包/沙盒收尾（config/ → risk_core/config/ + fix B「改数据走 flag」）刻意改述此串：
+            # 旧写法指向已删的 config/column_mapping.yaml（死路径）且引导改随包 YAML，与新规矩矛盾。
+            # 本串不再冻结——改动会让 prepare/run --help 字节变化（无自动化 --help 锁，仅人工基线）。
+            'help': '跳过 column_mapping.yaml 与宽表的字段映射预检；分群列与默认不同时加本 flag '
+                    '放行，再给 analyze/run 传 --category-dims <实际列名>（不改随包配置）'}},
     ],
 
     'analyze': [

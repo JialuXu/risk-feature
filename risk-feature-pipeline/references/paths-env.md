@@ -16,6 +16,27 @@ export RISK_PROJECT_ROOT=<用户数据所在工作区>
 export RISK_OUTPUT_ROOT=<可写的输出工作区>    # 通常与上面同值
 ```
 
+## 代码位置 vs 数据位置（两件事，别混）
+
+上面两个 env 只解决**数据/产物在哪**；`python -m risk_pipeline` 能不能跑是另一件事——取决于 `risk_pipeline` 包是否在 Python 模块搜索路径上。可导入的途径只有三种：
+
+| 途径 | 何时成立 |
+|---|---|
+| CWD 恰好是 skill 代码根 | `python -m` 会把 CWD 加进 `sys.path`（开发机常态） |
+| 已 `pip install`（可 `-e`）本包 | 任意 CWD 可跑，且多一个 `risk-pipeline` 控制台命令 |
+| `PYTHONPATH` 包含 skill 代码根 | 沙盒未安装时的标准做法（见下） |
+
+沙盒里 skill 往往只是**拷贝**（未 `pip install`），而数据又在别的目录——此时从数据目录跑会报 `No module named risk_pipeline`。**标准调用模板**（单行三 env，每条 Bash 都带）：
+
+```bash
+PYTHONPATH=<skill代码根> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<输出根> \
+  python -m risk_pipeline run --pipeline generic --wide <绝对路径> ...
+```
+
+- `<skill代码根>` = 本 skill 的 `SKILL.md` / `pyproject.toml` 所在目录。你就是从那里读到本文档的——**用已知的真实路径，不要猜**。报 `No module named risk_pipeline` 时先核对这个值，不要去别处找代码。
+- 若环境允许写入，也可一次性 `python -m pip install -e <skill代码根>`，之后任意 CWD 直接 `python -m risk_pipeline ...`（或 `risk-pipeline ...`），无需 `PYTHONPATH`。
+- 每条 Bash 是新 shell：`export` 不跨命令保留，单行前缀最稳（对 `RISK_OUTPUT_ROOT` 的 import-time 冻结也天然满足，见下节）。
+
 ## 读取时序（⚠ 最易踩的坑）
 
 - **`RISK_OUTPUT_ROOT` 必须在 Python 进程启动前就位**：`config.py` 的路径常量在
