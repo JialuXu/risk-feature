@@ -44,10 +44,14 @@
 | 6 拆 docx_report / trigger / data_prep | ✅ 已完成（5 commit；227→**235 passed**；`432b462` 6a=§5.1 前导零真 bug 修复——实测丢失点有两处：prepare_df 三处源头读 + prepared.csv 往返，写点/四读点收敛 contracts.write/read_prepared、trigger 读点移到 id_col 解析后，四把契约锁（往返/容错/features.json 15键 schema/前导零 e2e）+变异实验×2；`9513f58`/`6564296`/`0e3494d` 6b-6d=三 skill import 切 risk_core + `test_unit_skill_independence.py` 参数化独立性锁（AST 红线+进程隔离）；`f6cd812` 6e=对抗审查确认 2 major 补修：credit 链路源头读补对称 dtype 锁（gsfc 早已锁、credit 是唯一残留，静默漏标已复现）+ merge 路径变异逃逸补锁，变异实验×2 验证） |
 | 7 拆 visualization / threshold_explore | ✅ 已完成（commit `56f2761`+`1dfb1e7`；235→**239 passed**；两 skill import 全量切 risk_core，§5.7 文件名手拼（规则表/候选阈值表×写读两端）收敛 contracts.RESULT_FILE_TEMPLATE，INDEPENDENT_SKILLS 达 6 个；**批次 B 收官验收全过**：红线1 内核零子 skill import、红线2 六独立 skill 零 risk_pipeline/横向依赖（AST 级机器化）、--help 10/10 字节一致、e2e 真跑 visualize 8 张 PNG、对抗审查 0 缺陷（模板 13 极端值等价/config 同对象/写读往返实测）） |
 | 8 references/ 懒加载文档（可并行） | ✅ 已完成（commit `2d203d9`；239→**243 passed**，+4 纯 grep 文档锁；references/ 13 文件（_index 路由 + blocking-gates/paths-env/levels + 9 张 cli 卡），AGENTS.md 358→148 行，12 子 SKILL 加「何时读我」，消 50/70 漂移（上层 CLAUDE.md+PRD ×4 处，测试锁死并当场抓到存量漂移）+ 征信/ 层级描述修正；冷启动 eval 4 任务全通、硬断链 0、单任务阅读量 ~26KB→~300 行；零运行时代码。**批次 C 完成；必做批次 A/B/C 全部收官**） |
-| 9（可选）修 state_dir 发散 | ⬜ 可选（改 credit/gsfc state 落盘位置属用户可见行为变化，建议先确认再做） |
-| 10（可选·可砍）内核去重 | ⬜ 可选·可砍 |
+| 9（可选）修 state_dir 发散 | ✅ 已完成（commit `4b06397`；243→**244 passed**；cmd_run credit/gsfc 删「征信/工商财务」state 前缀特判，全命令统一 `data/results/<project>/`（仅 state 文件，结果 CSV 前缀保留）；`_resolve_state_dir` 接入 contracts.state_results_dir 单一真源；credit 下游可见性锁（load_state 默认解析 require_level 不抛）+ gsfc 路径锁更新；旧位置 state 不迁移、下次 run 重建） |
+| 10（可选·可砍）内核去重 | ⬛ 已砍（2026-07-05 决策）——用户拍板保留 credit/gsfc 黑盒（见 `docs/DECOUPLING-DESIGN.md` §10 决策），故 `segment_univariate` 仍活。实测「segment→engine 收敛」会静默改 gsfc 单变量 corr/diff/pval（engine skipna+无条件 t 检验 vs segment fillna(0)+阈值门控，遇 NaN 特征发散）且**当前无 golden test 兜底**——高风险、收益仅 cosmetic 去重，踩铁律5「黑盒不可拆」。`pipeline.py:762 旧 main()` 保留为遗留入口（`python -m shared` 仍走它）。两处随下版本 shim 退休一并处理。 |
 
 > 完成一个阶段后，把对应行改成 ✅ 并一句话记结果（commit hash / 新增用例）。批次：**A(1→4) 必做 → B(5→7) 拆分 → C(8) 可并行 → D(9,10) 可选**。
+
+> **收尾（2026-07-05）**：必做批次 A/B/C + 阶段 9 全部收官，阶段 10 已砍，**重构视作完成**。两条 grep 红线均通过（挖掘内核零子skill import、`risk_*/scripts` 零横向 import），`references/_index.md` 懒加载就位，**244 passed**。残留（内核物理仍在 `risk_pipeline/`：`pipeline_state.py`/`analysis/`；3× `iv_analysis.py` 转发 + `shared/` + CSV 双写 + `MIN_IV_FULL` 别名）= 已知技术债，随「下个版本 shim 退休批次」处理（清单见 §7 + 会话审计），本轮不动。
+
+> **收尾追加·11 抽取 credit/gsfc 黑盒（2026-07-05，commit `c58c698` + golden `c4529d8`）**：把 `run_credit_pipeline`/`run_gsfc_pipeline` 从 `risk_pipeline/pipeline.py` **逐字**迁出到新 skill `risk_legacy_chains/scripts/{credit_chain,gsfc_chain}.py`（函数体字节级不变；前端/内核不搬，靠 `_load_module` 名字串照旧动态复用）。`pipeline.py`（881→434 行）只留 `run_generic_pipeline` + `main()` + 两行 re-export（保号：`from risk_pipeline.pipeline import run_credit_pipeline` 不变）。**黑盒不再与 generic 混在同一模块**。安全前提先落地：`tests/test_golden_legacy_chains.py` 值级钉死两链路 IV/AUC/LR/单变量（244→**246 passed**）。--help 顶层+run 逐字节不变、`python -m shared --pipeline gsfc` 端到端 exit 0。
 
 ---
 
