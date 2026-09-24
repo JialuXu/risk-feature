@@ -8,7 +8,7 @@
 
 对 agent 暴露的唯一入口是 `python -m risk_pipeline <子命令>`。部分子 skill 自带
 `python -m <子skill>` 薄入口（如 `python -m risk_result_query`），**仅供人工/测试
-直跑**，不是 agent 路径——不要在工作流里用它，不要纠结"用哪个"。
+直跑**。
 
 ## 子命令 → 必读卡
 
@@ -29,4 +29,4 @@
 ## 下钻子 SKILL 的时机
 
 各 `risk_*/SKILL.md` 顶部有"何时读我"一行：**只有** CLI 卡覆盖不了
-（要 Python API 级用法 / 该 skill 的领域细节）时才下钻，常规任务止步于 cli 卡。
+（要 Python API 级用法 / 该 skill 的领域细节）时才下钻。

@@ -97,7 +97,7 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 ## 集成改造要点
 
-- 新银行或新数据源**长期接入**（开发仓库维护动作）：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
+- 新银行或新数据源**长期接入**（开发仓库维护动作）：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
 - **一次性分析某份列名不同的数据**：不要改 YAML（沙盒/安装模式下等于改写随包分发的默认配置），走 CLI flag——`--id-col` / `--target-col` / `--category-dims <实际列名>`，预检拦截时加 `--skip-preflight` 放行。
 - `prepare` 是数据进入链路的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
@@ -110,6 +110,6 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 | 文档 | 用途 |
 |---|---|
-| [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源（A4 后统一列名、A5 后文件改名） |
+| [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源 |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | dim / group / scope / coverage 等术语统一表 + 列名跨表对照 + 阻断节点缩写 |
 | [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio) | 核心链路机制图源文件 |

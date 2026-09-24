@@ -28,7 +28,7 @@ def fit_rule_tree(
     max_depth: Optional[int] = None,
     min_samples_leaf: Optional[int] = None,
 ) -> DecisionTreeClassifier:
-    """拟合受约束的决策树（仅用于规则提取，不做预测）。"""
+    """拟合受约束的决策树，用于规则提取。"""
     cfg = RULE_MINING_CONFIG
     if max_depth is None:
         max_depth = cfg['max_depth']

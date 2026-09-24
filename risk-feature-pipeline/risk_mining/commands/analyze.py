@@ -102,7 +102,7 @@ def cmd_analyze(args) -> int:
                 if audit_seg and audit_seg.get('hit_rate', 1.0) == 0:
                     print(
                         '⚠️ [analyze] features.json 显示 segment_dims 自动检测为空；'
-                        '本次分析将仅在全样本范围进行，不会有分群对比。'
+                        '本次分析仅覆盖全样本。'
                         '如需分群，直接给 analyze 传 --category-dims <实际列名>；'
                         '编辑 risk_core/config/column_mapping.yaml 仅限开发仓库长期适配'
                         '（改后需重跑 prepare）。',

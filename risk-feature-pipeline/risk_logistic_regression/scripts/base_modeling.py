@@ -62,7 +62,7 @@ def fit_logistic_regression(df, feature_cols, group_name='全量'):
         X_scaled = scaler.fit_transform(X)
 
         # L2 正则化逻辑回归（默认即 L2；sklearn 1.8 起 penalty 弃用、1.10 移除，
-        # 新默认 l1_ratio=0 与旧 penalty='l2' 数值等价，故不再显式传 penalty）
+        # 新默认 l1_ratio=0 与旧 penalty='l2' 数值等价，故不显式传 penalty）
         # C=1.0 为默认正则化强度，可以处理特征间的多重共线性
         model = LogisticRegression(
             C=1.0, solver='lbfgs', max_iter=1000, random_state=42

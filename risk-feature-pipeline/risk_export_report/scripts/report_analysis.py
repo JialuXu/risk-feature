@@ -184,7 +184,7 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
         except Exception as e:
             print(f"  [警告] IV 透视表导出失败: {e}")
 
-    # 6. IV可信度诊断 (原分群样本概况)
+    # 6. IV可信度诊断
     _save(results.get('reliability_summary'), f'{pname}_IV可信度诊断.csv')
 
     # 7. 原始vs衍生特征AUC对比

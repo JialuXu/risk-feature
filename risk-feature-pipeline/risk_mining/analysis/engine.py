@@ -10,8 +10,8 @@ credit / gsfc / generic 三条链路共用的分群分析内核，纯计算、�
 - 分群 IV（自适应分箱 + WOE 截断 + 可信度评估，底层调用 analysis.iv_core）
 - 可信度诊断 / 特征集对比 / 候选阈值
 
-历史：本实现曾以副本形式散落在 risk_iv_diagnosis / risk_export_report /
-risk_logistic_regression 三个 Skill 的 scripts 下；现收敛于此，三处退化为 shim。
+``risk_iv_diagnosis/scripts/iv_group_diagnosis.py`` 与
+``risk_logistic_regression/scripts/group_logistic_regression.py`` 是从本模块再导出的兼容 shim。
 """
 
 import warnings
@@ -315,7 +315,7 @@ def _fit_lr_single(X_scaled, y, feature_names, n_samples, n_bad):
     - 否则使用训练集AUC（标注类型）
     """
     # 默认即 L2 正则（sklearn 1.8 起 penalty 参数已弃用，1.10 移除；
-    # 新默认 l1_ratio=0 与旧 penalty='l2' 数值等价，故不再显式传 penalty）
+    # 新默认 l1_ratio=0 与旧 penalty='l2' 数值等价，故不显式传 penalty）
     model = LogisticRegression(
         C=1.0, solver='lbfgs', max_iter=1000, random_state=42
     )

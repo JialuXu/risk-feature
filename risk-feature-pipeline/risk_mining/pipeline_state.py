@@ -163,8 +163,8 @@ class PipelineState:
         self._new_history.append(entry)
         self._maybe_promote(new_level)
         # level_after 始终落真实的 post-promotion level；若调用方传了旧值，这里会覆盖。
-        # 这样 partial 步骤（如 run --pipeline credit --steps data_prep）不会再把 level
-        # 谎报为 Level 1。
+        # 这样 partial 步骤（如 run --pipeline credit --steps data_prep）记录的 level_after
+        # 是真实 level，而非调用方预填的 Level 1。
         entry['level_after'] = self.current_level
         self._data['updated_at'] = now_iso()
 
@@ -257,8 +257,7 @@ def _project_root_from_cwd() -> str:
 def _resolve_state_dir(project: str, state_dir: Optional[str], project_root: str) -> str:
     if state_dir:
         return state_dir
-    # 目录派生收敛到契约单一真源（解耦阶段9 接入；语义与原实现逐字等价：
-    # state.json 跟随写盘根，RISK_OUTPUT_ROOT 设置时落到那里）
+    # 目录派生走契约单一真源（state.json 跟随写盘根，RISK_OUTPUT_ROOT 设置时落到那里）
     from risk_core.contracts import state_results_dir
     return state_results_dir(project, project_root=project_root)
 
@@ -299,7 +298,7 @@ def peek_state(
     state_dir: Optional[str] = None,
     project_root: Optional[str] = None,
 ) -> Optional[dict]:
-    """只读窥视状态文件（供 query 等无副作用命令）：不建目录、不加锁、不备份；
+    """只读窥视状态文件（供 query 等无副作用命令）：不加锁、不备份；
     文件不存在或无法解析时返回 None。"""
     if project_root is None:
         project_root = _project_root_from_cwd()
@@ -318,7 +317,7 @@ def last_export_subdir(project: str, history: Optional[list]) -> str:
 
     export 按 ``data/results/<subdir>`` / ``output/<subdir>`` 落盘，而 state 固定在
     ``data/results/<project>/``——读产物的命令（query/visualize/explore/report）靠它
-    找到同一目录，不再各自假定 subdir == project。
+    找到 export 实际写入的目录（subdir 可与 project 不同）。
     """
     for entry in reversed(history or []):
         if entry.get('cmd') == 'export':

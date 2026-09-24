@@ -2,8 +2,8 @@
 """
 工商变更等维度的衍生特征（feature_engineering_gsbb）。
 
-与 SKILL 对齐：仅特征构造；不包含分维度 IV 筛选或跨维度建模（已移除，避免与
-risk_iv_diagnosis / risk_segment_univariate 职责重叠）。
+与 SKILL 对齐：仅做特征构造（IV 筛选归 risk_iv_diagnosis，分群单变量分析归
+risk_segment_univariate）。
 """
 
 

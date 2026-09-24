@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """risk_legacy_chains 内部公共工具：动态子模块加载 + 步骤 banner。
 
-从 risk_pipeline/pipeline.py 逐字迁出（_load_module / _banner）。刻意在本 skill 内
-**复制**这两段（而非从 risk_pipeline.pipeline 反向 import），以免形成
-risk_legacy_chains -> risk_pipeline.pipeline 的回边。
+刻意在本 skill 内自带 _load_module / _banner（而非从 risk_pipeline.pipeline 反向
+import），以免形成 risk_legacy_chains -> risk_pipeline.pipeline 的回边。
 """
 import importlib
 

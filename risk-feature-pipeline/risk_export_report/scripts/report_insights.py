@@ -24,8 +24,7 @@ def rate_feature(iv_val, corr_mean, sign_consistent):
     - 辅助特征：全局 IV >= 0.02，或 |相关系数均值| >= 0.05
     - 无效特征：以上均不满足
 
-    收敛说明：此前 report_analysis / report_export 各有一份逐字相近的内联实现
-    （且都漏掉了"方向一致的中等信号提升为重要特征"这条），现统一到这里，避免再次漂移。
+    评级口径只在本函数定义，调用方不要内联复刻。
     """
     if iv_val >= 0.2 and sign_consistent:
         return '核心特征'

@@ -1,17 +1,14 @@
 # -*- coding: utf-8 -*-
 """项目根目录与输出目录的唯一定位入口。
 
-历史背景：仓库里曾有 9 处自实现的 `get_project_root` / `_find_project_root`
-散落在不同 Skill 下，都在找不到 `data/` 时回落到 `os.getcwd()`。一旦 CWD
-不可写（容器只读层、site-packages 等），后续 makedirs/to_csv 会直接 PermissionError。
-
-本模块是唯一权威：
+本模块是唯一权威（CWD 可能不可写，如容器只读层、site-packages，故写盘根可经
+RISK_OUTPUT_ROOT 单独指定）：
 - `get_project_root()` —— 决定输入读自何处；遵循 RISK_PROJECT_ROOT > 显式入参 > 自动向上找 data/ > CWD 兜底。
 - `get_output_root()` —— 决定结果写到何处；遵循 RISK_OUTPUT_ROOT > 复用 get_project_root()。
 - `results_dir()` / `output_dir()` —— 拼好 `<output_root>/data/results[/<sub>]` 与 `<output_root>/output[/<sub>]`。
 - `ensure_writable_dir(path)` —— makedirs；PermissionError 时改抛 RuntimeError，提示设置 RISK_OUTPUT_ROOT。
 
-旧的 9 处函数保留为薄壳，内部 import 转发，向后兼容。
+各 Skill 下同名的 `get_project_root` 等函数是转发到本模块的兼容薄壳。
 """
 from __future__ import annotations
 
@@ -45,7 +42,7 @@ def get_project_root(start: Optional[PathLike] = None) -> str:
         3. 自动从 CWD 向上找 data/
         4. CWD 兜底（带一次性 [WARN]）
 
-    注意：刻意不再从 __file__ 位置兜底——那会找到 Skill 仓库本身的 data/，
+    注意：刻意不从 __file__ 位置兜底——那会找到 Skill 仓库本身的 data/，
     导致 chdir 到无关目录的脚本误把分析结果写回 Skill 源码树（正是我们要避免的）。
     """
     env_val = os.environ.get(ENV_PROJECT_ROOT)

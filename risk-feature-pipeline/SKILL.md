@@ -5,7 +5,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 
 # Risk Feature Pipeline 调度器
 
-本 Skill 只负责**把用户意图映射到正确的 CLI 命令**，不重写分析逻辑。用户无需说出 `credit`/`IV`/`LR` 等技术词——由本 Skill 判断。
+本 Skill 只负责**把用户意图映射到正确的 CLI 命令**。用户无需说出 `credit`/`IV`/`LR` 等技术词——由本 Skill 判断。
 
 > **执行任何步骤前先读 `AGENTS.md`**：硬规矩（绝对触发/排斥、核验路径、响应自检）都在那里，本文件不重复，只做路由。命令模板/阻断节点全文/Level 定义在 `references/` 按任务懒加载——**先查 `references/_index.md` 决定读哪张卡**。
 >
@@ -37,7 +37,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 | "查/读/看/解读/top X/已有结果" | `python -m risk_pipeline query --project X --kind iv --top 15` | **不重跑链路**；详见 `risk_result_query` |
 | "帮我分析这份宽表/做风险特征分析"（自带宽表） | `python -m risk_pipeline run --pipeline generic --wide … --confirmed-new-dataset` | 全流程；缺目标列见下方 |
 | "跑征信主题 / 工商财务主题分析" | `python -m risk_pipeline run --pipeline credit`（或 `gsfc`） | 数据路径走 `config/` 默认 |
-| "只看某个分群维度" | `python -m risk_pipeline analyze --project X --steps univariate,iv,lr --category-dims 企业规模` 然后 `export` | 单维快路径，不默认跑所有维度 |
+| "只看某个分群维度" | `python -m risk_pipeline analyze --project X --steps univariate,iv,lr --category-dims 企业规模` 然后 `export` | 单维快路径 |
 | "要预警规则/审批红线/贷后检查项" | `run/analyze` 带 `--steps …,rules` 再 `export` | 决策树多变量规则，落 `_风险规则表.csv` |
 | "这几个 (分群,特征) 探一下阈值/候选规则评审" | `python -m risk_pipeline explore_thresholds --project X --pairs-file pairs.csv` | Level 1 后只读；详见 `risk_threshold_explore` |
 | "哪些客户触碰阈值/风险预警名单/客户级扫描" | `python -m risk_pipeline trigger --project X --use-default-features --confirmed` | 先过阻断节点 2；详见 `risk_trigger_extraction` |
@@ -100,7 +100,7 @@ description: 企业风险特征分析总控技能。适用于"帮我做风险特
 
 ## 调试顺序
 
-1. 看错误落在 `risk_pipeline/pipeline.py` 哪个阶段
+1. 看错误落在 `risk_mining/pipeline.py` 哪个阶段
 2. 确认下游函数签名与透传参数一致
 3. 读 `df.columns` 核对目标列/主键列/分群列真实存在（不猜）
 4. 常见错误：`KeyError: 'is_bad'`、`unexpected keyword argument 'target'`、分群字段不存在

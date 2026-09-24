@@ -77,19 +77,19 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 |---|---|---|
 | 字段是否存在 | 读 `df.columns` 或 CSV 表头，不猜测 | `ColumnMapper.detect_qual_cols(df.columns)` 自动推断分群维度 |
 | 结果文件是否已生成 | 检查 `data/results/<project_name>/` 目录是否有 `*_IV分析结果_全量.csv` | 提示用户先跑 `export`，不允许用空结果假装有数据 |
-| 列映射是否正确 | `df.columns` 与 `risk_core/config/default.yaml`/`risk_core/config/column_mapping.yaml` 中的 `customer_id` / `target` 做交集验证 | 字段对不上时硬错并提示用户，不允许悄悄回退到默认列名 |
+| 列映射是否正确 | `df.columns` 与 `risk_core/config/default.yaml`/`risk_core/config/column_mapping.yaml` 中的 `customer_id` / `target` 做交集验证 | 字段对不上时硬错并提示用户 |
 
-**任何情况下不允许的退路：** 假设字段存在后继续执行。错误必须在 `prepare` 阶段暴露，不能延迟到 `analyze` / `export` 内部。
+**任何情况下不允许的退路：** 假设字段存在后继续执行。错误必须在 `prepare` 阶段暴露。
 
 ---
 
 ## 四之二、配置覆盖
 
-本仓库为单行场景，CLI **不再**接受 `--config` / `--columns-file`。**适配当前这份数据一律走 flag**：主键/目标列差异传 `--id-col` / `--target-col` / `--bad-id-col`，分群维度差异传 `--category-dims <实际列名>`（预检拦截时加 `--skip-preflight` 放行）。编辑 `risk_core/config/default.yaml` / `risk_core/config/column_mapping.yaml` 属**开发仓库维护动作**（长期接入新银行/新数据源），不在分析会话内做——沙盒/skill 安装模式改它等于改写随包分发的默认配置，会污染其它数据集的运行。
+本仓库为单行场景，配置只读随包 YAML。**适配当前这份数据一律走 flag**：主键/目标列差异传 `--id-col` / `--target-col` / `--bad-id-col`，分群维度差异传 `--category-dims <实际列名>`（预检拦截时加 `--skip-preflight` 放行）。编辑 `risk_core/config/default.yaml` / `risk_core/config/column_mapping.yaml` 属**开发仓库维护动作**（长期接入新银行/新数据源），不在分析会话内做——沙盒/skill 安装模式改它等于改写随包分发的默认配置，会污染其它数据集的运行。
 
 新银行 / 新数据集接入时，prepare 阶段会自动做一次列名预检：若 `column_mapping.yaml` 中的 `segment_dims` 与 `credit_category_dims` 在宽表中均 0% 命中，CLI 直接 exit 1 并列出实际列（处理方式见 `references/cli/prepare.md` 雷区段）。
 
-如未来真要做多 YAML 切换，新加 flag 时务必在组合根 `risk_mining/argspec.py` 单一注册表声明并在对应 `commands/<cmd>.py` 消费掉，不要再让"声明而不读"的 flag 静默吞用户输入。
+如未来真要做多 YAML 切换，新加 flag 时务必在组合根 `risk_mining/argspec.py` 单一注册表声明，并在对应 `commands/<cmd>.py` 中读取。
 
 **路径环境变量**（`RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT`，沙盒/安装模式必设，
 含读写产物的落点约定）→ 见 [`references/paths-env.md`](references/paths-env.md)。
@@ -120,7 +120,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 ## 七、日志规范
 
 - 每个跳过的 segment 必须 log：`"[跳过] {segment_name}：{原因}（样本={n}，坏客户={n_bad}）"`
-- AUC 必须附注类型：`交叉验证` / `训练集-样本不足` / `训练集-CV失败`
+- AUC 必须附注类型：`5折交叉验证` / `训练集(CV失败)` / `训练集(样本不足)`
 - IV 可信度标注：`可信` / `参考` / `不可信-样本不足` / `不可信-疑似数据穿越`
 - 子命令完成后 CLI 自动打印 status stamp（agent **必须原样转发**给用户）：
   ```

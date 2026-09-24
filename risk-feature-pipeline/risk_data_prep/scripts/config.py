@@ -2,7 +2,7 @@
 """
 risk_data_prep 配置
 
-公共配置统一从 risk_core.config 导入（解耦阶段6：独立子 skill 只依赖 risk_core），
+公共配置统一从 risk_core.config 导入（独立子 skill 只依赖 risk_core），
 本文件仅保留模块专属配置。
 """
 

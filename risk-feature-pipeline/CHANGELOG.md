@@ -46,6 +46,7 @@
 | F2 | 移除各模块顶层的 `sys.path.insert`（包安装 / CLI / pytest 下本就无需）；仅 `risk_docx_report/scripts/config.py` 为裸脚本直跑保留按需兜底 | 无 |
 | F3 | 新增 CI（`.github/workflows/risk-feature-pipeline.yml`，Python 3.10 / 3.12：`ruff check .` + `pytest`）与 ruff 配置（E9 + pyflakes）；清理存量未使用 import；`optbinning` 加主版本上界 `<2` | 开发流程 |
 | F4 | 重写仓库根 `CLAUDE.md`（按现架构）与本目录 `CLAUDE.md`（作战手册 → 开发约定）；9 个子 SKILL.md 补触发语并厘清 export_report（写）与 result_query（读）分工；README 子命令表补 `explore_thresholds` | 文档 |
+| F5 | 文档与代码行文按「只描述终态」清理：删去镜像尾巴（主句已排除/已涵盖的否定或许可尾句）与悬空否定（对已删除参数、下线图表、旧列名、旧数值与迁移史的否定）；修正随之发现的事实错误——IV 可信度与 AUC 类型统一为代码实际标签、visualize 图表为 9 类、规则稳定性为留出集 bootstrap、trigger 适用范围列缺失时跳过、SCHEMA 全量 IV 列与透视表方向、`shared` 弃用提示指向 risk_core / risk_mining；`prepare` / `analyze --help` 文案随之调整 | 文档 / `--help` / 注释 |
 
 ## C 系列 — CLI 与自检
 

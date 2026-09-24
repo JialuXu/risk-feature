@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""query 子命令：只读已有结果，top-N / 分群查询（不改 level，无副作用）。"""
+"""query 子命令：只读已有结果，top-N / 分群查询。"""
 from __future__ import annotations
 
 import pandas as pd
@@ -38,5 +38,5 @@ def cmd_query(args) -> int:
             with pd.option_context('display.max_rows', None, 'display.max_columns', None,
                                    'display.width', 200):
                 print(df.to_string(index=False))
-    # query 不写 state（不改 level，无副作用）
+    # query 只读：不写 state
     return 0

@@ -46,7 +46,7 @@ description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 doc
 
 - 输入 JSON 用 `risk_export_report` 的正式文件，不手拼字段名。
 - 正文用 Markdown，避免标题/表格丢失。
-- 附录的结构化表仅作"解释性增强"，不替代正文业务分析。
+- 附录的结构化表仅作正文业务分析的"解释性增强"。
 - 征信精简版 JSON：拼 `分群画像_重点` + `分群画像_简略` 作附录来源。
 
 ## 职责边界

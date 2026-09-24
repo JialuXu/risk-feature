@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """子命令共享的 helper：路径派生、退出、确认校验、静默/verbose、状态目录、配置预检。
 
-解耦重构阶段 2：从 risk_pipeline/cli_commands.py 顶部的 helper 段拆出，供 commands/
-下各子命令 import。行为逐字不变，仅把 `from .paths import`（原相对 risk_pipeline）
-改为 `from risk_core.paths import`（底座已升 risk_core）。
+供 commands/ 下各子命令 import；路径统一经 `risk_core.paths` 解析。
 """
 from __future__ import annotations
 
@@ -16,9 +14,8 @@ from typing import Optional
 #
 # 所有 prepare/analyze 中间产物（prepared.csv / features.json / _intermediate/）
 # 都通过 _project_processed_dir 派生；该函数走 paths.get_output_root()，让
-# RISK_OUTPUT_ROOT 在 prepare/analyze 阶段也生效（修复之前"export 走环境变量、
-# prepare 不走"的不对称）。未设 env 时 get_output_root() 回退到 get_project_root()，
-# 行为与旧版相同。
+# RISK_OUTPUT_ROOT 在 prepare/analyze/export 各阶段一致生效。未设 env 时
+# get_output_root() 回退到 get_project_root()。
 
 def _project_processed_dir(project: str) -> str:
     from risk_core.paths import get_output_root
@@ -60,7 +57,7 @@ def _project_root() -> str:
 
 def _output_root() -> str:
     """写产物 / 读产物链路用（data/processed, data/results, output）；
-    遵循 RISK_OUTPUT_ROOT，未设时回退到 get_project_root（行为与旧版兼容）。"""
+    遵循 RISK_OUTPUT_ROOT，未设时回退到 get_project_root。"""
     from risk_core.paths import get_output_root
     return get_output_root()
 

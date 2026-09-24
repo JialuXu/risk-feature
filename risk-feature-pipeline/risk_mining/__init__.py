@@ -14,5 +14,5 @@
               trigger/explore_thresholds/report/run），每命令一文件
 
 分层红线由 tests/test_unit_kernel_boundary.py 机器化验收（含字符串式动态导入）。
-对 agent 而言入口仍是 `python -m risk_pipeline <子命令>`（risk_pipeline 转发至此）。
+对 agent 而言入口是 `python -m risk_pipeline <子命令>`（risk_pipeline 转发至此）。
 """
