@@ -311,7 +311,7 @@ risk-feature-pipeline/
 
 > **决策（2026-07-05，用户拍板）**：`credit`/`gsfc` 黑盒链路服务某些用户的常用路径，**保留、不并入 generic、不为其在 generic 里加过多特殊化处理**。依据（实测）：
 > - 「统一到 generic」的真实成本不在删 ~450 行 `run_credit/gsfc_pipeline`（那是机械的），而在：把 `prepare_credit_wide_table` 多表合并 + `create_credit_features`/`feature_engineering_gsbb` 重新安置成 generic 前置步骤；且会**破坏 `load_results` 向后兼容**——`results_loader.py:49-50/195-196` 硬编码 `data/results/征信`、`工商财务` 搜索路径，磁盘已有历史导出会读不出。
-> - 后果：`risk_segment_univariate/scripts/{segment_univariate,univariate}.py` 因 gsfc 是唯一活跃消费者（`pipeline.py:346,381`）而**仍存活、非死代码**；结果 CSV「征信/工商财务」前缀特判（`config.py:51-62` 等）保留不动；阶段 10 的「segment→engine 收敛」据此判为**可砍**（详见 `CLAUDE.md` §3 行 10）。
+> - 后果：`risk_segment_univariate/scripts/{segment_univariate,univariate}.py` 因 gsfc 是唯一活跃消费者（`pipeline.py:346,381`）而**仍存活、非死代码**；结果 CSV「征信/工商财务」前缀特判（`config.py:51-62` 等）保留不动；阶段 10 的「segment→engine 收敛」据此判为**可砍**（已砍，见 §9 表格与 CHANGELOG）。
 
 > **后续执行（2026-07-05，commit `c58c698`）**：在「保留黑盒」前提下进一步把两条黑盒链路**从共享 `pipeline.py` 抽取为独立 skill `risk_legacy_chains`**（逐字迁移、行为不变、前端/内核靠 `_load_module` 名字串复用），使 credit/gsfc 不再与 generic 混在同一模块——闭合「内核物理仍在 risk_pipeline」这处 done-gap 的编排部分。先补 `tests/test_golden_legacy_chains.py`（两链路 IV/AUC/LR/单变量值级锁）作安全前提，244→246 passed。
 

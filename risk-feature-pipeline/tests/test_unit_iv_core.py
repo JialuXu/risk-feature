@@ -53,7 +53,6 @@ def test_calc_iv_missing_contributes():
 
 def test_calc_iv_finite_under_extreme_separation():
     """完全可分时 WOE 被截断到 [-5,5]，IV 仍有限（不爆 inf）。"""
-    n = 200
     feat = [0.0] * 100 + [1.0] * 100
     y = [0] * 100 + [1] * 100  # 完美分离
     df = pd.DataFrame({'feat': feat, 'is_bad': y})
@@ -84,20 +83,14 @@ def test_assess_iv_reliability_boundaries(iv, n, bad, expected):
 
 
 def test_shim_paths_equal_canonical():
-    """三个 Skill 的 iv_analysis shim 必须与 canonical 输出完全一致。"""
+    """保留的公开 shim（risk_iv_diagnosis.scripts.iv_analysis）必须就是 canonical 实现。"""
     from risk_iv_diagnosis.scripts.iv_analysis import calc_iv as a
-    from risk_export_report.scripts.iv_analysis import calc_iv as b
-    from risk_logistic_regression.scripts.iv_analysis import calc_iv as c
-    df = _det_table()
-    base, _ = calc_iv(df, 'feat', 'is_bad', bins=10)
-    for fn in (a, b, c):
-        iv, _ = fn(df, 'feat', 'is_bad', bins=10)
-        assert iv == base
+    assert a is calc_iv
 
 
 def test_shim_reexports_underscore_symbols():
     """shim 必须显式再导出下划线符号（import * 不会带入）。"""
-    import risk_export_report.scripts.iv_analysis as m
+    import risk_iv_diagnosis.scripts.iv_analysis as m
     for name in ('_adaptive_bins', '_assess_iv_reliability', '_run_segment_iv',
                  'calc_iv', 'run_iv_analysis'):
         assert hasattr(m, name), f'shim 缺少再导出: {name}'

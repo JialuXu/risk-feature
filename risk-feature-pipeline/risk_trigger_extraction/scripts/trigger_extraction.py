@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from .config import (
-    RISK_FEATURES,
+    RISK_FEATURES,  # noqa: F401  兼容 alias，保留再导出
     RISK_FEATURES_GSFC,
     MIN_DEFAULT_FEATURE_MATCH_RATE,
 )
@@ -440,7 +440,7 @@ def extract_triggers(
         if dropped:
             print(f"[INFO] 宽表 CSV 已剔除元信息列（防 merge 冲突）：{sorted(dropped)}")
             if keep_metadata_cols is None:
-                print(f"       如需保留某些列做后处理，请传 keep_metadata_cols=['企业规模', ...]")
+                print("       如需保留某些列做后处理，请传 keep_metadata_cols=['企业规模', ...]")
 
     # 落盘
     wide_path = os.path.join(output_dir, f'{project_name}_风险触碰明细_宽表.csv')

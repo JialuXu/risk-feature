@@ -1,6 +1,6 @@
 ---
 name: risk_export_report
-description: 分析结果导出与报告读取技能：标准 CSV、综合汇总表、LLM JSON/CSV、分群画像、核心发现提炼，以及结果文件的真实导出契约与推荐读取顺序。
+description: 分析结果**导出**技能：把分析中间产物写成标准 CSV、综合汇总表、LLM JSON/分群画像与 `_audit.json`（CLI `export`，推进到 Level 1）。当用户说"导出结果"、"生成 LLM JSON"、"落盘 CSV"时触发；只想**查看/解读**已导出结果请用 risk_result_query。
 ---
 
 > **何时读我**：只有需要导出装配/LLM JSON 结构细节时才读本文件；常规导出走 `python -m risk_pipeline export`（见 `references/cli/export.md`）。
@@ -128,4 +128,3 @@ python -m risk_pipeline export --project <项目名>   # 须先完成 analyze；
 | 模块 | 作用 |
 |------|------|
 | `scripts/report_analysis.py` | 主路径：导出、综合表、LLM 数据、核心发现 |
-| `scripts/report_export.py` | 备用路径（工商财务旧链路）：`export_results`、`build_llm_report_data_gsfc` |

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import numpy as np
-import pandas as pd
 
 from .config import (
     FINANCE_DERIVED_COL_NAMES,

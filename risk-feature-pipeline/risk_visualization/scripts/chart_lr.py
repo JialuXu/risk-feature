@@ -13,7 +13,6 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from . import style  # 字体配置
 from .style import (
     AUC_TYPE_COLORS, FIGSIZE_BAR_WIDE, FIGSIZE_HEATMAP, GRID_COLOR, NEUTRAL_COLOR,
 )

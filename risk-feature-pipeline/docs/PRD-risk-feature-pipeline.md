@@ -304,7 +304,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 5. **可信度评级**：综合样本量 + IV 大小判断：
    - 可信 / 参考 / 不可信-样本不足 / 不可信-疑似数据穿越。
 6. **分群 IV**：在每个分群内独立计算，识别分群专属强信号。
-7. **可选业务阈值**：`calc_feature_thresholds` 可基于 optbinning 给出业务可解释的切分点。
+7. **可选业务阈值**：Level 1 后用 `explore_thresholds`（`risk_threshold_explore`）基于 optbinning 给出业务可解释的切分点。
 
 #### 预期输出结果
 

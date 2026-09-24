@@ -28,7 +28,7 @@ dependencies = [
     "scikit-learn>=1.1,<2",
     "scipy>=1.9,<2",
     "pyyaml>=6.0",
-    "optbinning>=0.19",
+    "optbinning>=0.19,<2",
     "joblib>=1.1",       # rule_extraction 直接 import（dump 决策树模型），不只靠 sklearn 间接带
 ]
 
@@ -47,6 +47,7 @@ dev = [
     "pytest>=7.0",
     "pytest-mock>=3.10",
     "pytest-cov>=4.0",
+    "ruff>=0.5",
 ]
 # 一次装满
 all = [
@@ -56,6 +57,7 @@ all = [
     "pytest>=7.0",
     "pytest-mock>=3.10",
     "pytest-cov>=4.0",
+    "ruff>=0.5",
 ]
 
 [project.scripts]
@@ -97,3 +99,25 @@ risk_core = ["config/*.yaml"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-ra --strict-markers"
+
+# ---------------------------------------------------------------------------
+# ruff：只开「真错误」类规则（语法错误 + pyflakes），CI 与本地一致：
+#   ruff check .
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# 包入口与兼容 shim：import 即再导出
+"**/__init__.py" = ["F401"]
+"risk_pipeline/**" = ["F401"]
+"shared/**" = ["F401"]
+# 子 skill 的 scripts/config.py 是公共配置聚合点（import * + 再导出）
+"**/scripts/config.py" = ["F401", "F403", "F405"]
+# 内核两模块经 risk_iv_diagnosis 的 `import *` 整体再导出，顶层导入的配置名属公开面
+"risk_mining/analysis/engine.py" = ["F401"]
+"risk_mining/analysis/iv_core.py" = ["F401"]

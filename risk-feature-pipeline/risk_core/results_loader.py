@@ -221,7 +221,7 @@ def load_results(project_name: str,
             f"未找到项目 {project_name!r} 的结果目录。\n"
             f"已尝试路径:\n" + "\n".join(f"  {p}" for p in tried) + "\n"
             + ("已有子目录:\n" + "\n".join(hints) if hints else "") + "\n"
-            f"提示：若未跑过，请先执行 run_generic_pipeline(..., steps=[..., 'export'])"
+            "提示：若未跑过，请先执行 run_generic_pipeline(..., steps=[..., 'export'])"
         )
 
     r = Results(project_name=project_name, results_dir=res_dir, output_dir=out_dir)

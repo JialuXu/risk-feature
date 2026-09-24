@@ -1,6 +1,6 @@
 ---
 name: risk_iv_diagnosis
-description: IV 与可信度诊断：自适应分箱、WOE 截断、缺失分离、分群 IV、稳健性评级与可选 optbinning 阈值（适用于任意数值特征宽表）
+description: IV 与可信度诊断：自适应分箱、WOE 截断、缺失单独成箱、分群 IV 与可信度评级（适用于任意数值特征宽表）。当用户说"IV 分析"、"IV 可信度"、"哪些特征区分度高"时触发；业务阈值切点请用 risk_threshold_explore。
 ---
 
 > **何时读我**：只有需要 IV/自适应分箱/可信度算法细节时才读本文件；常规分析与查询走 analyze/query CLI 卡。
@@ -44,4 +44,4 @@ description: IV 与可信度诊断：自适应分箱、WOE 截断、缺失分离
 | 模块 | 作用 |
 |------|------|
 | `scripts/iv_analysis.py` | `calc_iv`、`_adaptive_bins`、`_assess_iv_reliability`、`iv_power_label` |
-| `scripts/iv_group_diagnosis.py` | 全量/分群 IV 编排、`reliability_diagnosis`、`calc_feature_thresholds` |
+| `scripts/iv_group_diagnosis.py` | 全量/分群 IV 编排、`reliability_diagnosis`（业务阈值切点改用 `risk_threshold_explore`） |

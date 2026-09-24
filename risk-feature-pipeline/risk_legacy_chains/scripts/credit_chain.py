@@ -23,7 +23,6 @@ def run_credit_pipeline(steps=None, verbose=True):
     返回:
         results: 包含各步骤结果的字典
     """
-    import pandas as pd
 
     # 加载各模块
     mod_data_prep = _load_module('risk_data_prep', 'data_prep')

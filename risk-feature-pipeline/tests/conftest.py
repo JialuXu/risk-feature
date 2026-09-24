@@ -2,7 +2,6 @@
 """pytest fixtures：合成数据 + 临时项目根。"""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 

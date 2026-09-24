@@ -2,7 +2,6 @@
 """单元测试：三个阻断节点的 CLI 物理强制。"""
 from __future__ import annotations
 
-import json
 
 import pytest
 
