@@ -1,6 +1,6 @@
 ---
 name: risk_segment_univariate
-description: 分群摸底与单变量风险分析：类别维度统计、二值标签对比、点二列相关、T 检验与跨分群差异（与特征主题无关）
+description: 分群摸底与单变量风险分析：类别维度统计、二值标签对比、点二列相关、T 检验与跨分群差异（与特征主题无关）。当用户说"分群单变量"、"分群相关性/均值差"、"T 检验"时触发。
 ---
 
 > **何时读我**：只有需要单变量方法口径（相关系数/均值差/T 检验）细节时才读本文件；常规分析走 `python -m risk_pipeline analyze`（见 `references/cli/analyze.md`）。

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """risk-result-query: 读取已导出的风险特征分析结果 + top-N 查询糖。
 
-解耦重构（DECOUPLING-DESIGN §4.2，阶段 1）：核心读逻辑 ``load_results`` + ``Results``
-已升入 ``risk_core.results_loader`` 作为三处共享的唯一读取器；本模块从那里再导出，
-并保留 ``top_features`` 等查询糖（只依赖 ``Results`` 的属性，不重复读盘逻辑）。
+核心读逻辑 ``load_results`` + ``Results`` 在 ``risk_core.results_loader``（三处共享的
+唯一读取器，DECOUPLING-DESIGN §4.2）；本模块从那里再导出，并提供 ``top_features``
+等查询糖（只依赖 ``Results`` 的属性）。
 
 核心 API:
     load_results(project_name, subdir=None) -> Results      # 再导出自 risk_core

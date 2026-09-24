@@ -9,7 +9,7 @@ from .config import (
     WOE_CAP,
     COL_TARGET,
 )
-from .iv_analysis import _adaptive_bins as _adaptive_bins_for_woe
+from risk_mining.analysis.iv_core import _adaptive_bins as _adaptive_bins_for_woe, _quantile_bins
 
 
 def rate_feature(iv_val, corr_mean, sign_consistent):
@@ -24,8 +24,7 @@ def rate_feature(iv_val, corr_mean, sign_consistent):
     - 辅助特征：全局 IV >= 0.02，或 |相关系数均值| >= 0.05
     - 无效特征：以上均不满足
 
-    收敛说明：此前 report_analysis / report_export 各有一份逐字相近的内联实现
-    （且都漏掉了"方向一致的中等信号提升为重要特征"这条），现统一到这里，避免再次漂移。
+    评级口径只在本函数定义，调用方不要内联复刻。
     """
     if iv_val >= 0.2 and sign_consistent:
         return '核心特征'
@@ -221,10 +220,13 @@ def get_group_iv_recommendations(df_iv, group_name, top_n=10, min_iv=0.02, base_
 def calc_woe_table(df, feature, target=COL_TARGET, bins=10):
     """
     计算单个特征的 WOE 分箱表（增强版）。
-    同步使用自适应分箱和 WOE 截断逻辑。
+    与 calc_iv 同口径：自适应分箱 + 零膨胀兜底 + WOE 截断，缺失值单独成「缺失」箱，
+    占比分母为全部有目标的样本——各箱 iv 之和与 calc_iv 的 IV 一致。
     """
-    df_temp = df[[feature, target]].dropna()
-    if len(df_temp) < MIN_SAMPLES:
+    df_temp = df.loc[df[target].notna(), [feature, target]]
+    series = df_temp[feature]
+    notna = series.notna()
+    if notna.sum() < MIN_SAMPLES:
         return None
 
     total_good = (df_temp[target] == 0).sum()
@@ -232,22 +234,24 @@ def calc_woe_table(df, feature, target=COL_TARGET, bins=10):
     if total_good == 0 or total_bad == 0:
         return None
 
-    series = df_temp[feature]
-    if series.nunique() <= 1:
+    if series[notna].nunique() <= 1:
         return None
 
-    # 自适应分箱
-    actual_bins = _adaptive_bins_for_woe(len(df_temp), total_bad, default_bins=bins)
+    # 自适应分箱（按非缺失样本计）
+    n_bad_notna = int((df_temp.loc[notna, target] == 1).sum())
+    actual_bins = _adaptive_bins_for_woe(int(notna.sum()), n_bad_notna, default_bins=bins)
 
     if is_numeric_dtype(series):
-        try:
-            bin_series = pd.qcut(series, q=actual_bins, duplicates='drop')
-        except Exception:
-            bin_series = pd.cut(series, bins=min(actual_bins, series.nunique()), duplicates='drop')
+        bin_series = _quantile_bins(series[notna], actual_bins).astype(str)
     else:
-        bin_series = series.astype(str)
+        bin_series = series[notna].astype(str)
+    bin_series = bin_series.reindex(df_temp.index).fillna('缺失')
 
-    grouped = df_temp.groupby(bin_series)[target].agg(['count', 'sum'])
+    grouped = df_temp.groupby(bin_series, sort=False)[target].agg(['count', 'sum'])
+    if is_numeric_dtype(series):
+        # 分箱标签是字符串，按箱内最小值排序，「缺失」箱排最后
+        order = series.groupby(bin_series).min().sort_values(na_position='last').index
+        grouped = grouped.loc[order]
     grouped.columns = ['total', 'bad']
     grouped['good'] = grouped['total'] - grouped['bad']
 

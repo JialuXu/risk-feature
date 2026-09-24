@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from risk_core import contracts as cli_io
-from risk_pipeline.pipeline_state import format_status_stamp, load_state
+from risk_mining.pipeline_state import format_status_stamp, load_state
 
 from ._common import (
     _err,
@@ -29,7 +29,7 @@ _VALID_ANALYZE_STEPS = ('univariate', 'iv', 'lr', 'rules')
 
 
 def cmd_analyze(args) -> int:
-    from risk_pipeline.pipeline import run_generic_pipeline
+    from risk_mining.pipeline import run_generic_pipeline
 
     started = time.time()
     project = args.project
@@ -102,7 +102,7 @@ def cmd_analyze(args) -> int:
                 if audit_seg and audit_seg.get('hit_rate', 1.0) == 0:
                     print(
                         '⚠️ [analyze] features.json 显示 segment_dims 自动检测为空；'
-                        '本次分析将仅在全样本范围进行，不会有分群对比。'
+                        '本次分析仅覆盖全样本。'
                         '如需分群，直接给 analyze 传 --category-dims <实际列名>；'
                         '编辑 risk_core/config/column_mapping.yaml 仅限开发仓库长期适配'
                         '（改后需重跑 prepare）。',
@@ -131,6 +131,11 @@ def cmd_analyze(args) -> int:
             steps=pipeline_steps,
             verbose=verbose,
         )
+        # 重跑核心分析 = 整体刷新：先清掉上一轮的中间产物（含 rules.pkl），
+        # 否则本轮未跑的步骤会留下旧文件被 export 误导出
+        n_stale = cli_io.clear_intermediate(inter_dir)
+        if n_stale and verbose:
+            print(f'[analyze] 已清理上一轮 _intermediate/ 旧文件 {n_stale} 个')
         cli_io.dump_intermediate(
             results, inter_dir,
             project_name=project,
@@ -239,6 +244,9 @@ def _run_rule_mining_step(
     )
     inter = Path(inter_dir)
     inter.mkdir(parents=True, exist_ok=True)
+    # 上一轮 rules 的树 pkl 可能对应已不存在的分群，先清掉再落本轮
+    for old in inter.glob('rule_tree_*.pkl'):
+        old.unlink()
 
     parts = []
 

@@ -1,6 +1,6 @@
 ---
 name: risk_threshold_explore
-description: 候选规则阈值探索：对人工挑选的 (分群维度, 分群名称, 特征) 三元组跑 optbinning 单变量最优切点，结合卡方检验与风险倍数判定是否值得纳入预警/审批清单。产物为候选阈值表 + 分箱明细 + audit 节点。
+description: 候选规则阈值探索：对人工挑选的 (分群维度, 分群名称, 特征) 三元组跑 optbinning 单变量最优切点，结合卡方检验与风险倍数判定是否值得纳入预警/审批清单。产物为候选阈值表 + 分箱明细 + audit 节点。当用户说"候选阈值"、"单变量阈值评审"、"这几个 (分群,特征) 跑一下切点"时触发（需 Level 1，CLI `explore_thresholds`）。
 ---
 
 > **何时读我**：只有需要五道门槛定义、optbinning 参数细节时才读本文件；常规阈值探索走 `python -m risk_pipeline explore_thresholds`（见 `references/cli/explore_thresholds.md`）。
@@ -14,7 +14,7 @@ description: 候选规则阈值探索：对人工挑选的 (分群维度, 分群
 | 输入 | 全特征 + 分群列 | **手工指定 (dim, group, feat) 清单** |
 | 方法 | 决策树 max_depth=3 | **optbinning 单变量最优切点** |
 | 维度 | 多变量交互 (AND) | **单变量** |
-| 显著性 | Lift + CV 稳定性 | **卡方 p + 风险倍数** |
+| 显著性 | Lift + 留出集 bootstrap 稳定性 | **卡方 p + 风险倍数** |
 | 用途 | 自动发现规则 | **分析师候选规则评审** |
 
 ## 何时使用（触发语）
@@ -123,7 +123,7 @@ agent 报回前 `cat` 这个节点即可。
 1. 检查特征是否有「某常值占比 ≥ 80%」（阈值 `ZERO_INFLATE_RATIO_THRESHOLD`，可改 config）。
 2. 命中时，用 `> 常值`（通常即 `> 0`）作为手工切点。
 3. 风险方向**只走 LR 系数 / 相关系数**（没有 binning_table，bin_jump 不适用）；两者都缺则 skip。
-4. 走完整的五道门槛判定（不偷工减料）。
+4. 走完整的五道门槛判定。
 5. 候选表 `切点来源` 列标 `zero_inflate_fallback`，便于分析师人工复核。
 
 如需绕过兜底直接调 optbinning，传 `--min-bin-size 0.02` 把准入降到 2%。

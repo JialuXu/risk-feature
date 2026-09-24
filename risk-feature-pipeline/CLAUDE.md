@@ -1,123 +1,39 @@
-# CLAUDE.md — 解耦重构作战手册（risk-feature-pipeline）
+# CLAUDE.md — risk-feature-pipeline 开发约定
 
-> **本文件是「解耦重构」专项作战手册**，供新会话直接接手执行计划。
-> 通用项目结构 / 入口 / 数据路径见上层 `<仓库根>/CLAUDE.md` 与本目录 `AGENTS.md`（都会自动加载，本文件不重复）。
-> **完整设计（唯一真源）：[`docs/DECOUPLING-DESIGN.md`](docs/DECOUPLING-DESIGN.md)** — 目标架构、依赖矩阵、契约层、不变量、10 阶段计划全在那里。本文件只做「怎么开工、铁律、进度」。
-> 重构全部完成后本文件可删除。
+仓库根 `CLAUDE.md` 已覆盖架构、入口、配置、路径与测试命令；agent 的操作硬规矩见本目录 `AGENTS.md`。
+本文件只补充**在本目录改代码时**必须遵守的约定。设计与迁移史见 `docs/DECOUPLING-DESIGN.md`，
+逐项变更见 `CHANGELOG.md`。
 
----
+## 改动前后
 
-## 0. 任务一句话
+- 基线：`ruff check . && python -m pytest -q` 全绿后再动手；提交前再跑一次，用例只增不减。
+- 改变产物数值或列名 = 行为变更：补回归测试，并在 `CHANGELOG.md` 记一个代号（A/B/C/D/E 系列）。
+- 对外界面冻结：`python -m risk_pipeline <子命令>` 的命令与 flag 语义、产物文件名与列名。确需改动时同步
+  `references/cli/*.md`、`docs/SCHEMA.md` 与 CHANGELOG。
 
-把「一个统一 CLI + 12 个靠 `import risk_pipeline.*` 焊死的子 skill」重构成 **`risk_core`（契约底座）← 挖掘内核 / 独立子 skill ← 组合根（路由+入口）** 的单向依赖结构，让大模型每个任务只加载最小上下文。**不改**：分析算法、对外 CSV/JSON 产物 schema、`python -m risk_pipeline <子命令>` 命令界面。
+## 放哪儿、怎么 import
 
----
-
-## 1. 启动检查清单（新会话第一件事）
-
-1. 读 **`docs/DECOUPLING-DESIGN.md`** 全文（尤其 §4 目标架构、§5 契约层、§7 不变量、§9 计划）。
-2. 读本目录 `AGENTS.md`（硬规矩：先查再跑、prepare_df、verbose=False、阻断节点）。
-3. 确认绿色基线：`cd risk-feature-pipeline && python -m pytest -q` 应为 **196 passed**（见 §2）。
-4. 从 §3「当前进度」找到下一个阶段，只做那一个阶段。
-
----
-
-## 2. 绿色基线（Phase 0 已锚定）
-
-- **196 passed，~5s**（`python -m pytest -q`），2 个无害 protobuf DeprecationWarning。
-- 基线是在**当前工作树**上测的——工作树有若干**与本重构无关的既有未提交改动**（`AGENTS.md` / `SKILL.md` / `risk_docx_report/*` / `risk_pipeline/cli.py` / `config.py` 等）。
-  → **开工前先把这些既有改动 commit 或 stash**，让重构的每个 commit 干净、可单独 revert。
-- 每个阶段结束必须仍是 **196 passed（或更多，只增不减）**；任一用例变红 = 该阶段未完成，不许进下一步。
-
----
-
-## 3. 当前进度
-
-| 阶段 | 状态 |
+| 要做的事 | 落点 |
 |---|---|
-| 0 基线存档 | ✅ 已完成（196 passed，见 §2） |
-| 1 抽 `risk_core` + 立 `contracts.py` | ✅ 已完成（commit `b91c2a9`；196→**201 passed**，+5 不变量锁；6 底座+results_loader 平移，contracts.py 立 §5 单一真源，`risk_pipeline` 转模块别名 shim，2 条跨 skill import 消除；3 路对抗性审计通过） |
-| 2 命令拆包 + 入口保号 | ✅ 已完成（commit `f7e80db`；201→**205 passed**，+4 转发不变量锁；建 `risk_mining` 组合根，`cli_commands.py` 拆成 `commands/<cmd>.py` 九文件+`_common`，`cli.py` 迁入，`risk_pipeline.cli/cli_commands` 降 shim，`__main__`+`pyproject` 转发 `risk_mining.cli:main`；--help md5 逐字不变 + 25 函数体 AST 逐字等价） |
-| 3 `assemble_exports()` 去重 | ✅ 已完成（commit `1d88b58`；205→**210 passed**，+5；建 `risk_mining/export.py::assemble_exports` 唯一装配点，credit/gsfc/generic/cmd_export 四调用点全部改调、旧 builder 序列清零；credit 补 `target_col=COL_TARGET`（一致性对齐，`None≡[]`+`is_bad` 默认逐字等价）；新增 `test_smoke_run_credit`（补 call-site #1 零覆盖）+ `test_unit_assemble_exports`（schema 一致/df=None 跳 LLM/target 默认等价/generic API #3）；--help 与 HEAD 字节一致；补锁 commit `8d065e1`：对抗审计发现 `<=` 子集断言抓不住 raw/derived 透传断裂→`特征类型` 列静默丢失，已补正向/值级/落盘文件级断言并用变异实验验证补锁生效） |
-| 4 argspec 单一注册表 | ✅ 已完成（commit `8eb6e6c`；210→**217 passed**，+7 不变量锁；建组合根 `risk_mining/argspec.py` 每 flag 一条唯一声明，`cli._build_parser` 遍历构建（删 ~197 行手抄）；run 由 prepare∪analyze 并集派生（option-string 去重、required 降 False、`--steps` 覆盖 default=None 保 `...,rules` 兜底与 credit/gsfc 全跑语义）；`cmd_run` 删手工 Namespace 改 `_forward_ns`+`dests_for` 派生转发，run 新增 `--prepared/--features-file/--qual-dims/--project-name` 自动透传；顶层+8 非 run 子命令 --help 逐字节一致（10 份基线 diff），端到端 generic 14 产物+Level 1 验证；**批次 A 全部完成**） |
-| 5 拆 `result_query`（样板） | ✅ 已完成（commit `577157e`；217→**223 passed**，+6 独立性锁；新增薄 `__main__`（不参与 argspec、不进 agent 模板），cmd_explore 的 `load_results` 改从 `risk_core` 取→全仓唯一 importer=cmd_query；五把锁：AST 红线/唯一 importer/`python -m` 端到端/子进程 import 隔离/**运行时 sys.modules 隔离**（对抗审查发现 importlib 字符串式动态 import 可逃逸静态锁，补锁并变异实验验证）；--help 10/10 逐字节一致） |
-| 6 拆 docx_report / trigger / data_prep | ✅ 已完成（5 commit；227→**235 passed**；`432b462` 6a=§5.1 前导零真 bug 修复——实测丢失点有两处：prepare_df 三处源头读 + prepared.csv 往返，写点/四读点收敛 contracts.write/read_prepared、trigger 读点移到 id_col 解析后，四把契约锁（往返/容错/features.json 15键 schema/前导零 e2e）+变异实验×2；`9513f58`/`6564296`/`0e3494d` 6b-6d=三 skill import 切 risk_core + `test_unit_skill_independence.py` 参数化独立性锁（AST 红线+进程隔离）；`f6cd812` 6e=对抗审查确认 2 major 补修：credit 链路源头读补对称 dtype 锁（gsfc 早已锁、credit 是唯一残留，静默漏标已复现）+ merge 路径变异逃逸补锁，变异实验×2 验证） |
-| 7 拆 visualization / threshold_explore | ✅ 已完成（commit `56f2761`+`1dfb1e7`；235→**239 passed**；两 skill import 全量切 risk_core，§5.7 文件名手拼（规则表/候选阈值表×写读两端）收敛 contracts.RESULT_FILE_TEMPLATE，INDEPENDENT_SKILLS 达 6 个；**批次 B 收官验收全过**：红线1 内核零子 skill import、红线2 六独立 skill 零 risk_pipeline/横向依赖（AST 级机器化）、--help 10/10 字节一致、e2e 真跑 visualize 8 张 PNG、对抗审查 0 缺陷（模板 13 极端值等价/config 同对象/写读往返实测）） |
-| 8 references/ 懒加载文档（可并行） | ✅ 已完成（commit `2d203d9`；239→**243 passed**，+4 纯 grep 文档锁；references/ 13 文件（_index 路由 + blocking-gates/paths-env/levels + 9 张 cli 卡），AGENTS.md 358→148 行，12 子 SKILL 加「何时读我」，消 50/70 漂移（上层 CLAUDE.md+PRD ×4 处，测试锁死并当场抓到存量漂移）+ 征信/ 层级描述修正；冷启动 eval 4 任务全通、硬断链 0、单任务阅读量 ~26KB→~300 行；零运行时代码。**批次 C 完成；必做批次 A/B/C 全部收官**） |
-| 9（可选）修 state_dir 发散 | ✅ 已完成（commit `4b06397`；243→**244 passed**；cmd_run credit/gsfc 删「征信/工商财务」state 前缀特判，全命令统一 `data/results/<project>/`（仅 state 文件，结果 CSV 前缀保留）；`_resolve_state_dir` 接入 contracts.state_results_dir 单一真源；credit 下游可见性锁（load_state 默认解析 require_level 不抛）+ gsfc 路径锁更新；旧位置 state 不迁移、下次 run 重建） |
-| 10（可选·可砍）内核去重 | ⬛ 已砍（2026-07-05 决策）——用户拍板保留 credit/gsfc 黑盒（见 `docs/DECOUPLING-DESIGN.md` §10 决策），故 `segment_univariate` 仍活。实测「segment→engine 收敛」会静默改 gsfc 单变量 corr/diff/pval（engine skipna+无条件 t 检验 vs segment fillna(0)+阈值门控，遇 NaN 特征发散）且**当前无 golden test 兜底**——高风险、收益仅 cosmetic 去重，踩铁律5「黑盒不可拆」。`pipeline.py:762 旧 main()` 保留为遗留入口（`python -m shared` 仍走它）。两处随下版本 shim 退休一并处理。 |
+| 路径、配置常量、磁盘契约（列名/dtype/白名单/文件名模板/wire schema）、缺失值口径 | `risk_core/`（叶子，不得 import 任何上层） |
+| 分析算法、Level 状态机、导出装配、generic 编排 | `risk_mining/analysis`、`pipeline_state`、`export`、`pipeline`（只依赖 risk_core） |
+| 新 CLI flag | `risk_mining/argspec.py` 单一注册表声明一次，并在对应 `commands/<cmd>.py` 中读取；run 会自动继承 prepare∪analyze 的 flag |
+| 新子命令逻辑 / 需要同时调用内核与子 skill | 组合根 `risk_mining/commands/` |
+| 独立子 skill 的功能 | 该 skill 的 `scripts/`，只依赖 `risk_core` |
 
-> 完成一个阶段后，把对应行改成 ✅ 并一句话记结果（commit hash / 新增用例）。批次：**A(1→4) 必做 → B(5→7) 拆分 → C(8) 可并行 → D(9,10) 可选**。
+- 子 skill 读写的磁盘契约先固化进 `risk_core/contracts.py`，写端与读端都引用它，不各自手拼文件名/列名。
+- 不写 `risk_pipeline.*` / `shared.*`（兼容 shim），不在模块顶层 `sys.path.insert`，不用 `os.getcwd()` / `__file__` 找数据路径。
+- 分层红线由 `tests/test_unit_kernel_boundary.py` 与 `tests/test_unit_skill_independence.py` 检查（含
+  `importlib.import_module('risk_x…')` 这类字符串导入），红了就是放错了层，不要改测试放行。
 
-> **收尾（2026-07-05）**：必做批次 A/B/C + 阶段 9 全部收官，阶段 10 已砍，**重构视作完成**。两条 grep 红线均通过（挖掘内核零子skill import、`risk_*/scripts` 零横向 import），`references/_index.md` 懒加载就位，**244 passed**。残留（内核物理仍在 `risk_pipeline/`：`pipeline_state.py`/`analysis/`；3× `iv_analysis.py` 转发 + `shared/` + CSV 双写 + `MIN_IV_FULL` 别名）= 已知技术债，随「下个版本 shim 退休批次」处理（清单见 §7 + 会话审计），本轮不动。
+## 不能碰的
 
-> **收尾追加·11 抽取 credit/gsfc 黑盒（2026-07-05，commit `c58c698` + golden `c4529d8`）**：把 `run_credit_pipeline`/`run_gsfc_pipeline` 从 `risk_pipeline/pipeline.py` **逐字**迁出到新 skill `risk_legacy_chains/scripts/{credit_chain,gsfc_chain}.py`（函数体字节级不变；前端/内核不搬，靠 `_load_module` 名字串照旧动态复用）。`pipeline.py`（881→434 行）只留 `run_generic_pipeline` + `main()` + 两行 re-export（保号：`from risk_pipeline.pipeline import run_credit_pipeline` 不变）。**黑盒不再与 generic 混在同一模块**。安全前提先落地：`tests/test_golden_legacy_chains.py` 值级钉死两链路 IV/AUC/LR/单变量（244→**246 passed**）。--help 顶层+run 逐字节不变、`python -m shared --pipeline gsfc` 端到端 exit 0。
+- **credit / gsfc 黑盒链路**（`risk_legacy_chains/` 及其调用的 `risk_segment_univariate` 等老实现）：用户决定保留原口径，
+  数值由 `tests/test_golden_legacy_chains.py` 钉死。共享函数加新口径时用参数区分（如 `missing_policy=MISSING_POLICY_LEGACY_ZERO`），
+  不要让老链路的 golden 值漂移。
+- **阻断节点**（新数据集确认 / trigger 特征确认 / external 报告终版确认）与 Level 单向推进规则：见 `references/blocking-gates.md`、`references/levels.md`。
+- **配置不支持运行时覆盖**（单行场景，已决）：不要加 `--config` / 覆盖文件入口。
 
----
+## 调试顺序
 
-## 4. 铁律（本重构不可违反，违反即回滚）
-
-1. **每阶段 pytest 保持绿。** 改动前 `pytest -q` 对基线，改动后必须 ≥ 196 passed。**一个阶段 = 一个 commit = 可单独 revert。** 不做跨阶段大爆炸改动。
-2. **不碰对外界面。** `python -m risk_pipeline <子命令>` 的命令、flag、`--help` 语义、8 张 CSV + LLM JSON 的列名/文件名、分析算法——全部保持不变（对照基线 `--help` 全文与产物）。
-3. **shim 用「模块别名」，不是 `import *`。** 阶段 1 平移模块后，`risk_pipeline/__init__.py` 必须
-   `import sys; from risk_core import paths; sys.modules['risk_pipeline.paths'] = paths`（逐子模块登记：paths/config/config_loader/column_mapper/io_utils/font_utils/results_loader + analysis.*）。
-   原因：测试依赖**同一模块对象**与**私有名**（如 `tests/test_unit_cli_roots_stamp.py:18` 的 `paths._warned_no_data_dir.clear()`），`import *` 覆盖不到，会红。验证 `import risk_pipeline.paths is risk_core.paths`。
-4. **两条 grep 红线**（拆分完成的硬验收）：
-   - 挖掘内核 `risk_mining/{analyze,export,analysis,pipeline_state}` **不得** `import risk_<任何子skill>`。
-   - `risk_*/scripts/` **不得**出现跨子 skill import（当前有 2 条：`visualize.py:20`、`threshold_explore.py:29` 依赖 `result_query`——阶段 1 把 `load_results`+`Results` 升 `risk_core` 后消除）。
-5. **不变量零破坏**（详见设计文档 §7）：Level 状态机单向推进、3 个物理 `exit 1` 阻断节点、路径优先级 `env>入参>探测data/>CWD` + **`RISK_OUTPUT_ROOT` 须在首次 `import config` 前设置**（config 路径常量是 import-time 冻结）、`_intermediate` wire format、指纹 `schema_version=2` 向后兼容、原子落盘、**credit/gsfc 黑盒不可拆**。
-6. **契约先行（P6）：** 拆某个子 skill 前，先把它读/写的磁盘契约固化进 `risk_core/contracts.py`（列名白名单、dtype、文件名模板、键集合），再拆。写点与读点分属不同 skill 后，靠 contracts 兜住。
-7. **中文输出**、CSV `utf-8-sig`、跳过分群要显式记原因、AUC 标类型——沿用既有编码规范（见上层 CLAUDE.md）。
-
----
-
-## 5. 每阶段标准工作流
-
-```
-1. 读 docs/DECOUPLING-DESIGN.md §9 对应阶段那一行（改什么/为什么/如何验证/回滚点）
-2. git 确认工作树干净（既有改动已 commit/stash）
-3. 做该阶段改动（外科手术，只动该阶段涉及的文件）
-4. python -m pytest -q         # 必须 ≥ 196 passed
-5. 按该阶段「验证」列补/跑新增用例（如三链路 schema 一致、prepared dtype 往返、grep 红线）
-6. 对照基线：python -m risk_pipeline --help 逐字未变；一次 run --pipeline generic 产物未变
-7. 单独 commit（信息写明阶段号 + 做了什么）
-8. 回本文件 §3 把该阶段标 ✅
-```
-
-调试顺序（沿用 SKILL.md）：错误落在 pipeline 哪个阶段 → 函数签名/透传 → `df.columns` 核对列真实存在（不猜）。
-
----
-
-## 6. 高频坑 + 一个必修的真 bug
-
-- **阶段 1 最易翻车点**：shim 不用模块别名（见铁律 3）；`results_loader._SKILL_ROOT` 写死 `parent×3`，移进 `risk_core/` 后层级变了要改成「向上找含 `data/` 或 `risk_core/` 的目录」。
-- **阶段 2 别漏入口保号**：`risk_pipeline/__main__.py` 转发 `risk_mining.cli:main`；`pyproject.toml` 的 `packages.find` 增 `risk_core*/risk_mining*`、`[project.scripts]` 改 `risk_mining.cli:main`。
-- **阶段 3**：credit 补 `target_col` 是**一致性对齐**（非行为修复）；新增用例必须**真跑 credit+gsfc+generic 三链路**，否则 credit 分支零覆盖。
-- **阶段 4**：run 复用 prepare∪analyze 的 flag 要**按 option-string 去重、`required` 一律降 False、`--steps` 保留 run 专属 `...,rules` 默认**，否则 argparse dest 冲突。
-- **阶段 6 必修真 bug（§5.1）**：`prepared.csv` 主键写盘是 str、读回无 `dtype` → 前导零丢失 → trigger 与宽表 0 命中 → **全 0 预警名单**。用 `contracts.read_prepared/write_prepared(dtype={id_col:str})` 修掉，加往返用例。
-
----
-
-## 7. 关键文件地图（重构涉及）
-
-| 现状文件 | 行数 | 重构去向 |
-|---|---|---|
-| `risk_pipeline/cli_commands.py` | 1382 | 拆入组合根 `commands/*.py`（阶段 2）|
-| `risk_pipeline/cli.py` | 280 | 组合根 `cli.py` + `argspec.py`（阶段 4）|
-| `risk_pipeline/pipeline.py` | 976 | 三处 export 段改调 `assemble_exports()`（阶段 3）；旧 `main()`（:858）阶段 10 转调 |
-| `risk_pipeline/cli_io.py` | 196 | wire/指纹函数 → `risk_core/contracts.py`（阶段 1）|
-| `risk_pipeline/pipeline_state.py` | 234 | → `risk_mining/`（状态机留内核）|
-| `risk_pipeline/{paths,config,config_loader,column_mapper,io_utils,font_utils}.py` | — | 平移 `risk_core/`（阶段 1）|
-| `risk_result_query/scripts/results_loader.py` | — | `load_results`+`Results` 升 `risk_core/results_loader.py`（阶段 1）|
-
----
-
-## 8. 完成定义
-
-- 批次 A 完成 = CLI 界面零变化，但 flag/导出/契约已单一真源，pytest ≥ 196 绿。
-- 批次 B 完成 = 6 个独立子 skill 只依赖 `risk_core`，两条 grep 红线通过。
-- 全部完成 = 挖掘内核只剩 analysis+analyze+export+状态机；LLM 每任务必读上下文按 `references/_index.md` 懒加载（设计文档 §8 的前后对照达标）。
-
----
-
-*执行以 `docs/DECOUPLING-DESIGN.md` §9 为准；本文件只是每次开工的操作入口与红线提醒。*
+错误落在链路哪个阶段 → 函数签名与参数透传 → 用 `df.columns` 核对列真实存在（不猜列名）。

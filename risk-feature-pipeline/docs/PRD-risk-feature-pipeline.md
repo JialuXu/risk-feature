@@ -35,7 +35,7 @@
 | **风险报告交付人员** | 最终输出 .docx 报告、用途分内/外 | `report` + 阻断节点 3 |
 | **AI Agent**（如 Claude Code） | 状态可读、自检可机器消费 | 全部子命令 + `_audit.json` |
 | **平台/运维** | 路径可移植、产物落到指定目录 | 环境变量 `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` |
-| **多银行接入方** | 字段映射可配置、不改代码即可适配 | YAML 覆盖 + ColumnMapper |
+| **多银行接入方** | 字段映射可配置、不改代码即可适配 | CLI flag（`--id-col` / `--target-col` / `--category-dims`）+ 随包 YAML / ColumnMapper |
 
 ---
 
@@ -58,7 +58,7 @@
 | 8 | `risk_export_report/` | 8 张标准 CSV + LLM JSON + 分群画像 | → Level 1 |
 | 9 | `risk_result_query/` | 只读已落盘结果，top-N / 分群查询 | Level 1 后 |
 | 10 | `risk_trigger_extraction/` | 客户级触碰扫描 + IV 加权得分 | → Level 2 |
-| 11 | `risk_visualization/` | 12 类 PNG 图表（IV/相关/LR/规则/组合） | Level 1 后 |
+| 11 | `risk_visualization/` | 9 类 PNG 图表（IV/相关/LR/规则/组合/阈值） | Level 1 后 |
 | 12 | `risk_docx_report/` | LLM JSON + Markdown → 正式 Word 报告 | → Level 3 |
 
 ### 2.2 四级状态模型
@@ -153,7 +153,7 @@
 | `analyze` | 跑 `univariate / iv / lr / rules` 子集到 `_intermediate/` | 过渡态 |
 | `export` | 合并 `_intermediate/` 为标准 CSV + LLM JSON + audit.json | Level 1 |
 | `query` | 只读已有结果，top-N / 分群查询 | 不改 Level |
-| `visualize` | 渲染 12 类 PNG 图表 | 不改 Level |
+| `visualize` | 渲染 9 类 PNG 图表 | 不改 Level |
 | `trigger` | 客户级触碰，阻断节点 2 守门 | Level 2 |
 | `report` | 渲染 .docx，阻断节点 3 守门 | Level 3 |
 | `run` | 一键组合：`generic` 走 `prepare→analyze→export`；`credit/gsfc` 转发既有链路 | — |
@@ -161,7 +161,7 @@
 横切机制：
 
 1. **项目状态档案 `.pipeline_state.json`**：记录每次执行的参数、产物、Level 推进、数据集指纹。
-2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）来自 `risk_core/config/default.yaml`，用户 YAML 深度合并覆盖。
+2. **配置驱动**：所有阈值（IV 切档、样本量门槛、规则深度等）只读随包 `risk_core/config/default.yaml`（单行场景，见 §4.3）。
 3. **路径可移植**：`RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 环境变量优先；写盘失败时给出清晰解决路径。
 4. **三处阻断节点**：在不可逆动作前强制确认。
 
@@ -304,7 +304,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 5. **可信度评级**：综合样本量 + IV 大小判断：
    - 可信 / 参考 / 不可信-样本不足 / 不可信-疑似数据穿越。
 6. **分群 IV**：在每个分群内独立计算，识别分群专属强信号。
-7. **可选业务阈值**：`calc_feature_thresholds` 可基于 optbinning 给出业务可解释的切分点。
+7. **可选业务阈值**：Level 1 后用 `explore_thresholds`（`risk_threshold_explore`）基于 optbinning 给出业务可解释的切分点。
 
 #### 预期输出结果
 
@@ -338,8 +338,8 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 2. **标准化 + L2**：`StandardScaler` + `LogisticRegression(C=1.0, solver='lbfgs')`（默认 L2 正则），系数以**标准化后尺度**解释。
 3. **AUC 类型自动选择**：
    - 样本数 ≥ `MIN_SAMPLES_CV`（200）+ 坏 ≥ `MIN_BAD_CV`（30）：5 折分层交叉验证 AUC。
-   - 样本不足：降级为训练集 AUC，**且必须显式标注**。
-   - CV 失败：训练集 AUC + "CV 失败"标注。
+   - 样本不足：降级为训练集 AUC，**必须显式标注** `训练集(样本不足)`。
+   - CV 失败：训练集 AUC，标注 `训练集(CV失败)`。
 4. **特征集对比**（`compare_feature_sets`）：可比较两组特征列表（如"原始 vs 衍生"、"司法 vs 非司法"）的 AUC 提升。
 
 #### 预期输出结果
@@ -351,7 +351,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 | 特征集对比表 | DataFrame | 写入综合特征分析结果 |
 
 **强制规范**：
-- AUC 必须标注类型（交叉验证 / 训练集-样本不足 / 训练集-CV 失败）。
+- AUC 必须标注类型（`5折交叉验证` / `训练集(样本不足)` / `训练集(CV失败)`）。
 - 拟合异常须捕获并记入跳过原因。
 
 ---
@@ -378,7 +378,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 4. **规则提取**：从根到叶的完整路径即为一条规则。
 5. **规则筛选**：满足 `min_coverage = 0.01` + `min_lift = 1.5` + `min_bad_in_leaf = 5` 三道闸门。
 6. **规则去重**：按 `(特征集合, 阈值四舍五入)` 去重，避免不同树路径产生等价规则。
-7. **稳定性评估**：5 折交叉验证，记录每条规则在 holdout 的坏账率均值/标准差，出现 ≥ `stability_min_folds`（默认 3）折视为稳定。
+7. **留出评估与稳定性**：分层 70/30 切分，训练集挖树、测试集计算覆盖率/Lift/闸门/建议用途（坏客户不足时回退全量并在 `评估口径` 标注样本内）；稳定性在测试集上 bootstrap `bootstrap_n`（默认 200）次，有效占比 ≥ `stability_min_valid_ratio`（默认 0.6）且坏账率变异系数达标视为稳定。
 8. **业务语言格式化**：
    - 规则条件中文化（`资产负债率 大于 0.75`，避免技术符号）。
    - 阈值精度自适应：比率类 → 2 位小数；金额类 → 整数 + 千分位；其他 → `:.4g`。
@@ -392,7 +392,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 | 产物 | 形态 | 用途 |
 |---|---|---|
 | 规则表 DataFrame | 含覆盖率 / 坏账率 / Lift / 稳定性 / 建议用途 | 流入 export，写 `_风险规则表.csv` |
-| 决策树 pkl | `_intermediate/rule_tree_*.pkl` | 供可视化出真树图 |
+| 决策树 pkl | `_intermediate/rule_tree_*.pkl` | 留存拟合好的决策树对象（中间产物） |
 | 规则 pkl | `_intermediate/rules.pkl` | 供 export 与可视化共用 |
 
 **强制规范**：
@@ -423,7 +423,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
    - IV > 2.0 的疑似数据穿越特征。
    - 不稳定规则列表。
    - 当前 Level / 产物文件数 / 时间戳。
-7. **列名统一**（A4 后）：所有对外列名为「特征 / 分群维度 / 分群名称」三件套；旧列名通过 `load_results()` 自动 rename 兼容。
+7. **列名统一**：所有对外列名为「特征 / 分群维度 / 分群名称」三件套；旧列名通过 `load_results()` 自动 rename 兼容。
 
 #### 预期输出结果
 
@@ -504,7 +504,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 3. **二选一选取特征配置**：
    - 默认 `RISK_FEATURES_GSFC`：仅工商财务主题适用（30+ 项默认特征）。
    - 用户提供 JSON：项目专属特征列表，含 `report_name` / `source_col` / `risk_direction` / `iv` / `category` / 可选 `explicit_threshold` 与 `scope`。
-4. **匹配率守门**：默认特征匹配宽表实际列名 < 70% 时直接 `RuntimeError` 阻断（避免输出全 0 名单；数值单一真源 = `MIN_DEFAULT_FEATURE_MATCH_RATE`，历史上为 50%，已收紧）。
+4. **匹配率守门**：默认特征匹配宽表实际列名 < 70% 时直接 `RuntimeError` 阻断（避免输出全 0 名单；数值单一真源 = `MIN_DEFAULT_FEATURE_MATCH_RATE`）。
 5. **scope 维度筛选**：每个特征支持 4 种 scope 形态：
    - `'full'`（默认）：全量客户。
    - `'waist'`：仅腰部企业（兼容旧写法）。
@@ -516,7 +516,7 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
    - 兜底：好/坏样本不足时用全量中位数。
 7. **触碰评估**：每个客户对每个特征算"是否触碰（0/1/NaN）"。
 8. **IV 加权风险得分**：`得分 = Σ(触碰_i × IV_i) / Σ(IV_i) × 100`，按降序排列。
-9. **元信息列防撞**：默认从输出宽表中剔除 `is_bad` / `企业规模` 等元信息列，避免与 `prepared.csv` merge 撞列；用户可用 `keep_metadata_cols` 显式保留任意列（不限白名单）。
+9. **元信息列防撞**：默认从输出宽表中剔除 `is_bad` / `企业规模` 等元信息列，避免与 `prepared.csv` merge 撞列；用户可用 `keep_metadata_cols` 显式保留任意列。
 
 #### 预期输出结果
 
@@ -544,12 +544,12 @@ IV（Information Value）是风控领域用来衡量"特征对好坏区分力"�
 
 #### 功能说明
 
-Level 1 完成后，把 IV / 相关性 / LR / 分群画像 / 决策树 / 规则散点 / 指标组合 / 共现网络等渲染成 PNG，便于报告插图与人工审阅。
+Level 1 完成后，把 IV / 相关性 / LR / AUC / 分群画像 / 规则散点 / 指标组合 / 候选阈值等渲染成 PNG，便于报告插图与人工审阅。
 
 #### 功能逻辑
 
 1. **加载 Level 1 产物**：与 `query` 同源，纯只读。
-2. **支持 12 类图表**：
+2. **支持 9 类图表**：
 
 | `kinds=` | 图表 | 数量 |
 |---|---|---|
@@ -563,11 +563,8 @@ Level 1 完成后，把 IV / 相关性 / LR / 分群画像 / 决策树 / 规则�
 | `combos` | 指标组合 max lift 条形图 | 1 |
 | `thresholds` | 候选阈值分箱坏率 + 风险倍数 | 0–N |
 
-> 已下线（对最终业务报告无增量价值、且随分群数量爆炸）：每分群一张的 `corr`/`lr` 散图
-> （看对应热力图即可）、决策树图 `tree`、特征共现网络 `combo_network`、单变量箱形图。
-
 3. **依赖隔离**：matplotlib / seaborn 缺失时给出友好提示（`pip install -e .[viz]`），不抛 traceback。
-4. **中文字体自动探测**：按 OS 探测中文字体，全 miss 时只 warn 不报错。
+4. **中文字体自动探测**：按 OS 探测中文字体，全 miss 时只 warn。
 5. **缺前置自动跳过**：未跑 rules 时 `rules/combos` 自动跳过、未跑 explore_thresholds 时 `thresholds` 跳过（status stamp 显示 `skipped=...`），不报错。
 
 #### 预期输出结果
@@ -578,7 +575,7 @@ Level 1 完成后，把 IV / 相关性 / LR / 分群画像 / 决策树 / 规则�
 
 **强制规范**：
 - 不重跑链路、不改 CSV、不改 Level。
-- PNG 是唯一形态，不出 HTML / 交互式图表。
+- 只输出 PNG。
 
 ---
 
@@ -649,21 +646,11 @@ LLM 已基于 `_LLM报告数据.json` 写好一份 Markdown 正文；`risk_docx_
 
 ### 4.3 配置驱动
 
-- **唯一 Python 配置源**：`risk_pipeline/config.py`。
-- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`。
-- **多银行适配**：用户写一份覆盖 YAML，深度合并默认值。
-- **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异。
-
-```yaml
-# config/city_bank.yaml — 仅覆盖差异
-thresholds:
-  min_samples: 30
-  min_bad_samples: 5
-column_mapping:
-  required:
-    customer_id: "客户号"
-    target: "是否不良"
-```
+- **唯一 Python 配置源**：`risk_core/config.py`（旧路径 `risk_pipeline.config` 为兼容别名）。
+- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（随包分发）。
+- **单行场景，不支持运行时覆盖配置**：CLI 与 Python API 都只读随包 YAML；适配某份数据走 CLI flag
+  （`--id-col` / `--target-col` / `--category-dims` …），长期接入新银行属开发仓库维护动作（直接改随包 YAML）。
+- **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异（映射值来自随包 `column_mapping.yaml`）。
 
 ### 4.4 路径可移植
 
@@ -739,7 +726,7 @@ column_mapping:
 |---|---|
 | 新数据集首跑未加确认 flag | 阻断节点 1 报错，列出两条确认路径 |
 | 项目 Level 1 后跑 `query` | 不重跑、不改 Level、stdout 输出表格 |
-| `analyze` 含 `rules` 后跑 `visualize` | 决策树 / 规则散点 / 指标组合都生成 |
+| `analyze` 含 `rules` 后跑 `visualize` | 规则散点 `rules` / 指标组合 `combos` 都生成 |
 | `trigger` 默认特征匹配率 < 70% | RuntimeError 阻断，提示主题不匹配 |
 | `report --purpose external` 未加 final 确认 | 阻断节点 3 报错 |
 | 设置 `RISK_OUTPUT_ROOT=/tmp/out` 后跑全流程 | 所有产物落到 `/tmp/out/` 下 |
@@ -834,18 +821,18 @@ cat data/results/新行业_v1/新行业_v1_audit.json
   "n_exported": 14,
   "iv_overfit_features": [],
   "unstable_rules": [
-    {"分群": "企业规模.大型企业", "规则编号": "rule_3", "CV有效折数": 2}
+    {"分群": "企业规模.大型企业", "规则编号": "3", "稳定性有效次数": 84, "评估口径": "样本外(留出30%)"}
   ]
 }
 ```
 
-→ Agent 据此回报："Level 1 已完成，14 个产物落盘，但有 1 条规则在 5 折交叉验证里只命中 2 折，建议人工复核。"
+→ Agent 据此回报："Level 1 已完成，14 个产物落盘，但有 1 条规则在留出集 200 次 bootstrap 重抽样里只有 84 次有效，判为不稳定，建议人工复核。"
 
 ### 故事 E：多银行接入
 
 > 我们行的字段命名跟默认不一样，主键叫"客户号"、目标列叫"是否不良"。
 
-**CLI 路径（推荐，适配当前这份数据）**：字段名差异一律走 flag，不改任何配置文件——CLI 不接受 `--config` / `--columns-file` 运行时切换，但主键/目标/分群列都能直接传：
+**CLI 路径（推荐，适配当前这份数据）**：字段名差异一律走 flag，主键/目标/分群列都能直接传：
 
 ```bash
 python -m risk_pipeline run --pipeline generic \
@@ -869,12 +856,4 @@ thresholds:
   min_samples: 30
 ```
 
-**Python API 路径（高级用法）**：当不走 CLI、直接在 notebook 调研时，可以传入自定义路径深度合并：
-
-```python
-# 仅 Python API 可用；CLI 入口不接受 --config，请走上方"CLI 路径"
-from risk_pipeline.config_loader import load_config
-config = load_config("config/my_bank.yaml")  # 自动深度合并默认值
-```
-
-→ 所有下游 Skill 自动用新映射，不改一行代码。
+→ 改随包 YAML 后所有下游 Skill 自动用新映射，不改一行代码。Python API 也读同一份 YAML，没有单独的覆盖入口（`load_config(path)` 只返回合并后的字典，不影响管线实际使用的阈值/列名）。

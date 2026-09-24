@@ -3,7 +3,7 @@
 字段映射器：将通用字段名映射到本行实际字段名
 
 使用方式:
-    from risk_pipeline.column_mapper import ColumnMapper
+    from risk_core.column_mapper import ColumnMapper
     mapper = ColumnMapper()                      # 使用默认映射
     mapper = ColumnMapper("config/my_bank.yaml") # 使用自定义映射
 

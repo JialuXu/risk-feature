@@ -33,7 +33,7 @@
 **默认特征匹配率守门（数值单一真源）：** 默认特征仅适配 GSFC 主题；其它主题误用
 默认时，若宽表列匹配率低于 `MIN_DEFAULT_FEATURE_MATCH_RATE = 0.7`（即 **70%**，
 定义在 `risk_trigger_extraction/scripts/config.py`）会抛 RuntimeError 阻断，
-不会输出全 0 名单。历史文档写过 50%——已收紧为 70%，以代码常量为准。
+不会输出全 0 名单。
 
 ## 阻断节点 3 — 对外 Word 报告生成之前（Level 3 临界点）
 
@@ -45,4 +45,4 @@
 - [ ] 当前的 `*_LLM报告数据.json` 是最终版本（无数据更新计划）？
 - [ ] 报告用途（内部传阅 vs 对外交付）？
 
-**放行方式：** `--purpose external` 必须加 `--confirmed-final-version`（internal 用途不需要）。
+**放行方式：** `--purpose external` 必须加 `--confirmed-final-version`。

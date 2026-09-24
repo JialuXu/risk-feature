@@ -29,8 +29,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline import cli
-from risk_pipeline.pipeline import run_gsfc_pipeline
+from risk_mining import cli
+from risk_legacy_chains.scripts import run_gsfc_pipeline
 # gsfc 导出对外项目名（report_analysis 产物前缀 / 子目录名）
 from risk_export_report.scripts.config import GSFC_LLM_PROJECT_NAME
 

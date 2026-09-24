@@ -22,3 +22,4 @@ __pycache__/
 
 # risk-feature-pipeline 发布产物（清单与打包脚本入库，dist 不入库）
 risk-feature-pipeline/dist/
+risk-feature-pipeline/build/

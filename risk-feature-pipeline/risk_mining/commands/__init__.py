@@ -2,7 +2,7 @@
 """9 子命令实现（组合根）：每命令一文件，薄壳 wrap 现有 Python API + state.json 状态管理。
 
 - prepare:            调 risk_data_prep.scripts.prepare_df.prepare_df → 写 prepared.csv + features.json
-- analyze:            调 risk_pipeline.pipeline.run_generic_pipeline → 写 _intermediate/
+- analyze:            调 risk_mining.pipeline.run_generic_pipeline → 写 _intermediate/
 - export:             读 _intermediate/ → 调 risk_export_report.scripts.report_analysis.export_results
 - query:              调 risk_result_query.scripts.results_loader.load_results + top_features
 - visualize:          调 risk_visualization.scripts.visualize.generate_charts

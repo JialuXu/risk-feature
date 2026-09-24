@@ -13,7 +13,7 @@
 import pytest
 
 from risk_export_report.scripts.report_insights import rate_feature
-from risk_pipeline.analysis.iv_core import iv_power_label
+from risk_mining.analysis.iv_core import iv_power_label
 
 
 # ---------------------------------------------------------------------------

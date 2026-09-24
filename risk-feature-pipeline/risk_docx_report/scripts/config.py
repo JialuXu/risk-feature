@@ -24,14 +24,13 @@ DOCX_VALIDATE_SCRIPT = (
 def __getattr__(name: str) -> Path:
     """PEP 562 lazy 属性：DEFAULT_OUTPUT_DIR 延后到调用时计算，走 paths.get_output_root()。
 
-    旧版直接 `PROJECT_ROOT / "output" / "docx-report"` 在 import 时绑死路径，
-    无视 RISK_OUTPUT_ROOT 环境变量；lazy 求值后让 Python API 直调（绕过 CLI）
-    时也能尊重 env。CLI 路径（cli_commands.py::cmd_report）显式传 --output
-    覆盖该默认，不受影响。
+    按访问时求值，使 Python API 直调（绕过 CLI）也遵循 RISK_OUTPUT_ROOT。
+    CLI 路径（risk_mining/commands/report.py 的 cmd_report）显式传输出路径，
+    不走该默认。
     """
     if name == 'DEFAULT_OUTPUT_DIR':
         # risk_core.paths 需要 risk-feature-pipeline/（= PROJECT_ROOT）在
-        # sys.path 上；CLI 入口在 cli.py:25-27 已做注入。直调 Python API 时若
+        # sys.path 上；CLI / pip 安装 / pytest 下天然满足。以裸模块方式直跑脚本时若
         # sys.path 未含该目录则在此兜底加一次。
         if str(PROJECT_ROOT) not in sys.path:
             sys.path.insert(0, str(PROJECT_ROOT))

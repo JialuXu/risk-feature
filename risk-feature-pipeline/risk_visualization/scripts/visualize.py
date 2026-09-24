@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
 """risk_visualization 顶层入口：generate_charts(project_name, kinds=...) → {kind: [paths]}
 
-读 Level 1 已落盘的 8 张 CSV + 可选的 _风险规则表.csv + 可选的 _intermediate/rule_tree_*.pkl，
+读 Level 1 已落盘的 8 张 CSV + 可选的 _风险规则表.csv / 候选阈值表，
 输出 PNG 到 output/<project>/charts/。
 """
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
-
-_SKILL_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _SKILL_ROOT not in sys.path:
-    sys.path.insert(0, _SKILL_ROOT)
 
 from risk_core.contracts import RESULT_FILE_TEMPLATE
 from risk_core.results_loader import load_results, Results
@@ -23,7 +18,7 @@ from risk_core.results_loader import load_results, Results
 # matplotlib / seaborn 是可视化的硬依赖；缺失时给出可执行的安装提示，
 # 避免用户面对一大堆 traceback 不知道该装什么。
 try:
-    from . import style  # 触发字体配置（必须先于 chart_* import）
+    from . import style  # noqa: F401  触发字体配置（必须先于 chart_* import）
     from .chart_iv import chart_iv_full, chart_iv_heatmap
     from .chart_corr import chart_corr_heatmap
     from .chart_lr import chart_lr_heatmap, chart_lr_auc
@@ -51,10 +46,10 @@ ALL_KINDS = (
     'rules', 'combos',
     'thresholds',
 )
-# 已下线（对最终业务报告无增量价值）：
-#   corr / lr —— 每分群一张的散图，与 corr_heatmap / lr_heatmap 信息重复且随分群数量爆炸
-#   tree      —— 决策树图（>3 层不可读、按分群数量爆炸；规则表 + rules 散点已覆盖）
-#   combo_network —— 特征共现网络，自述用途为“反向辅助特征工程”，属建模阶段工具
+# 设计约束：以下图对最终业务报告无增量价值，不纳入 ALL_KINDS：
+#   每分群一张的 corr / lr 图 —— 与 corr_heatmap / lr_heatmap 信息重复且随分群数量爆炸
+#   决策树图      —— >3 层不可读、按分群数量爆炸；规则表 + rules 散点已覆盖
+#   特征共现网络  —— 用途为“反向辅助特征工程”，属建模阶段工具
 
 
 def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:
@@ -97,6 +92,7 @@ def generate_charts(
     dim: Optional[str] = None,
     dpi: int = 300,
     project_root: Optional[str] = None,
+    subdir: Optional[str] = None,
 ) -> Dict[str, List[str]]:
     """生成 PNG 图表集合。
 
@@ -109,7 +105,8 @@ def generate_charts(
                        优先于此默认值
         dim:          限定单一分群维度
         dpi:          PNG 分辨率
-        project_root: 项目根目录（含 data/），默认从 CWD 向上找
+        project_root: 产物根目录（含 data/results/），默认 = 输出根（RISK_OUTPUT_ROOT，未设时为项目根）
+        subdir:       结果子目录（export --output-subdir），默认 = project_name
 
     Returns:
         {kind: [str(path), ...]}；未生成的 kind 缺省（不在 dict 里）
@@ -123,7 +120,7 @@ def generate_charts(
     if invalid:
         raise ValueError(f'不支持的 kinds: {invalid}；可选: {list(ALL_KINDS)}')
 
-    r = load_results(project_name, project_root=project_root)
+    r = load_results(project_name, subdir=subdir, project_root=project_root)
 
     if out_dir is not None:
         chart_dir = Path(out_dir)

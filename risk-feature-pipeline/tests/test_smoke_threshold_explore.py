@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def _make_pairs_csv(path: Path) -> None:

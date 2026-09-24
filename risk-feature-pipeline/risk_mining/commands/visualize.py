@@ -6,7 +6,9 @@ import os
 import time
 from typing import Optional
 
-from risk_pipeline.pipeline_state import format_status_stamp, load_state
+from risk_mining.pipeline_state import (
+    format_status_stamp, last_export_subdir, load_state, peek_state,
+)
 
 from ._common import _err, _output_root, _print_stamp, _state_dir
 
@@ -24,9 +26,12 @@ def cmd_visualize(args) -> int:
         if invalid:
             _err(f'[visualize] 无效 kinds: {invalid}；可选: {list(ALL_KINDS)}')
 
+    history = (peek_state(project, state_dir=_state_dir(args)) or {}).get('history')
+    subdir = last_export_subdir(project, history)
     try:
         result_paths = generate_charts(
             project_name=project,
+            subdir=subdir,  # 与 export --output-subdir 同一目录
             kinds=kinds,
             top_n=args.top,
             out_dir=args.out_dir,
@@ -43,7 +48,7 @@ def cmd_visualize(args) -> int:
     if args.out_dir:
         out_dir_display = args.out_dir
     else:
-        out_dir_display = os.path.join('output', project, 'charts')
+        out_dir_display = os.path.join('output', subdir, 'charts')
 
     summary = ', '.join(
         f'{k}:{len(v)}' for k, v in sorted(result_paths.items())

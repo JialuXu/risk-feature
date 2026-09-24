@@ -9,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from . import style  # 触发字体配置
+from . import style  # noqa: F401  触发字体配置
 from .config import IV_LEVEL_BINS, IV_SUSPECT_THRESHOLD
 from .style import (
     IV_LEVEL_COLORS, FIGSIZE_BAR_TALL, FIGSIZE_HEATMAP, GRID_COLOR,

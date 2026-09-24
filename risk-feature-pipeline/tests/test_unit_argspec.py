@@ -17,7 +17,6 @@
 """
 from __future__ import annotations
 
-import pytest
 
 import risk_mining.cli
 from risk_mining import argspec

@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """risk_core.results_loader: 读取已导出的风险特征分析结果（只读，公共读取器）。
 
-解耦重构（DECOUPLING-DESIGN §4.2，阶段 1）：核心读逻辑 ``load_results`` + ``Results``
-由 risk_result_query 升入 risk_core，成为 visualization / threshold_explore / query
-三处共享的唯一读取器；``top_features`` 等查询糖仍留在 risk_result_query。
+核心读逻辑 ``load_results`` + ``Results`` 是 visualization / threshold_explore / query
+三处共享的唯一读取器（DECOUPLING-DESIGN §4.2）；``top_features`` 等查询糖在 risk_result_query。
 
 核心 API:
     load_results(project_name, subdir=None) -> Results
@@ -14,9 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -26,20 +23,6 @@ from .contracts import (
     LEGACY_COL_RENAMES as _LEGACY_COL_RENAMES,
 )
 
-
-# 将 risk-feature-pipeline/ 根加入 sys.path（为 prepare_df 等相对导入兜底）。
-# 本模块已升入 risk_core/，不再写死层级：向上找首个含 risk_core/ 或 data/ 的目录。
-def _find_skill_root() -> str:
-    here = Path(__file__).resolve().parent  # risk_core/
-    for cand in [here, *here.parents]:
-        if (cand / 'risk_core').is_dir() or (cand / 'data').is_dir():
-            return str(cand)
-    return str(here.parent)  # 兜底：risk_core 的上一级
-
-
-_SKILL_ROOT = _find_skill_root()
-if _SKILL_ROOT not in sys.path:
-    sys.path.insert(0, _SKILL_ROOT)
 
 # 搜索顺序：generic → 征信(credit) → 工商财务(gsfc)
 # 优先匹配 generic 链路（run_generic_pipeline 导出到 data/results/<project>）
@@ -55,6 +38,12 @@ def _find_project_root(start: Optional[str] = None) -> str:
     """委托到 risk_core.paths.get_project_root（支持 RISK_PROJECT_ROOT）。"""
     from .paths import get_project_root
     return get_project_root(start=start)
+
+
+def _default_results_root() -> str:
+    """结果是写出来的产物：默认从输出根读（RISK_OUTPUT_ROOT，未设时回退项目根），与 export 一致。"""
+    from .paths import get_output_root
+    return get_output_root()
 
 
 @dataclass
@@ -109,7 +98,7 @@ def _read_csv_with_fallback(*paths: str) -> Optional[pd.DataFrame]:
 
 # A4 后对外列名标准化为：特征 / 分群维度 / 分群名称。
 # 旧列名 → 标准列名映射 _LEGACY_COL_RENAMES 的单一真源在 risk_core.contracts
-# （见文件顶部 import）；读取时统一改名，仅修改返回的 DataFrame，不改盘上文件。
+# （见文件顶部 import）；读取时统一改名，只改返回的 DataFrame。
 def _normalize_legacy_cols(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
     if df is None or df.empty:
         return df
@@ -186,7 +175,7 @@ def load_results(project_name: str,
     Args:
         project_name:  跑链路时传入的 project_name
         subdir:        结果子目录名；默认等于 project_name
-        project_root:  手动指定项目根（默认从 CWD 向上找 data/）
+        project_root:  手动指定产物根（默认 = 输出根：RISK_OUTPUT_ROOT，未设时从 CWD 向上找 data/）
         results_base:  data/results 级别的相对路径；None = 自动按优先级搜索
         output_base:   output 级别的相对路径；None = 跟随 results_base 自动选取
 
@@ -201,7 +190,7 @@ def load_results(project_name: str,
     Raises:
         FileNotFoundError: 所有候选路径均不存在；消息列出已尝试的路径。
     """
-    root = project_root or _find_project_root()
+    root = project_root or _default_results_root()
     subdir = subdir or project_name
 
     # 确定实际使用的路径
@@ -231,7 +220,7 @@ def load_results(project_name: str,
             f"未找到项目 {project_name!r} 的结果目录。\n"
             f"已尝试路径:\n" + "\n".join(f"  {p}" for p in tried) + "\n"
             + ("已有子目录:\n" + "\n".join(hints) if hints else "") + "\n"
-            f"提示：若未跑过，请先执行 run_generic_pipeline(..., steps=[..., 'export'])"
+            "提示：若未跑过，请先执行 run_generic_pipeline(..., steps=[..., 'export'])"
         )
 
     r = Results(project_name=project_name, results_dir=res_dir, output_dir=out_dir)

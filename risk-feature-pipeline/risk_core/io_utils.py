@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """共享 IO 工具：CSV 自动编码读取 + 按配置批量加载。
 
-历史上 ``read_csv_auto_encoding`` / ``load_data`` 在 5 个 Skill 的
-``scripts/io_utils.py`` 下各有一份逐字相同的拷贝；现统一收敛到这里，各 Skill
-的 io_utils 退化为再导出 shim（与 ``get_project_root`` / ``ensure_dir`` 同样的
-处理）。新代码请直接 ``from risk_pipeline.io_utils import read_csv_auto_encoding``。
+各 Skill 的 ``scripts/io_utils.py`` 是从本模块再导出的兼容 shim。
+新代码请直接 ``from risk_core.io_utils import read_csv_auto_encoding``。
 """
 import os
 

@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
-"""跨 OS 中文字体探测（链路级共享）。
+"""跨 OS 中文字体探测（链路级共享，唯一权威）。
 
-历史背景：原来这套代码只活在 `risk_visualization/scripts/font_utils.py`，
-当 `risk_segment_univariate.boxplot` 也要画中文图时，它没法再依赖
-`risk_visualization` 被导入（容易触发循环或路径不对）。所以提到这里作为唯一权威，
-并把检测做得更宽容：
-  1. 精确名匹配（沿用旧候选表）
+放在叶子层 risk_core，使 risk_visualization、risk_segment_univariate.boxplot 等
+画中文图的模块都能直接依赖，而不必互相 import。检测顺序：
+  1. 精确名匹配（按平台候选表）
   2. 关键词子串匹配（兼容 'Noto Sans CJK SC Regular' / 'NotoSansCJK-Regular' 等变体）
   3. matplotlib 的 findfont 兜底（处理别名）
   4. 配置完一次"渲染 中 字符"自检 —— 仍是方框时打印更醒目的诊断
-旧入口 `risk_visualization.scripts.font_utils.configure_chinese_font` 现在转发到这里。
+兼容入口 `risk_visualization.scripts.font_utils.configure_chinese_font` 转发到这里。
 """
 from __future__ import annotations
 
@@ -146,7 +144,7 @@ def configure_chinese_font(force: bool = False, refresh_cache: bool = False) -> 
 
     if hit is None:
         warnings.warn(
-            '[risk_pipeline.font_utils] 未发现任何中文字体，CJK 字符将渲染为方框。\n'
+            '[risk_core.font_utils] 未发现任何中文字体，CJK 字符将渲染为方框。\n'
             '修复建议：\n'
             '  Linux:   sudo apt-get install fonts-noto-cjk  '
             '（或 fonts-wqy-zenhei）\n'
@@ -170,7 +168,7 @@ def configure_chinese_font(force: bool = False, refresh_cache: bool = False) -> 
         # 自检：'中' 字是否真能用 hit 渲染
         if not _self_test_chinese_glyph(hit):
             warnings.warn(
-                f'[risk_pipeline.font_utils] 字体 {hit!r} 命中但不包含中文字形（U+4E2D），'
+                f'[risk_core.font_utils] 字体 {hit!r} 命中但不包含中文字形（U+4E2D），'
                 '可能是字体名同名但内容只含英文。请尝试安装 fonts-noto-cjk 或 '
                 'configure_chinese_font(refresh_cache=True)。'
             )

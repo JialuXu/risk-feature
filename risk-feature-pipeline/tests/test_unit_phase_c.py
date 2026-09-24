@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from risk_pipeline import cli
+from risk_mining import cli
 from risk_rule_mining.scripts.rule_extraction import _format_threshold
 
 

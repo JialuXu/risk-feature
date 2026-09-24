@@ -1,7 +1,10 @@
 # risk-feature-pipeline 解耦重构设计文档
 
-> 状态：**设计草案 v2（已过对抗性核验）** ｜ 范围：架构解耦，不含业务逻辑改动
-> 关联文档：需求见 [`PRD-risk-feature-pipeline.md`](PRD-risk-feature-pipeline.md)，列/文件 schema 见 [`SCHEMA.md`](SCHEMA.md)，术语见 [`GLOSSARY.md`](GLOSSARY.md)，硬规矩见 [`../AGENTS.md`](../AGENTS.md)。本文只描述**重构目标架构与迁移路线**，不重述上述内容。
+> 状态：**已实施**（阶段 1–9 + 设计检视第三批收尾；阶段 10 已砍）｜ 范围：架构解耦，不含业务逻辑改动
+> 实施现状（以代码为准）：挖掘内核 `analysis/` / `pipeline_state.py` / `pipeline.py`（`run_generic_pipeline`）已物理迁入 `risk_mining/`；
+> `risk_pipeline/` 只剩兼容别名与再导出，生产代码不得 import 它（由 `tests/test_unit_kernel_boundary.py` 锁定）。四条分层红线（含字符串式动态导入）
+> 由 `tests/test_unit_kernel_boundary.py` 机器化验收。下文 §1/§5 的 `file:line` 引用指向重构前的旧文件，仅作历史依据。
+> 关联文档：需求见 [`PRD-risk-feature-pipeline.md`](PRD-risk-feature-pipeline.md)，列/文件 schema 见 [`SCHEMA.md`](SCHEMA.md)，术语见 [`GLOSSARY.md`](GLOSSARY.md)，硬规矩见 [`../AGENTS.md`](../AGENTS.md)。本文只描述**重构目标架构与迁移路线**。
 > v2 修订：依据 5 路对抗性核验（拿真实代码逐条验），修正依赖矩阵（新增"组合根/路由层"）、补齐 6 类漏掉的读契约、写实 shim/入口保号机制、订正 2 处行号数字。
 
 ---
@@ -80,9 +83,9 @@
 
 ## 4. 目标架构
 
-### 4.1 分层与依赖规则（v2 修正：引入"组合根/路由层"）
+### 4.1 分层与依赖规则
 
-核验发现原矩阵的错误：推进 Level 的 `cmd_prepare/query/visualize/trigger/report` 本就直接 import 子 skill，若把它们塞进挖掘内核，内核会静态依赖 5 个子 skill、违反 P2。**修正：把"路由 + 转发 + argspec + 阻断门校验"独立成一个物理层"组合根"（composition root），它是唯一允许同时 import 挖掘内核与所有子 skill 的地方；挖掘内核本身保持纯净、不 import 任何子 skill。**
+**"路由 + 转发 + argspec + 阻断门校验"独立成一个物理层"组合根"（composition root），它是唯一允许同时 import 挖掘内核与所有子 skill 的层；挖掘内核保持纯净（唯一例外见下）。** 推进 Level 的 `cmd_prepare/query/visualize/trigger/report` 需要直接调用子 skill，所以放在组合根而非内核，否则内核会静态依赖 5 个子 skill、违反 P2（修订缘由见文首 v2 修订说明）。
 
 ```
                       ┌──────────────────────────────────────────┐
@@ -104,11 +107,20 @@
 | 依赖方 ↓ \ 被依赖 → | risk_core | 挖掘内核 | 某子 skill | 组合根/路由 |
 |---|---|---|---|---|
 | **risk_core** | — | ✗ | ✗ | ✗ |
-| **挖掘内核**（analyze/export/analysis/pipeline_state） | ✓ | — | ✗（不 import 子 skill） | ✗ |
-| **独立子 skill** | ✓ | ✗ | ✗（零横向） | ✗ |
+| **挖掘内核**（analyze/export/analysis/pipeline_state） | ✓ | — | ✗（`risk_export_report` 除外，见下） | ✗ |
+| **独立子 skill** | ✓ | ✗ | ✗ | ✗ |
 | **组合根/路由**（cli + commands + argspec） | ✓ | ✓ | ✓（转发，函数直调） | — |
 
 要点：**"挖掘内核 → 子 skill = ✗"和"子 skill 间零横向 = ✗"是本次重构的两条硬约束**，用 §7 的 grep 红线验收。组合根是唯一的"什么都能 import"的组合点（依赖倒置的正确落法）。
+
+**两处明文例外 / 归类（设计检视第三批补记）：**
+- **挖掘内核 → `risk_export_report` = ✓**：它是 export 步的实现（§4.2「不拆」），`risk_mining/export.py` 与
+  `run_generic_pipeline` 的导出步调用它；这是内核唯一允许引用的子 skill 目录，测试白名单只含它一个。
+- **`risk_legacy_chains`（credit/gsfc 黑盒）归「组合根」层**：它按名字串 `_load_module` 调用多个子 skill、
+  并 import `risk_mining.export`，性质上是另一组编排入口；只允许 `risk_mining.commands.run` 与兼容 shim 调用它，
+  内核与独立子 skill 都不得依赖它。
+- 红线检查同时覆盖**字符串式导入**（`importlib.import_module('risk_x…')` / `_load_module('risk_x', …)`）：
+  调用实参里出现的项目包名字符串一律视为依赖。
 
 ### 4.2 目标目录树
 
@@ -160,14 +172,14 @@ risk-feature-pipeline/
 
 ### 4.3 顶层路由、"唯一 blessed 入口"与 argspec 归属
 
-- **入口策略**：顶层 `python -m risk_pipeline <子命令>` 是唯一对 agent 暴露的入口，组合根内部**用函数直调**（非 subprocess）转发到对应子 skill；子 skill 的独立 `__main__` 仅供人工/测试直接调用，**不写进面向 agent 的 SKILL.md 模板**。该约定写进 `references/_index.md`，避免 LLM 纠结"用哪个"（上一轮策略 C 评审的主要扣分项）。
-- **argspec 归属（核验补齐，避免复活 C15）**：flag 声明的单一真源是组合根的 `argspec.py`。子 skill **不**重声明 flag（否则又是三方对齐）；子 skill 只暴露纯 Python 函数（现状已如此：`extract_triggers`/`load_results`/`generate_charts`/`explore_thresholds`/`build_docx_report`），组合根的 `cmd_*` 用 argspec 定义的 flag 包裹这些函数。子 skill 若需一个"薄 `__main__`"供人工直跑，允许其自带一份**最小 argparse**（少量位置参数），但它**不是** agent 路径、也不参与 argspec 的单一真源——两者互不牵连。
+- **入口策略**：顶层 `python -m risk_pipeline <子命令>` 是唯一对 agent 暴露的入口，组合根内部**用函数直调**（非 subprocess）转发到对应子 skill；子 skill 的独立 `__main__` 仅供人工/测试直接调用，**不写进面向 agent 的 SKILL.md 模板**。该约定写进 `references/_index.md`，避免 LLM 纠结"用哪个"。
+- **argspec 归属（核验补齐，避免复活 C15）**：flag 声明的单一真源是组合根的 `argspec.py`。子 skill **不**重声明 flag（否则又是三方对齐）；子 skill 只暴露纯 Python 函数（现状已如此：`extract_triggers`/`load_results`/`generate_charts`/`explore_thresholds`/`build_docx_report`），组合根的 `cmd_*` 用 argspec 定义的 flag 包裹这些函数。子 skill 若需一个"薄 `__main__`"供人工直跑，允许其自带一份**最小 argparse**（少量位置参数），但它**不是** agent 路径、也不参与 argspec 的单一真源。
 
 ---
 
-## 5. 契约层（本设计的核心交付 · v2 大幅补齐"读契约"）
+## 5. 契约层（本设计的核心交付）
 
-拆分能否成立，取决于把下列隐式契约固化为 `risk_core/contracts.py` 的显式单一真源。**核验发现原 v1 只覆盖了"写了哪些字段"，漏掉了决定成败的"读取端"约定**（列名白名单 / dtype / 元信息集合 / 文件名模板 / 读取时序）。以下为实测的完整契约，写点与读点必须都从 contracts.py import：
+拆分能否成立，取决于把下列隐式契约固化为 `risk_core/contracts.py` 的显式单一真源。以下契约同时覆盖写端与**读取端**约定（列名白名单 / dtype / 元信息集合 / 文件名模板 / 读取时序），写点与读点必须都从 contracts.py import：
 
 ### 5.1 `prepared.csv`（⚠ 含一条真潜在 bug）
 - 写：`cli_commands.py:274` `to_csv(index=False, encoding='utf-8-sig')`；读：analyze(`:421`)/export(`:736`)/trigger(`:960`) 均 `read_csv(encoding='utf-8-sig')` **且无 `dtype`**。
@@ -228,11 +240,11 @@ risk-feature-pipeline/
 
 | 不变量 | 契约 | 验收方式 |
 |---|---|---|
-| **Level 状态机单向推进** | 前置→过渡态→Level1→Level2→Level3；`_maybe_promote` 只升不降；partial `--steps` 不谎报 Level 1 | 现有 state 单测 |
+| **Level 状态机单向推进** | 前置→过渡态→Level1→Level2→Level3；`_maybe_promote` 只升不降（prepare 输入变化时重置为前置）；partial `--steps` 不谎报 Level 1 | 现有 state 单测 |
 | **三个阻断节点物理 `exit 1`** | 节点1（`--confirmed-new-dataset`/拆分三件套 + `_validate_split_confirmation`）、节点2（trigger `--confirmed`）、节点3（report external `--confirmed-final-version`）；组合根转发前校验，直调子 skill 路径不兜此门 | validation 单测 |
-| **挖掘内核不 import 子 skill** | `analyze/export/analysis/pipeline_state` 中 grep 无 `import risk_<skill>` | **grep 红线**（新增） |
+| **挖掘内核不 import 子 skill** | `analyze/export/analysis/pipeline_state` 中 grep 无 `import risk_<skill>` | **grep 红线** |
 | **子 skill 零横向 import** | `risk_*/scripts/` 中 grep 无跨子 skill import | **grep 红线**（阶段 7 验收） |
-| **路径优先级 + 读取时序** | `env > 入参 > 探测 data/ > CWD`；裸 `os.getcwd()/__file__` 只允许 `risk_core/paths.py` 一处；**且 `RISK_OUTPUT_ROOT` 须在首次 `import config` 前设置**——config 路径常量是 import-time 冻结（`config.py:43-58`），paths/state 是 call-time 实时（`paths.py:81`/`pipeline_state.py:164`） | paths 单测 + 新增时序用例 |
+| **路径优先级 + 读取时序** | `env > 入参 > 探测 data/ > CWD`；裸 `os.getcwd()/__file__` 只允许 `risk_core/paths.py` 一处；`RISK_*_ROOT` 一律 **call-time** 解析（config 的 `RESULTS_DIR*` 等路径常量经 PEP 562 `__getattr__` 按访问时 env 计算）；读写产物同以输出根为准 | paths 单测 + `test_unit_config_paths.py` |
 | **`_intermediate` wire format** | §5.3 全部键名 + `utf-8-sig` + 宽表 `index` 往返 + `'资质标签'` 特判 + `target_col` 仅在 manifest | export smoke |
 | **对外 schema 一致 + 读契约** | §5.4 三列 + 元信息白名单 + 完整列名常量，三链路同一套 | 新增三链路 schema 用例 |
 | **原子落盘 + 指纹向后兼容** | §5.5/5.6，`schema_version=2` 与老格式并存 | 指纹用例（红线） |
@@ -299,10 +311,10 @@ risk-feature-pipeline/
 
 > **决策（2026-07-05，用户拍板）**：`credit`/`gsfc` 黑盒链路服务某些用户的常用路径，**保留、不并入 generic、不为其在 generic 里加过多特殊化处理**。依据（实测）：
 > - 「统一到 generic」的真实成本不在删 ~450 行 `run_credit/gsfc_pipeline`（那是机械的），而在：把 `prepare_credit_wide_table` 多表合并 + `create_credit_features`/`feature_engineering_gsbb` 重新安置成 generic 前置步骤；且会**破坏 `load_results` 向后兼容**——`results_loader.py:49-50/195-196` 硬编码 `data/results/征信`、`工商财务` 搜索路径，磁盘已有历史导出会读不出。
-> - 后果：`risk_segment_univariate/scripts/{segment_univariate,univariate}.py` 因 gsfc 是唯一活跃消费者（`pipeline.py:346,381`）而**仍存活、非死代码**；结果 CSV「征信/工商财务」前缀特判（`config.py:51-62` 等）保留不动；阶段 10 的「segment→engine 收敛」据此判为**可砍**（详见 `CLAUDE.md` §3 行 10）。
+> - 后果：`risk_segment_univariate/scripts/{segment_univariate,univariate}.py` 因 gsfc 是唯一活跃消费者（`pipeline.py:346,381`）而**仍存活、非死代码**；结果 CSV「征信/工商财务」前缀特判（`config.py:51-62` 等）保留不动；阶段 10 的「segment→engine 收敛」据此判为**可砍**（已砍，见 §9 表格与 CHANGELOG）。
 
 > **后续执行（2026-07-05，commit `c58c698`）**：在「保留黑盒」前提下进一步把两条黑盒链路**从共享 `pipeline.py` 抽取为独立 skill `risk_legacy_chains`**（逐字迁移、行为不变、前端/内核靠 `_load_module` 名字串复用），使 credit/gsfc 不再与 generic 混在同一模块——闭合「内核物理仍在 risk_pipeline」这处 done-gap 的编排部分。先补 `tests/test_golden_legacy_chains.py`（两链路 IV/AUC/LR/单变量值级锁）作安全前提，244→246 passed。
 
 ---
 
-*本文档为设计草案 v2（已过对抗性核验），经评审确认后据此实施；实施以本文 §9 计划为准，每阶段单独提交、单独验证。*
+*本文档为设计 v2（已过对抗性核验），已按 §9 计划实施（阶段 1–9 完成，阶段 10 已砍）；当前行为以代码与测试为准，逐项变更见 `CHANGELOG.md`。*

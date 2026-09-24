@@ -18,7 +18,7 @@ python -m risk_pipeline run --pipeline generic \
   --confirmed-new-dataset      # 首次跑该数据集时必带（阻断节点 1，见 blocking-gates.md）
 # 已 pip install 本包时可省 PYTHONPATH。
 # 宽表本身已含 0/1 目标列（如 UCI 的 default.payment.next.month）时，--bad-customer 可省，
-# 只给 --target-col 指向该列即可（prepare_df 直接用，不再合并外部坏客户清单）。
+# 只给 --target-col 指向该列即可（prepare_df 直接用该列）。
 ```
 
 ## 带规则挖掘的一把梭（推荐，供 visualize 出规则/组合图）

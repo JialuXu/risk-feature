@@ -2,7 +2,6 @@
 """候选阈值可视化：每个 pair 的分箱坏率柱图 + 分群内风险倍数对比图。"""
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 from typing import List, Optional
@@ -10,7 +9,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from . import style  # 触发字体配置
+from . import style  # noqa: F401  触发字体配置
 from .style import (
     FIGSIZE_BAR_WIDE, FIGSIZE_BAR_TALL, GRID_COLOR,
     POS_COLOR, NEG_COLOR, NEUTRAL_COLOR, ANNO_COLOR,

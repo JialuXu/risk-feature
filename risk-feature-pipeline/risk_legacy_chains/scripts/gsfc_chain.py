@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""工商财务链路 (Pipeline B) — run_gsfc_pipeline（从 risk_pipeline/pipeline.py 逐字迁出）。
+"""工商财务链路 (Pipeline B) — run_gsfc_pipeline。
 
-算法/前端/内核均未改动；仅把模块级 _load_module/_banner 改为 from ._common 引入。
+黑盒老链路，口径由 tests/test_golden_legacy_chains.py 锁定；_load_module/_banner 来自 ._common。
 """
 import pandas as pd  # noqa: F401  函数体内亦局部 import，保留以对齐原模块
 
-from risk_pipeline.config import COL_TARGET
+from risk_core.config import COL_TARGET
 from risk_mining.export import assemble_exports
 
 from ._common import _load_module, _banner
@@ -23,7 +23,6 @@ def run_gsfc_pipeline(steps=None, verbose=True):
     返回:
         results: 包含各步骤结果的字典
     """
-    import pandas as pd
 
     if steps is None:
         steps = ['data_prep', 'feature_eng', 'univariate', 'iv', 'lr', 'export']
@@ -177,15 +176,20 @@ def run_gsfc_pipeline(steps=None, verbose=True):
 
         mod_lr = _load_module('risk_logistic_regression', 'group_logistic_regression')
 
+        # 黑盒老链路保持历史缺失口径（填 0），数值由 golden test 钉死
+        from risk_core.missing import MISSING_POLICY_LEGACY_ZERO
         lr_coef_results, lr_auc_results = {}, {}
         for dim in category_dims:
-            coef_df, auc_df, skipped = mod_lr.lr_by_group(df, dim, feature_cols)
+            coef_df, auc_df, skipped = mod_lr.lr_by_group(
+                df, dim, feature_cols, missing_policy=MISSING_POLICY_LEGACY_ZERO,
+            )
             lr_coef_results[dim] = coef_df
             lr_auc_results[dim] = auc_df
 
         if qual_dims:
             coef_q, auc_q, skipped_q = mod_lr.lr_by_qualification(
-                df, qual_dims, feature_cols
+                df, qual_dims, feature_cols,
+                missing_policy=MISSING_POLICY_LEGACY_ZERO,
             )
             lr_coef_results['资质标签'] = coef_q
             lr_auc_results['资质标签'] = auc_q
@@ -197,8 +201,7 @@ def run_gsfc_pipeline(steps=None, verbose=True):
     # 统一走 report_analysis（与 credit/generic 三链路对齐）。gsfc 的 univariate/iv/lr
     # 步骤已写入与 generic 完全一致的中间结果键（corr_results / meta_results / iv_full /
     # iv_group_all / reliability_summary / lr_coef_results / lr_auc_results），
-    # 因此这里直接复用 generic 的导出装配；旧 report_export 因仍按 '分群' 旧 schema 取列，
-    # 在新 schema 下会 KeyError，是 gsfc 无法到 Level 1 的根因。
+    # 因此这里直接复用 generic 的导出装配。
     if 'export' in steps:
         if verbose:
             _banner(6, '结果导出')

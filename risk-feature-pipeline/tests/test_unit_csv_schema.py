@@ -2,12 +2,11 @@
 """A4 / A5 单测：CSV 列名统一 + 文件改名兼容副本。"""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def test_unified_column_names_and_filename_aliases(project_workdir):

@@ -1,6 +1,6 @@
 ---
 name: risk_visualization
-description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相关性 / LR / 分群画像 / 规则 / 指标组合）渲染成**面向业务报告**的 PNG 图表。当用户说"画图/可视化/出图/IV 条形图/AUC 图/指标组合图"或在 query 之外要求"看图"时触发。本 skill 只读磁盘快照 + 出 PNG，不重跑链路、不改 CSV。
+description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相关性 / LR / 分群画像 / 规则 / 指标组合）渲染成**面向业务报告**的 PNG 图表。当用户说"画图/可视化/出图/IV 条形图/AUC 图/指标组合图"或在 query 之外要求"看图"时触发。本 skill 只读 Level 1 磁盘快照并输出 PNG。
 ---
 
 > **何时读我**：只有需要各图含义解读（本目录 `references/chart_types.md`）或 Python API 直调时才读本文件；常规出图走 `python -m risk_pipeline visualize`（见 `references/cli/visualize.md`）。
@@ -8,9 +8,9 @@ description: 把 risk-feature-pipeline 已落 Level 1 的分析结果（IV / 相
 ## 核心规矩
 
 1. **只读后置**：所有图都基于 `data/results/<project>/` 下已经落盘的 8 张 CSV + 1 份 JSON + 可选的 `_风险规则表.csv`，与 `risk_result_query` 同源
-2. **结果不存在时报错而非静默**：用 `load_results(project_name)` 找不到目录会抛 `FileNotFoundError`，由调用方决定要不要先跑 export
-3. **面向业务报告的取舍**：只产"全局概览 + 每个分群维度一张的热力图/对比图"，不出每分群散图与随分群数爆炸的细图。
-4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 只 warn 不报错（fallback 渲染 CJK 会变方框）
+2. **结果不存在时报错**：用 `load_results(project_name)` 找不到目录会抛 `FileNotFoundError`，由调用方决定要不要先跑 export
+3. **面向业务报告的取舍**：只产"全局概览 + 每个分群维度一张的热力图/对比图"，共 9 种（见下表）。
+4. **中文字体**：`scripts/font_utils.py` 在模块加载时自动按 OS 探测中文字体，全部 miss 时只 warn（fallback 渲染 CJK 会变方框）
 5. **依赖隔离**：matplotlib / seaborn 是本 Skill 的**硬依赖**但**不在核心链路依赖**里——`visualize.py` 顶部 try-import，缺失时给出可执行的安装命令（`pip install -e .[viz]` 或 `pip install matplotlib seaborn`）
 
 ## 前置条件
