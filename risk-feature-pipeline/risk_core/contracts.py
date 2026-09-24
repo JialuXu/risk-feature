@@ -153,6 +153,25 @@ _SIMPLE_KEYS = INTERMEDIATE_SIMPLE_KEYS
 _WIDE_DICT_KEYS = INTERMEDIATE_WIDE_DICT_KEYS
 
 
+def clear_intermediate(intermediate_dir: str) -> int:
+    """清空 _intermediate/ 下链路自产的文件（*.csv / *.pkl / manifest.json），返回删除数。
+
+    dump_intermediate 对空结果是"跳过不写"，若不先清理，上一轮 analyze 留下的
+    corr/lr/rules 等文件会被 export 当作本轮结果再次导出。
+    """
+    if not os.path.isdir(intermediate_dir):
+        return 0
+    removed = 0
+    for name in os.listdir(intermediate_dir):
+        path = os.path.join(intermediate_dir, name)
+        if os.path.isfile(path) and (
+            name.endswith('.csv') or name.endswith('.pkl') or name == 'manifest.json'
+        ):
+            os.remove(path)
+            removed += 1
+    return removed
+
+
 def dump_intermediate(
     results: dict,
     intermediate_dir: str,

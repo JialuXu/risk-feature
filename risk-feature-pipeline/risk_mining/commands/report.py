@@ -57,13 +57,16 @@ def cmd_report(args) -> int:
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
-    output = build_docx_report(
-        llm_json=Path(llm_json_path),
-        report_markdown=Path(report_md_path),
-        output_path=Path(out_path),
-        title=title,
-        appendix_mode=appendix_mode,
-    )
+    try:
+        output = build_docx_report(
+            llm_json=Path(llm_json_path),
+            report_markdown=Path(report_md_path),
+            output_path=Path(out_path),
+            title=title,
+            appendix_mode=appendix_mode,
+        )
+    except RuntimeError as e:
+        _err(f'[report] {e}')
 
     state.append_history({
         'cmd': 'report',

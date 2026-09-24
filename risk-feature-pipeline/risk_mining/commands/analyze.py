@@ -131,6 +131,11 @@ def cmd_analyze(args) -> int:
             steps=pipeline_steps,
             verbose=verbose,
         )
+        # 重跑核心分析 = 整体刷新：先清掉上一轮的中间产物（含 rules.pkl），
+        # 否则本轮未跑的步骤会留下旧文件被 export 误导出
+        n_stale = cli_io.clear_intermediate(inter_dir)
+        if n_stale and verbose:
+            print(f'[analyze] 已清理上一轮 _intermediate/ 旧文件 {n_stale} 个')
         cli_io.dump_intermediate(
             results, inter_dir,
             project_name=project,
@@ -239,6 +244,9 @@ def _run_rule_mining_step(
     )
     inter = Path(inter_dir)
     inter.mkdir(parents=True, exist_ok=True)
+    # 上一轮 rules 的树 pkl 可能对应已不存在的分群，先清掉再落本轮
+    for old in inter.glob('rule_tree_*.pkl'):
+        old.unlink()
 
     parts = []
 

@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from risk_core import contracts as cli_io
+from risk_core.config import IV_SUSPECT_THRESHOLD
 from risk_pipeline.pipeline_state import format_status_stamp, load_state
 
 from ._common import (
@@ -34,7 +35,7 @@ def _write_audit_json(
 ) -> None:
     """C12: 落盘 <project>_audit.json，agent 报回前 cat 这个文件做机器可读自检。
 
-    包含：IV>2.0 疑似数据穿越特征（键名沿用 iv_overfit_features）、不稳定规则列表、文件数、当前 Level。
+    包含：IV>IV_SUSPECT_THRESHOLD（默认 2.0）疑似数据穿越特征（键名沿用 iv_overfit_features）、不稳定规则列表、文件数、当前 Level。
     自检失败时本函数本身不阻断，仅 stderr 警告——audit 是辅助工具不是关键路径。
     """
     audit = {
@@ -46,7 +47,7 @@ def _write_audit_json(
         'unstable_rules': [],
     }
 
-    # 扫 IV 疑似数据穿越（IV>2，读已落盘的 _IV分析结果_全量.csv，保证与导出一致）
+    # 扫 IV 疑似数据穿越（IV>IV_SUSPECT_THRESHOLD，读已落盘的 _IV分析结果_全量.csv，保证与导出一致）
     try:
         iv_full_path = None
         for fn in (f'{project}_IV分析结果_全量.csv', f'{project}_IV分析结果.csv'):
@@ -60,7 +61,7 @@ def _write_audit_json(
                 feat_col = '特征' if '特征' in iv_df.columns else (
                     '特征名称' if '特征名称' in iv_df.columns else None
                 )
-                overfit = iv_df[pd.to_numeric(iv_df['IV值'], errors='coerce') > 2.0]
+                overfit = iv_df[pd.to_numeric(iv_df['IV值'], errors='coerce') > IV_SUSPECT_THRESHOLD]
                 if feat_col is not None and not overfit.empty:
                     audit['iv_overfit_features'] = [
                         {'特征': row[feat_col], 'IV值': float(row['IV值'])}
@@ -96,7 +97,7 @@ def _write_audit_json(
         with open(audit_path, 'w', encoding='utf-8') as f:
             json.dump(audit, f, ensure_ascii=False, indent=2)
         print(f'  -> {os.path.basename(audit_path)} '
-              f'(IV>2 疑似穿越={len(audit["iv_overfit_features"])} | '
+              f'(IV>{IV_SUSPECT_THRESHOLD:g} 疑似穿越={len(audit["iv_overfit_features"])} | '
               f'不稳定规则={len(audit["unstable_rules"])})')
     except Exception as e:  # noqa: BLE001
         print(f'  [audit 警告] 写 audit.json 失败: {e}', file=sys.stderr)

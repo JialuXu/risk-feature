@@ -2,10 +2,12 @@
 """.pipeline_state.json：项目级执行历史 + Level 推进 + 已知数据集指纹。
 
 文件位置：data/results/{project}/.pipeline_state.json（可被 --state-dir 覆盖）。
-不入 git（append-only 多人协作必然冲突）；用 fcntl.flock 做 advisory lock。
+不入 git（append-only 多人协作必然冲突）。并发：save() 在同目录 `.pipeline_state.lock`
+上持排他锁，重读磁盘最新版本后合并本进程的增量（历史追加 / Level 变化 / 数据集登记），
+再原子替换——两个命令同时写不会互相覆盖。文件损坏时先备份为 `.corrupt-<时间戳>` 再重建。
 
 Level 推进规则：
-  prepare  → 不改 level（保持当前）
+  prepare  → 输入与上次相同则不改 level；输入变了（换数据/主键/目标列/过滤）→ 重置为前置
   analyze  → 过渡态
   export   → Level 1
   trigger  → 需要 ≥ Level 1，推进到 Level 2
@@ -14,16 +16,22 @@ Level 推进规则：
 """
 from __future__ import annotations
 
-import fcntl
+import contextlib
 import json
 import os
+import sys
+import time
 from pathlib import Path
 from typing import Optional
 
+try:
+    import fcntl
+except ImportError:  # Windows：无 advisory lock，退化为无锁（单机单用户场景）
+    fcntl = None
+
+from risk_core.contracts import LEVEL_ORDER as _LEVEL_ORDER  # 单一真源
+
 from .cli_io import dataset_fingerprint, now_iso
-
-
-_LEVEL_ORDER = ['前置', '过渡态', 'Level 1', 'Level 2', 'Level 3']
 
 
 def _fingerprint_matches(stored: dict, current: dict, path: str) -> bool:
@@ -73,6 +81,10 @@ class PipelineState:
     def __init__(self, path: str, data: dict):
         self.path = path
         self._data = data
+        # 本进程内的增量，save() 时合并到磁盘最新版本上
+        self._new_history: list = []
+        self._new_datasets: list = []
+        self._level_reset = False
 
     # ---- 只读属性 ----
     @property
@@ -105,6 +117,7 @@ class PipelineState:
         fp = dataset_fingerprint(path)
         fp['first_seen'] = now_iso()
         self._data.setdefault('known_datasets', []).append(fp)
+        self._new_datasets.append(fp)
 
     # ---- Level 守护 ----
     def require_level(self, min_level: str) -> None:
@@ -113,6 +126,29 @@ class PipelineState:
                 f'当前 Level={self.current_level!r} 不足 {min_level!r}；'
                 f'请先完成上游步骤（prepare→analyze→export 抵达 Level 1）'
             )
+
+    # ---- 输入签名（Level 与数据绑定）----
+    @property
+    def prepared_signature(self) -> Optional[str]:
+        return self._data.get('prepared_signature')
+
+    def bind_prepared_input(self, signature: str) -> Optional[str]:
+        """登记本次 prepare 的输入签名；与上次不同且已越过前置态时，Level 重置为「前置」。
+
+        Level 只升不降是对「同一份数据」而言的：换了宽表/坏客户清单/主键/目标列/过滤
+        规则后，旧的 Level 1~3 产物已不对应当前 prepared.csv，不能继续放行下游。
+        返回被重置前的 Level（未重置返回 None）。
+        """
+        old_sig = self._data.get('prepared_signature')
+        self._data['prepared_signature'] = signature
+        if old_sig is None or old_sig == signature:
+            return None
+        if self.current_level == _LEVEL_ORDER[0]:
+            return None
+        before = self.current_level
+        self._data['current_level'] = _LEVEL_ORDER[0]
+        self._level_reset = True
+        return before
 
     def _maybe_promote(self, new_level: Optional[str]) -> None:
         if new_level is None:
@@ -124,6 +160,7 @@ class PipelineState:
     def append_history(self, entry: dict, *, new_level: Optional[str] = None) -> None:
         entry.setdefault('ts', now_iso())
         self._data.setdefault('history', []).append(entry)
+        self._new_history.append(entry)
         self._maybe_promote(new_level)
         # level_after 始终落真实的 post-promotion level；若调用方传了旧值，这里会覆盖。
         # 这样 partial 步骤（如 run --pipeline credit --steps data_prep）不会再把 level
@@ -132,21 +169,82 @@ class PipelineState:
         self._data['updated_at'] = now_iso()
 
     # ---- 持久化 ----
+    def _merge_onto(self, disk: dict) -> dict:
+        """把本进程增量合并到磁盘最新版本上（其它进程在此期间的写入得以保留）。"""
+        merged = dict(disk)
+        merged.setdefault('history', [])
+        merged['history'] = list(merged['history']) + self._new_history
+        known = list(merged.get('known_datasets', []))
+        for fp in self._new_datasets:
+            if not any(_fingerprint_matches(k, fp, fp.get('path', '')) for k in known
+                       if k.get('schema_version') == 2 or 'sha256_head' in k):
+                known.append(fp)
+        merged['known_datasets'] = known
+        if 'prepared_signature' in self._data:
+            merged['prepared_signature'] = self._data['prepared_signature']
+        disk_level = merged.get('current_level', _LEVEL_ORDER[0])
+        if self._level_reset:
+            # 本进程判定输入已变：以本进程结果为准（重置后又推进的也一并带上）
+            merged['current_level'] = self.current_level
+        elif _level_idx(self.current_level) > _level_idx(disk_level):
+            merged['current_level'] = self.current_level
+        for key in ('updated_at', 'created_at', 'schema_version', 'project_name'):
+            if key in self._data and (key == 'updated_at' or key not in merged):
+                merged[key] = self._data[key]
+        return merged
+
     def save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        # 用 PID + 纳秒时间戳避免并发场景下 tmp 文件名冲突（两个进程同时 save 时
-        # 否则后到的会因前一个已 os.replace 而 FileNotFoundError）
-        import time as _t
-        tmp = f'{self.path}.{os.getpid()}.{_t.time_ns()}.tmp'
-        with open(tmp, 'w', encoding='utf-8') as f:
-            try:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                json.dump(self._data, f, ensure_ascii=False, indent=2, default=str)
+        with _exclusive_lock(self.path + '.lock'):
+            disk = _read_state_file(self.path)
+            data = self._merge_onto(disk) if disk else self._data
+            # 用 PID + 纳秒时间戳避免 tmp 文件名冲突
+            tmp = f'{self.path}.{os.getpid()}.{time.time_ns()}.tmp'
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2, default=str)
                 f.flush()
                 os.fsync(f.fileno())
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        os.replace(tmp, self.path)
+            os.replace(tmp, self.path)
+        self._data = data
+        self._new_history = []
+        self._new_datasets = []
+        self._level_reset = False
+
+
+@contextlib.contextmanager
+def _exclusive_lock(lock_path: str):
+    """固定锁文件上的排他 advisory lock（所有进程争同一把锁）。"""
+    if fcntl is None:
+        yield
+        return
+    with open(lock_path, 'a+') as lf:
+        fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+
+
+def _read_state_file(state_path: str) -> Optional[dict]:
+    """读取状态文件；不存在返回 None；损坏则备份并告警后返回 None（绝不静默丢历史）。"""
+    if not os.path.isfile(state_path):
+        return None
+    try:
+        with open(state_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        backup = f'{state_path}.corrupt-{time.strftime("%Y%m%d-%H%M%S")}'
+        try:
+            os.replace(state_path, backup)
+        except OSError:
+            backup = '(备份失败)'
+        print(
+            f'⚠️ [pipeline_state] 状态文件损坏无法解析（{e}）；已备份到 {backup}，'
+            f'将以「前置」重建。历史记录与 Level 需人工核对备份文件恢复。',
+            file=sys.stderr,
+        )
+        return None
+    return data if isinstance(data, dict) else None
 
 
 # ===== 工厂：定位 + 加载 =====
@@ -179,16 +277,8 @@ def load_state(
     Path(sd).mkdir(parents=True, exist_ok=True)
     state_path = os.path.join(sd, '.pipeline_state.json')
 
-    data = None
-    if os.path.isfile(state_path):
-        with open(state_path, 'r', encoding='utf-8') as f:
-            try:
-                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-                data = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                data = None
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    with _exclusive_lock(state_path + '.lock'):
+        data = _read_state_file(state_path)
 
     if not data or not data.get('project_name'):
         data = {
