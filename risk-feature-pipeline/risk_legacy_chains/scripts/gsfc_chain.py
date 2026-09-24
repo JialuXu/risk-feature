@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""工商财务链路 (Pipeline B) — run_gsfc_pipeline（从 risk_pipeline/pipeline.py 逐字迁出）。
+"""工商财务链路 (Pipeline B) — run_gsfc_pipeline。
 
-算法/前端/内核均未改动；仅把模块级 _load_module/_banner 改为 from ._common 引入。
+黑盒老链路，口径由 tests/test_golden_legacy_chains.py 锁定；_load_module/_banner 来自 ._common。
 """
 import pandas as pd  # noqa: F401  函数体内亦局部 import，保留以对齐原模块
 
@@ -201,8 +201,7 @@ def run_gsfc_pipeline(steps=None, verbose=True):
     # 统一走 report_analysis（与 credit/generic 三链路对齐）。gsfc 的 univariate/iv/lr
     # 步骤已写入与 generic 完全一致的中间结果键（corr_results / meta_results / iv_full /
     # iv_group_all / reliability_summary / lr_coef_results / lr_auc_results），
-    # 因此这里直接复用 generic 的导出装配；旧 report_export 因仍按 '分群' 旧 schema 取列，
-    # 在新 schema 下会 KeyError，是 gsfc 无法到 Level 1 的根因。
+    # 因此这里直接复用 generic 的导出装配。
     if 'export' in steps:
         if verbose:
             _banner(6, '结果导出')

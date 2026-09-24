@@ -1,8 +1,8 @@
 # CLAUDE.md — risk-feature-pipeline 开发约定
 
 仓库根 `CLAUDE.md` 已覆盖架构、入口、配置、路径与测试命令；agent 的操作硬规矩见本目录 `AGENTS.md`。
-本文件只补充**在本目录改代码时**必须遵守的约定。（原「解耦重构作战手册」已完成使命：设计与迁移史见
-`docs/DECOUPLING-DESIGN.md`，逐项变更见 `CHANGELOG.md`。）
+本文件只补充**在本目录改代码时**必须遵守的约定。设计与迁移史见 `docs/DECOUPLING-DESIGN.md`，
+逐项变更见 `CHANGELOG.md`。
 
 ## 改动前后
 
@@ -17,9 +17,9 @@
 |---|---|
 | 路径、配置常量、磁盘契约（列名/dtype/白名单/文件名模板/wire schema）、缺失值口径 | `risk_core/`（叶子，不得 import 任何上层） |
 | 分析算法、Level 状态机、导出装配、generic 编排 | `risk_mining/analysis`、`pipeline_state`、`export`、`pipeline`（只依赖 risk_core） |
-| 新 CLI flag | `risk_mining/argspec.py` 单一注册表声明一次，并在对应 `commands/<cmd>.py` 真正消费（禁止"声明而不读"）；run 会自动继承 prepare∪analyze 的 flag |
+| 新 CLI flag | `risk_mining/argspec.py` 单一注册表声明一次，并在对应 `commands/<cmd>.py` 中读取；run 会自动继承 prepare∪analyze 的 flag |
 | 新子命令逻辑 / 需要同时调用内核与子 skill | 组合根 `risk_mining/commands/` |
-| 独立子 skill 的功能 | 该 skill 的 `scripts/`，只依赖 `risk_core`，不 import 其它子 skill 或内核 |
+| 独立子 skill 的功能 | 该 skill 的 `scripts/`，只依赖 `risk_core` |
 
 - 子 skill 读写的磁盘契约先固化进 `risk_core/contracts.py`，写端与读端都引用它，不各自手拼文件名/列名。
 - 不写 `risk_pipeline.*` / `shared.*`（兼容 shim），不在模块顶层 `sys.path.insert`，不用 `os.getcwd()` / `__file__` 找数据路径。

@@ -148,8 +148,8 @@ def cmd_export(args) -> int:
 
     results, manifest = cli_io.load_intermediate(inter_dir)
 
-    # prepared.csv 缺失时 df=None → assemble_exports 跳过 LLM 报告数据构建（与历史行为一致）；
-    # 仅当 iv_full 非空时才读宽表（沿用旧门控，避免无谓 IO 与边缘态发散）。
+    # prepared.csv 缺失时 df=None → assemble_exports 跳过 LLM 报告数据构建；
+    # 仅当 iv_full 非空时才读宽表（避免无谓 IO 与边缘态发散）。
     iv_full_df = results.get('iv_full')
     df = None
     df_path = _prepared_csv_path(project)

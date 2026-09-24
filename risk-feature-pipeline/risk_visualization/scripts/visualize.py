@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """risk_visualization 顶层入口：generate_charts(project_name, kinds=...) → {kind: [paths]}
 
-读 Level 1 已落盘的 8 张 CSV + 可选的 _风险规则表.csv + 可选的 _intermediate/rule_tree_*.pkl，
+读 Level 1 已落盘的 8 张 CSV + 可选的 _风险规则表.csv / 候选阈值表，
 输出 PNG 到 output/<project>/charts/。
 """
 from __future__ import annotations
@@ -46,10 +46,10 @@ ALL_KINDS = (
     'rules', 'combos',
     'thresholds',
 )
-# 已下线（对最终业务报告无增量价值）：
-#   corr / lr —— 每分群一张的散图，与 corr_heatmap / lr_heatmap 信息重复且随分群数量爆炸
-#   tree      —— 决策树图（>3 层不可读、按分群数量爆炸；规则表 + rules 散点已覆盖）
-#   combo_network —— 特征共现网络，自述用途为“反向辅助特征工程”，属建模阶段工具
+# 设计约束：以下图对最终业务报告无增量价值，不纳入 ALL_KINDS：
+#   每分群一张的 corr / lr 图 —— 与 corr_heatmap / lr_heatmap 信息重复且随分群数量爆炸
+#   决策树图      —— >3 层不可读、按分群数量爆炸；规则表 + rules 散点已覆盖
+#   特征共现网络  —— 用途为“反向辅助特征工程”，属建模阶段工具
 
 
 def _load_rules_csv(results: Results) -> Optional[pd.DataFrame]:

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """IV / WOE / 自适应分箱 / 可信度评估的唯一权威实现。
 
-原先三处（risk_iv_diagnosis / risk_export_report / risk_logistic_regression）各有一份
-近乎相同的 iv_analysis.py；现统一到这里，那三处退化为再导出 shim。
+``risk_iv_diagnosis/scripts/iv_analysis.py`` 是从本模块再导出的兼容 shim。
 """
 import numpy as np
 import pandas as pd
@@ -110,7 +109,7 @@ def iv_power_label(iv_value):
     """把 IV 值映射为预测力标签（强/中/弱/无）。
 
     口径与 calc_iv docstring 一致：IV>=0.3 强、0.1~0.3 中、0.02~0.1 弱、<0.02 无。
-    此前 report_analysis 内有两处逐字相同的内联实现，现统一收敛到这里。
+    report_analysis 等处统一调用本函数。
     """
     if pd.isna(iv_value):
         return '无'

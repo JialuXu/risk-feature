@@ -13,5 +13,5 @@ from risk_core.config import *  # noqa: F401,F403
 # =============================================================================
 
 # IV 可信度分级阈值（IV_CREDIBILITY_*）与「过强」分档起点（IV_PREDICTION_OVERSTRONG_MIN）
-# 均已收敛到 risk_core/config/default.yaml 的 iv.* 段，经由上面的 `from risk_core.config import *`
-# 引入，此处不再重复定义（本文件已无模块专属常量）。
+# 定义在 risk_core/config/default.yaml 的 iv.* 段，经由上面的 `from risk_core.config import *`
+# 引入；本文件无模块专属常量。

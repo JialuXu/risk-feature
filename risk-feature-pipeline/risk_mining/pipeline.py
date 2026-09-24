@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """挖掘内核·generic 链路编排：``run_generic_pipeline``（Python API 主入口）。
 
-解耦重构（DECOUPLING-DESIGN §4.2）：原 ``risk_pipeline/pipeline.py`` 的 generic 段迁入此处。
-内核依赖规则（``tests/test_unit_kernel_boundary.py`` 锁定）：
-  - 只调用 ``risk_mining.analysis``（engine / iv_core）与 ``risk_core``；
-  - 不以任何形式（静态 import / importlib 字符串）引用子 skill，唯一例外是导出步的
-    实现 ``risk_export_report``（§4.2：「不拆，是 export 步的实现，归 risk_mining.export 调用」）。
-credit / gsfc 黑盒链路在 ``risk_legacy_chains``；旧路径 ``risk_pipeline.pipeline`` 继续转发三者。
+内核依赖规则（DECOUPLING-DESIGN §4.2，``tests/test_unit_kernel_boundary.py`` 锁定）：
+  - 只调用 ``risk_mining.analysis``（engine / iv_core）、``risk_core`` 与导出步的实现
+    ``risk_export_report``（经 ``risk_mining.export`` 调用）；
+  - 其它子 skill 一律不引用，含静态 import 与 importlib 字符串两种形式。
+credit / gsfc 黑盒链路在 ``risk_legacy_chains``；兼容路径 ``risk_pipeline.pipeline`` 再导出三者。
 
     >>> from risk_mining.pipeline import run_generic_pipeline
 """

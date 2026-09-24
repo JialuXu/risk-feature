@@ -44,7 +44,7 @@ PYTHONPATH=<skill代码根> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<输�
   import 后设 env 也生效。CLI 下推荐单行前缀：`RISK_OUTPUT_ROOT=... python -m risk_pipeline ...`。
 - 写产物（export/trigger/visualize）与读产物（query/visualize/explore_thresholds/report、
   `load_results()`）都以**输出根**为准；`export --output-subdir X` 之后，读产物的
-  子命令自动跟随到 `X/`（依据 state 历史里最近一次 export），无需再手动指定。
+  子命令自动跟随到 `X/`（依据 state 历史里最近一次 export）。
 - `--wide` / `--bad-customer` 等文件参数**按 CWD 解析，不按项目根**；
   沙盒模式建议一律传绝对路径。
 - 每条 CLI 子命令启动时会打印一行 `[路径] 项目根=... 输出根=...`，

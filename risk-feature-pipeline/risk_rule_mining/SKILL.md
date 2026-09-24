@@ -63,7 +63,7 @@ IV ≥ `IV_THRESHOLD['medium']` 且可信度为"可信/参考"的特征；自动
 
 > ⚠️ `export` 完成时若有 `稳定性等级=不稳定` 的规则，stdout 会列出前 5 条，并落到 `_audit.json` 的 `unstable_rules`。**不稳定规则不得直接写进政策，须附人工复核标注。**
 
-> 注：规则**目前只落 CSV + `_audit.json`**，不并入 `_LLM报告数据.json`（`build_llm_rules_payload` 已实现但未接线）。
+> 注：规则落在 `_风险规则表.csv` 与 `_audit.json`；`_LLM报告数据.json` 不含规则。
 
 ## 底层脚本（仅 notebook/单测，agent 走 CLI）
 
@@ -75,5 +75,5 @@ IV ≥ `IV_THRESHOLD['medium']` 且可信度为"可信/参考"的特征；自动
 |------|------|
 | `scripts/rule_extraction.py` | 决策树拟合 + 路径→规则 + 去重 |
 | `scripts/rule_evaluation.py` | 覆盖率、坏账率、Lift、置信区间 |
-| `scripts/rule_stability.py` | K-fold 稳定性 |
+| `scripts/rule_stability.py` | 留出集 bootstrap 稳定性（有效占比 + 坏账率离散系数 → 稳定性等级） |
 | `scripts/rule_mining_pipeline.py` | 分群挖掘编排 + 导出 |

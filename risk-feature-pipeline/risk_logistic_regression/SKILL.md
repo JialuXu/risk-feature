@@ -22,7 +22,7 @@ description: 分群多变量逻辑回归（诊断用，非部署模型）：标�
 
 - 单模型拟合：`MIN_BAD_LR`、`MIN_GOOD_LR`；有效特征过少时跳过
 - AUC 类型：`MIN_SAMPLES_CV`、`MIN_BAD_CV` 决定是否走 5 折分层 CV，否则为训练集 AUC
-- **AUC 类型字段须显式标注**：`交叉验证` / `训练集-样本不足` / `训练集-CV失败`，**禁止**不标注地报训练集 AUC
+- **AUC 类型字段须显式标注**：`5折交叉验证` / `训练集(样本不足)` / `训练集(CV失败)`
 - 向业务用户解释 AUC 类型/跳过原因，统一用 `docs/GLOSSARY.md` 话术
 
 ## 底层脚本（仅 notebook/单测，agent 走 CLI）

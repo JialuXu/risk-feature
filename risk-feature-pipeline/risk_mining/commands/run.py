@@ -16,13 +16,13 @@ from .prepare import cmd_prepare
 
 
 def _forward_ns(cmd: str, args, **overrides) -> _argparse.Namespace:
-    """从 argspec 派生目标子命令的转发 Namespace（解耦重构 Stage 4）。
+    """从 argspec 派生目标子命令的转发 Namespace。
 
     该命令在 argspec 声明的每个 dest 一律从 run 的 args 透传（run 的 flag 集就是
     prepare∪analyze 并集，故 prepare/analyze 的 dest 必在）；run 未声明的 dest
-    （如 export 的 intermediate_dir/output_subdir）取 None，与旧手抄行为一致。
-    这样给 prepare/analyze 新增 flag 只改 argspec 一处，run 路径自动透传——
-    根除原手抄 Namespace「漏一个字段 → 运行期静默 None」的 C15 错误源。
+    （如 export 的 intermediate_dir/output_subdir）取 None。
+    给 prepare/analyze 新增 flag 只改 argspec 一处，run 路径自动透传，
+    不会因漏转发某个字段而在运行期静默得到 None。
     """
     values = {dest: getattr(args, dest, None) for dest in dests_for(cmd)}
     values.update(
@@ -46,10 +46,10 @@ def cmd_run(args) -> int:
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_credit_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
-        # credit 用 'credit' 作为 project。state 目录不再特判「征信/」前缀（解耦阶段9）：
+        # credit 用 'credit' 作为 project。state 目录不带「征信/」前缀：
         # 与 analyze/export/trigger 统一走 _resolve_state_dir → data/results/<project>/，
         # 否则 run credit 推进的 Level 1 对下游 require_level（trigger/report/explore）不可见。
-        # 注意：结果 CSV 目录仍带「征信/」前缀（config.RESULTS_DIR_CREDIT，不在本次统一范围）。
+        # 注意：结果 CSV 目录仍带「征信/」前缀（config.RESULTS_DIR_CREDIT）。
         project = args.project or 'credit'
         state = load_state(project, state_dir=_state_dir(args))
         # 只有 export 真的跑了才推进到 Level 1；steps=None 表示全跑（含 export）
@@ -71,7 +71,7 @@ def cmd_run(args) -> int:
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
-        # 同 credit：state 目录统一（解耦阶段9），结果 CSV 仍带「工商财务/」前缀
+        # 同 credit：state 目录不带前缀，结果 CSV 仍带「工商财务/」前缀
         project = args.project or 'gsfc'
         state = load_state(project, state_dir=_state_dir(args))
         has_export = steps is None or 'export' in steps
@@ -99,7 +99,7 @@ def cmd_run(args) -> int:
     if rc:
         return rc
 
-    # --steps 缺省时兜底含 rules，让 visualize 立即能出决策树/规则散点/共现网络
+    # --steps 缺省时兜底含 rules，让 visualize 立即能出 rules（规则散点）/ combos（指标组合）图
     # （run 专属默认；argspec 里 run 的 --steps 覆盖为 default=None 正是为给这里让路）
     rc = cmd_analyze(_forward_ns(
         'analyze', args, steps=args.steps or 'univariate,iv,lr,rules',

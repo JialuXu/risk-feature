@@ -6,7 +6,7 @@
 
 ## ✅ 修复状态（2026-05-12 第二轮）
 
-所有 4 个 bug + 2 个语义改进**已修复**。下方各项前的 ✅ 表示已落地。详见 `~/.claude/plans/optbinning-cli-plan-distributed-tarjan.md` 修复方案与各文件 diff。
+所有 4 个 bug + 3 个语义改进**已修复**。下方各项前的 ✅ 表示已落地。详见 `~/.claude/plans/optbinning-cli-plan-distributed-tarjan.md` 修复方案与各文件 diff。
 
 ## 1. 验证步骤与结果
 
@@ -112,7 +112,7 @@
 
 ### B. fcntl / 文件锁
 
-- `pipeline_state.py` 用 `fcntl.flock`。**Linux/macOS 通用**，Windows 不支持（本项目本来就不打算上 Windows）。Linux 上没问题。
+- `pipeline_state.py` 用 `fcntl.flock`。**Linux/macOS 通用**，Windows 不支持（本项目本来就不打算上 Windows）。
 
 ### C. 中文字体
 
@@ -121,7 +121,7 @@
   ```dockerfile
   RUN apt-get update && apt-get install -y fonts-wqy-zenhei fonts-noto-cjk
   ```
-- **新增风险**：`chart_threshold.py` 的 `✓ / ✗` 字符（U+2713 / U+2717）在 `WenQuanYi Zen Hei` / `Noto Sans CJK` 上**也不全**。BUG-3 在 Linux 一样会复现，建议同步修。
+- `chart_threshold.py` 的 `✓ / ✗` 字符（U+2713 / U+2717）在 `WenQuanYi Zen Hei` / `Noto Sans CJK` 上**也不全**，即 BUG-3 在 Linux 同样成立；BUG-3 ✅ 已修。
 
 ### D. 中文文件名
 
@@ -131,7 +131,7 @@
 
 ### E. 路径
 
-- 我代码用 `risk_pipeline.paths.get_project_root()` + `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 环境变量，**Linux 完全适用**。建议 agent 启动时 explicit 设置这两个 env 而不是依赖 CWD 探测。
+- 我代码用 `risk_core.paths.get_project_root()` + `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 环境变量，**Linux 完全适用**。建议 agent 启动时 explicit 设置这两个 env 而不是依赖 CWD 探测。
 
 ### F. 时区
 
@@ -150,7 +150,7 @@
   PYTHONPATH=$(pwd) RISK_OUTPUT_ROOT=/data/output \
   python -m risk_pipeline explore_thresholds --project xxx --pairs-file pairs.csv
   ```
-- **不要**让 agent 把 `risk_threshold_explore` 当独立 Python 包 import 调用 —— 它依赖 `risk_core` 底座在同一 sys.path 下（解耦阶段7 后只依赖 risk_core）。`python -m risk_pipeline` 已经在 `cli.py` 第 25-27 行做了 sys.path 注入，最干净。
+- **不要**让 agent 把 `risk_threshold_explore` 当独立 Python 包 import 调用 —— 它依赖 `risk_core` 底座在同一 sys.path 下（只依赖 risk_core）。`python -m risk_pipeline` 已经在 `cli.py` 第 25-27 行做了 sys.path 注入，最干净。
 
 ### I. matplotlib backend
 

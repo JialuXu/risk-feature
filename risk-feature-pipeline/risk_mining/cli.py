@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """risk_mining 统一 CLI 入口（组合根路由层）。
 
-对 agent 暴露的入口仍是 `python -m risk_pipeline <subcommand>`（转发至此）。
+对 agent 暴露的入口是 `python -m risk_pipeline <subcommand>`（转发至此）。
 
 使用方式：
   python -m risk_pipeline <subcommand> [args]
@@ -10,7 +10,7 @@
   prepare            构建 prepared.csv + features.json（前置态）
   analyze            跑 univariate/iv/lr/rules 子集 → _intermediate/（过渡态）
   export             重建结果 → 8 张 CSV + LLM JSON（→ Level 1）
-  query              只读已有结果，top-N / 分群查询（不改 level）
+  query              只读已有结果：top-N / 分群查询
   trigger            客户级触碰提取 → 三张表（→ Level 2）
   report             LLM JSON → docx（→ Level 3）
   visualize          生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
@@ -28,7 +28,7 @@ def _make_global_parent(for_subcommand: bool = False) -> argparse.ArgumentParser
 
     for_subcommand=True 时各 flag 的 default 为 SUPPRESS：子命令里没写的 flag 不产生
     默认值，从而不会覆盖写在子命令**之前**的同名 flag（argparse 子解析器默认值
-    会覆盖父解析器已解析值——曾导致 ``-q prepare ...`` 里的 -q 被静默丢弃）。
+    会覆盖父解析器已解析值；否则 ``-q prepare …`` 的 -q 会被静默丢弃）。
     """
     d = {'default': argparse.SUPPRESS} if for_subcommand else {}
     p = argparse.ArgumentParser(add_help=False)
@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
               --target-col is_bad --project xxx
   analyze:  python -m risk_pipeline analyze --project xxx \\
               --steps univariate,iv,lr --category-dims 企业规模
-  analyze 含规则挖掘（供 visualize 出决策树/组合图）：
+  analyze 含规则挖掘（供 visualize 出 rules / combos 图）：
             python -m risk_pipeline analyze --project xxx \\
               --steps univariate,iv,lr,rules --category-dims 企业规模
   export:   python -m risk_pipeline export --project xxx

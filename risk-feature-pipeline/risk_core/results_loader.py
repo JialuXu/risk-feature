@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """risk_core.results_loader: 读取已导出的风险特征分析结果（只读，公共读取器）。
 
-解耦重构（DECOUPLING-DESIGN §4.2，阶段 1）：核心读逻辑 ``load_results`` + ``Results``
-由 risk_result_query 升入 risk_core，成为 visualization / threshold_explore / query
-三处共享的唯一读取器；``top_features`` 等查询糖仍留在 risk_result_query。
+核心读逻辑 ``load_results`` + ``Results`` 是 visualization / threshold_explore / query
+三处共享的唯一读取器（DECOUPLING-DESIGN §4.2）；``top_features`` 等查询糖在 risk_result_query。
 
 核心 API:
     load_results(project_name, subdir=None) -> Results
@@ -99,7 +98,7 @@ def _read_csv_with_fallback(*paths: str) -> Optional[pd.DataFrame]:
 
 # A4 后对外列名标准化为：特征 / 分群维度 / 分群名称。
 # 旧列名 → 标准列名映射 _LEGACY_COL_RENAMES 的单一真源在 risk_core.contracts
-# （见文件顶部 import）；读取时统一改名，仅修改返回的 DataFrame，不改盘上文件。
+# （见文件顶部 import）；读取时统一改名，只改返回的 DataFrame。
 def _normalize_legacy_cols(df: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
     if df is None or df.empty:
         return df

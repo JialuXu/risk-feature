@@ -23,7 +23,7 @@ risk_mining/      挖掘内核：analysis/{engine,iv_core} · pipeline（run_gen
                   组合根：cli · argspec（flag 单一注册表）· commands/<子命令>.py —— 唯一可同时 import 内核与子 skill 的层
 risk_legacy_chains/  credit / gsfc 黑盒老链路（归组合根层；数值由 tests/test_golden_legacy_chains.py 钉死，不改口径）
 risk_<子skill>/   各自 SKILL.md + scripts/；独立子 skill（data_prep / result_query / visualization /
-                  trigger_extraction / threshold_explore / docx_report）只依赖 risk_core，互不横向依赖
+                  trigger_extraction / threshold_explore / docx_report）只依赖 risk_core
 risk_pipeline/ · shared/   纯兼容 shim（旧导入路径的别名/再导出），生产代码不得依赖，下版本删除
 ```
 
@@ -64,19 +64,19 @@ python -m risk_pipeline report   --project xxx --report-markdown r.md --purpose 
 1. **先查再跑**：用户说"查/读/解读/top X"时走 `query` / `risk_result_query`，不重跑链路。
 2. **用 `prepare` / `prepare_df`**，不要手抄"读宽表 + 合并坏客户 + 选特征列"。
 3. 单脚本 + `verbose=False` + `head(N)`；大结果禁止整表打印。
-4. 报结论前先看 `{project}_audit.json`（IV 过拟合嫌疑、不稳定规则、Level）。
+4. 报结论前先看 `{project}_audit.json`（IV 疑似数据穿越、不稳定规则、Level）。
 
 ## 配置与路径
 
 - 配置单一来源：`risk_core/config.py`，数值来自随包 `risk_core/config/default.yaml` + `column_mapping.yaml`。
-- **不支持运行时覆盖（单行场景，已决）**：CLI 与 Python API 都只读随包 YAML，没有 `--config`。适配某份数据走 flag（`--id-col` / `--target-col` / `--category-dims` …）；长期接入新银行属开发仓库维护动作，直接改随包 YAML。
+- **配置只读随包 YAML（单行场景）**：CLI 与 Python API 都只读随包 YAML。适配某份数据走 flag（`--id-col` / `--target-col` / `--category-dims` …）；长期接入新银行属开发仓库维护动作，直接改随包 YAML。
 - 路径唯一入口 `risk_core/paths.py`：`RISK_PROJECT_ROOT`（输入根）、`RISK_OUTPUT_ROOT`（输出根，缺省 = 项目根）；优先级 env > 入参 > 自 CWD 向上找 `data/` > CWD。均在调用时解析。读、写产物统一以输出根为准；读产物的子命令自动跟随 `export --output-subdir`。细节见 `references/paths-env.md`。
 - **永远不要**自写 `os.getcwd()` / `__file__` 兜底路径，用 `risk_core.paths` 的 `get_project_root / get_output_root / results_dir / output_dir / ensure_writable_dir`。
 
 ## 统计口径要点
 
 - 样本门槛（`default.yaml` `thresholds`）：MIN_SAMPLES 50、MIN_BAD_SAMPLES 10（IV）、MIN_BAD_CORR 15、MIN_BAD_LR 20 / MIN_GOOD_LR 50、MIN_SAMPLES_CV 200 / MIN_BAD_CV 30（不足则 AUC 降为训练集口径并标注）。
-- IV：自适应分箱，零膨胀特征众数单独成箱，缺失单独成箱，WOE 截断 ±5；IV > 2.0 视为过拟合嫌疑、不进推荐；可信度 可信 / 参考 / 不可信-样本不足 / 不可信-过拟合嫌疑。
+- IV：自适应分箱，零膨胀特征众数单独成箱，缺失单独成箱，WOE 截断 ±5；IV > 2.0 视为疑似数据穿越、不进推荐；可信度 可信 / 参考 / 不可信-样本不足 / 不可信-疑似数据穿越。
 - 缺失值（`risk_core/missing.py`）：统计检验成对删除；LR / 规则 / 阈值用中位数填补（训练与评估同一套）；IV/WOE 缺失单独成箱；credit/gsfc 老链路保持原口径。
 - 规则：训练集挖掘、留出集评估 Lift/闸门，稳定性为留出集 bootstrap；坏客户不足时回退样本内并在「评估口径」列标注。
 - 触碰阈值只在适用范围内计算，并做风险方向校验。
@@ -105,6 +105,6 @@ CI（`.github/workflows/risk-feature-pipeline.yml`）在 Python 3.10 / 3.12 上�
 
 - 交互、注释、输出一律中文；CSV 用 `utf-8-sig`。
 - 输出中不得出现客户名称、编号、电话。
-- 跳过的分群必须显式记录原因；AUC 必须标注类型（交叉验证 / 训练集-样本不足 / 训练集-CV失败）。
+- 跳过的分群必须显式记录原因；AUC 必须标注类型（5折交叉验证 / 训练集(CV失败) / 训练集(样本不足)）。
 - Matplotlib 出图走 `risk_core.font_utils` 的中文字体探测。
 - 改动保持外科手术式：只动任务涉及的文件，不顺手重构；改行为时补回归测试并在 `CHANGELOG.md` 记代号。

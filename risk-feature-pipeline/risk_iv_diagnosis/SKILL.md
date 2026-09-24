@@ -44,4 +44,4 @@ description: IV 与可信度诊断：自适应分箱、WOE 截断、缺失单独
 | 模块 | 作用 |
 |------|------|
 | `scripts/iv_analysis.py` | `calc_iv`、`_adaptive_bins`、`_assess_iv_reliability`、`iv_power_label` |
-| `scripts/iv_group_diagnosis.py` | 全量/分群 IV 编排、`reliability_diagnosis`（业务阈值切点改用 `risk_threshold_explore`） |
+| `scripts/iv_group_diagnosis.py` | 全量/分群 IV 编排、`reliability_diagnosis` |

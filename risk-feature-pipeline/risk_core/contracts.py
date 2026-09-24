@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """risk_core.contracts —— 磁盘契约的单一真源（DECOUPLING-DESIGN §5）。
 
-拆分后「写点」与「读点」分属不同 skill，本模块把它们之间的隐式约定（列名 /
+「写点」与「读点」分属不同 skill，本模块把它们之间的隐式约定（列名 /
 dtype / 元信息白名单 / 文件名模板 / wire schema / 指纹 / 状态目录派生）固化为
 **唯一权威定义**：所有生产/消费方只从这里 import，杜绝各处自拼键名/列名/路径。
 
@@ -17,12 +17,12 @@ dtype / 元信息白名单 / 文件名模板 / wire schema / 指纹 / 状态目�
   §5.6 .pipeline_state.json 目录/键              —— STATE_* / LEVEL_ORDER / state_results_dir
   §5.7 YAML 覆盖语义 + 产物文件名模板            —— RESULT_FILE_TEMPLATE / RULE_TREE_PKL_TEMPLATE
 
-⚠ 收敛进度（契约先行 P6：本模块在阶段 1 建立为单一真源，各消费方分阶段接入）：
-  - cli_io（wire/指纹/features.json 函数）已在阶段 1 退化为本模块的再导出 shim。
-  - export 装配的写端白名单（report_analysis.build_corr/lr_export）在阶段 3 接入。
-  - data_prep 的 prepared.csv / features.json 读写在阶段 6 接入（顺手修 §5.1 前导零 bug）。
-  - visualization / threshold_explore 的文件名拼读在阶段 7 接入。
-  - pipeline_state 的 state 目录派生在阶段 9 接入。
+消费方：
+  - risk_pipeline.cli_io（wire/指纹/features.json 函数）是本模块的再导出 shim。
+  - export 装配的写端白名单（report_analysis.build_corr/lr_export）。
+  - data_prep 的 prepared.csv / features.json 读写（含 §5.1 前导零保护）。
+  - visualization / threshold_explore 的文件名拼读。
+  - pipeline_state 的 state 目录派生。
 """
 from __future__ import annotations
 
@@ -293,7 +293,7 @@ COL_BAD_RATE = '坏客户率'
 COL_IV_CREDIBILITY = 'IV可信度'
 IV_CREDIBLE = '可信'  # report_analysis 判 == '可信'
 
-# 写端元信息白名单（report_analysis.build_corr_export / build_lr_export；阶段 3 接入）
+# 写端元信息白名单（report_analysis.build_corr_export / build_lr_export）
 CORR_EXPORT_META_COLS = ['分群维度', '分群名称', '样本数', '坏客户数', '坏客户率']
 LR_EXPORT_META_COLS = ['分群维度', '分群名称', 'AUC', 'AUC类型', '样本数', '坏客户数']
 # 读端元信息白名单（results_loader._melt_wide_to_long；须 ⊇ 上面两个写端列表的并集）
@@ -303,7 +303,7 @@ KNOWN_META_COLS = {
     'AUC', 'AUC类型',
 }
 
-# 历史旧列名 → A4 标准列名（读取时归一化，仅改返回 DataFrame，不改盘上文件）
+# 旧列名 → A4 标准列名（读取时归一化；只改返回的 DataFrame）
 LEGACY_COL_RENAMES = {
     '特征名称': '特征',
     '分群值': '分群名称',
@@ -359,12 +359,11 @@ LEVEL_ORDER = ['前置', '过渡态', 'Level 1', 'Level 2', 'Level 3']
 
 
 def state_results_dir(project: str, *, project_root: str) -> str:
-    """.pipeline_state.json 所在的结果目录派生（§5.6 单一真源；pipeline_state 已接入）。
+    """.pipeline_state.json 所在的结果目录派生（§5.6 单一真源，pipeline_state 调用）。
 
-    设 RISK_OUTPUT_ROOT 时落到写盘根，否则落项目根，**均无「征信」前缀**。
-    阶段 9 已统一：cmd_run credit/gsfc 的 state 特判前缀已删，全部命令的 state
-    落同一规则目录。注意仅统一 state 文件——credit/gsfc 的**结果 CSV** 目录仍带
-    「征信」/「工商财务」前缀（config.RESULTS_DIR_*，不在统一范围）。
+    设 RISK_OUTPUT_ROOT 时落到写盘根，否则落项目根，**均无「征信」前缀**；
+    全部命令（含 run credit/gsfc）的 state 落同一规则目录。注意仅 state 文件如此——
+    credit/gsfc 的**结果 CSV** 目录仍带「征信」/「工商财务」前缀（config.RESULTS_DIR_*）。
     """
     from .paths import get_output_root, ENV_OUTPUT_ROOT
     if os.environ.get(ENV_OUTPUT_ROOT):
