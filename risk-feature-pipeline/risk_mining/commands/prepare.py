@@ -2,6 +2,7 @@
 """prepare 子命令：调 risk_data_prep.prepare_df → 写 prepared.csv + features.json（前置态）。"""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -20,6 +21,30 @@ from ._common import (
     _state_dir,
     _validate_split_confirmation,
 )
+
+
+def _input_signature(args, filter_dict, exclude_features, merge_cols) -> str:
+    """prepare 输入签名：文件内容指纹（不含 mtime/路径）+ 影响 prepared.csv 的全部参数。"""
+    def _file_sig(path):
+        if not path:
+            return None
+        fp = cli_io.dataset_fingerprint(path)
+        return [fp['sha256_head'], fp['sha256_tail'], fp['size_bytes']]
+
+    payload = {
+        'wide': _file_sig(args.wide),
+        'bad_customer': _file_sig(args.bad_customer),
+        'merge_table': _file_sig(getattr(args, 'merge_table', None)),
+        'id_col': args.id_col,
+        'target_col': args.target_col,
+        'bad_id_col': args.bad_id_col,
+        'merge_id_col': getattr(args, 'merge_id_col', None),
+        'merge_cols': merge_cols,
+        'filter': filter_dict,
+        'exclude_features': sorted(exclude_features) if exclude_features else None,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 def cmd_prepare(args) -> int:
@@ -165,6 +190,16 @@ def cmd_prepare(args) -> int:
     cli_io.write_features_json(features_path, info)
 
     state.record_dataset(wide)
+    reset_from = state.bind_prepared_input(
+        _input_signature(args, filter_dict, exclude_features, merge_cols)
+    )
+    if reset_from is not None:
+        print(
+            f'⚠️ [prepare] 输入与上次 prepare 不同（数据/主键/目标列/过滤规则有变化），'
+            f'Level 由 {reset_from} 重置为 前置；旧导出结果不再放行下游，'
+            f'请重新 analyze → export。',
+            file=sys.stderr,
+        )
     state.append_history({
         'cmd': 'prepare',
         'args_summary': {

@@ -228,7 +228,7 @@ risk-feature-pipeline/
 
 | 不变量 | 契约 | 验收方式 |
 |---|---|---|
-| **Level 状态机单向推进** | 前置→过渡态→Level1→Level2→Level3；`_maybe_promote` 只升不降；partial `--steps` 不谎报 Level 1 | 现有 state 单测 |
+| **Level 状态机单向推进** | 前置→过渡态→Level1→Level2→Level3；`_maybe_promote` 只升不降（prepare 输入变化时重置为前置）；partial `--steps` 不谎报 Level 1 | 现有 state 单测 |
 | **三个阻断节点物理 `exit 1`** | 节点1（`--confirmed-new-dataset`/拆分三件套 + `_validate_split_confirmation`）、节点2（trigger `--confirmed`）、节点3（report external `--confirmed-final-version`）；组合根转发前校验，直调子 skill 路径不兜此门 | validation 单测 |
 | **挖掘内核不 import 子 skill** | `analyze/export/analysis/pipeline_state` 中 grep 无 `import risk_<skill>` | **grep 红线**（新增） |
 | **子 skill 零横向 import** | `risk_*/scripts/` 中 grep 无跨子 skill import | **grep 红线**（阶段 7 验收） |

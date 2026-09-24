@@ -47,6 +47,30 @@ def _adaptive_bins(n_samples, n_bad, default_bins=10):
     return max(ADAPTIVE_BINS_MIN, adaptive)
 
 
+def _quantile_bins(x, n_bins):
+    """等频分箱；取值数不超过 n_bins 时直接按取值分箱。
+
+    零膨胀特征（如逾期次数：九成为 0）的分位点大量重合，qcut 去重后会塌成 1 个箱，
+    IV 恒为 0。此时改为「众数单独成箱 + 其余样本等频分箱」，保留尾部区分力。
+    返回与 x 同索引的分箱标签 Series。
+    """
+    if x.nunique() <= n_bins:
+        return x
+    binned = pd.qcut(x, q=n_bins, duplicates='drop')
+    if binned.nunique() >= 2:
+        return binned
+    mode_val = x.mode().iloc[0]
+    is_mode = x == mode_val
+    rest = x[~is_mode]
+    labels = pd.Series(f'={mode_val}', index=x.index, dtype=object)
+    k = max(1, n_bins - 1)
+    if rest.nunique() > k:
+        labels[~is_mode] = pd.qcut(rest, q=k, duplicates='drop').astype(str)
+    else:
+        labels[~is_mode] = rest.astype(str)
+    return labels
+
+
 def _assess_iv_reliability(iv_value, n_samples, n_bad, n_bins_actual):
     """
     评估 IV 值的可信度等级。
@@ -121,7 +145,8 @@ def calc_iv(df, feature, target, bins=10):
             'iv_missing': 0.0, 'iv_nonmissing': 0.0, 'n_missing': 0}
     try:
         # 先基于 target 非缺失的样本计算总体好/坏数
-        df_with_target = df[df[target].notna()].copy()
+        # 只切出两列再复制：宽表动辄数百列，整表 copy 在逐特征循环里是主要开销
+        df_with_target = df.loc[df[target].notna(), [feature, target]].copy()
         total_good_all = (df_with_target[target] == 0).sum()
         total_bad_all = (df_with_target[target] == 1).sum()
 
@@ -166,10 +191,7 @@ def calc_iv(df, feature, target, bins=10):
         # --- 第2部分：非缺失样本的分箱 IV ---
         actual_bins = _adaptive_bins(n_nonmissing, total_bad_notna, default_bins=bins)
 
-        if df_notna[feature].nunique() > actual_bins:
-            df_notna['bin'] = pd.qcut(df_notna[feature], q=actual_bins, duplicates='drop')
-        else:
-            df_notna['bin'] = df_notna[feature]
+        df_notna['bin'] = _quantile_bins(df_notna[feature], actual_bins)
 
         meta['n_bins_actual'] = df_notna['bin'].nunique()
 

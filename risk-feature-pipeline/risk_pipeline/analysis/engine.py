@@ -921,9 +921,12 @@ def calc_feature_thresholds(df, segment_feature_pairs, target=COL_TARGET):
             continue
 
         bt_df = optb.binning_table.build()
-        # 去除 Special 和 Missing 行
-        data_rows = bt_df[~bt_df['Bin'].isin(['Special', 'Missing'])].copy()
-        data_rows = data_rows.reset_index(drop=True)
+        # 去除 Special / Missing 行以及末尾的 Totals 汇总行（其 Bin 为空串）；
+        # 汇总行若留着，会被当成最后一个箱参与跳升搜索，且让全局 IV 翻倍
+        data_rows = bt_df[~bt_df['Bin'].isin(['Special', 'Missing', ''])].copy()
+        data_rows = data_rows[
+            ~data_rows['Bin'].astype(str).str.lower().str.contains('total')
+        ].reset_index(drop=True)
 
         detail_tables[(group_val, feat)] = data_rows
 

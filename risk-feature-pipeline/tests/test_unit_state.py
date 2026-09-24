@@ -161,7 +161,6 @@ def test_concurrent_writes_no_corruption(tmp_path):
     state_path = tmp_path / '.pipeline_state.json'
     with open(state_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    # 由于两个线程各自 load + save，最后落盘的一方覆盖另一方；
-    # 这里仅断言文件未损坏，schema 完整。
-    assert 'history' in data
+    # save() 在固定锁文件下重读磁盘并合并增量：两个线程的历史都应保留
     assert data['project_name'] == 'p1'
+    assert len(data['history']) == 10

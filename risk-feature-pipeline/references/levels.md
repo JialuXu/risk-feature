@@ -1,8 +1,9 @@
 # 结果确定性层次（Level 1 / 2 / 3）
 
 结论处于哪个层次，决定了可以做什么动作、承担什么责任。状态由
-`.pipeline_state.json` 追踪，**只升不降**；`query` / `visualize` /
-`explore_thresholds` 是只读动作，不改 level。
+`.pipeline_state.json` 追踪，**对同一份输入只升不降**；`prepare` 的输入一旦变化
+（换宽表/坏客户清单、改主键/目标列/过滤/排除特征），Level 重置为「前置」，须重新
+analyze → export。`query` / `visualize` / `explore_thresholds` 是只读动作，不改 level。
 
 ```
 前置 → 过渡态 → Level 1 → Level 2 → Level 3
