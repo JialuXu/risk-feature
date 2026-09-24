@@ -14,13 +14,12 @@ query/visualize/trigger/report 全部依赖它落盘的文件名与列名契约�
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 PROJECT = 'export_contract'

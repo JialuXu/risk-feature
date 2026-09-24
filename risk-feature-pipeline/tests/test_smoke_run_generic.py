@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def test_run_generic_full_cycle(project_workdir):

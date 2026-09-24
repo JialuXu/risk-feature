@@ -52,7 +52,7 @@ pivot = r.iv_group_all.query('分群维度 == "企业规模"') \
          .pivot(index='特征', columns='分群名称', values='IV值')
 ```
 
-## 7. 从原始宽表现算坏/好均值（`diff_long` 只有差值）
+## 7. 从原始宽表现算坏/好均值（`r.diff_long` 始终为 `None`）
 
 ```python
 import pandas as pd

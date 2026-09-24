@@ -7,15 +7,10 @@
 
 import pandas as pd
 
-from .config import CREDIT_CONFIG, SAMPLE_THRESHOLDS, COL_TARGET
+from .config import SAMPLE_THRESHOLDS, COL_TARGET
 from .univariate import calc_correlation_pvalue, ttest_good_bad
 
-import sys
-from pathlib import Path
-_MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _MY_SKILLS_ROOT not in sys.path:
-    sys.path.insert(0, _MY_SKILLS_ROOT)
-from risk_pipeline.column_mapper import ColumnMapper
+from risk_core.column_mapper import ColumnMapper
 
 _T = SAMPLE_THRESHOLDS
 _mapper = ColumnMapper()

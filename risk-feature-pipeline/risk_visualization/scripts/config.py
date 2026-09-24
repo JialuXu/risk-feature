@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
 """risk_visualization 配置：复用 risk_core 公共配置 + 模块专属图表常量。"""
-import sys
-from pathlib import Path
-
-_MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _MY_SKILLS_ROOT not in sys.path:
-    sys.path.insert(0, _MY_SKILLS_ROOT)
 
 from risk_core.config import *  # noqa: F401,F403
 

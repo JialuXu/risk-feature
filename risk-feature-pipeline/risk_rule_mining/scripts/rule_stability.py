@@ -1,33 +1,30 @@
 # -*- coding: utf-8 -*-
 """
-规则稳定性评估：K-fold 交叉验证每条规则在 holdout 上的坏账率 mean/std
+规则稳定性评估：在评估集（留出测试集）上 bootstrap 重抽样，度量每条规则坏账率的波动。
 
-策略（而非"规则跨折匹配"）：
-    给定从全样本挖掘出的规则集，在 K 折 holdout 上分别评估每条规则，
-    记录坏账率的 mean/std 与"有效折数"（命中≥min_bad_in_leaf 的折数），
-    据此判定稳定性等级。
+口径：
+    规则在训练集上挖掘，稳定性只在**未参与挖掘**的测试集上评估（样本外）。
+    对测试集做 bootstrap_n 次有放回重抽样，每次记录规则命中样本的坏账率；
+    命中坏客户数 ≥ min_bad_in_leaf 的重抽样计为"有效"。
+    稳定性等级由 有效占比 与 坏账率变异系数（std/mean）共同判定。
 
-该做法比"每折重新挖树再匹配规则"更可靠：
-    - 阈值浮动下规则匹配极难对齐；
-    - CV 目的是度量规则的泛化表现，而非重复发现。
+    坏客户不足以留出测试集时，评估集回退为全量（样本内），
+    由调用方在「评估口径」列标注，结论偏乐观。
 """
-from typing import List
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedKFold
 
 from .config import (
     RULE_MINING_CONFIG,
     STABILITY_CV_STABLE,
     STABILITY_CV_MODERATE,
 )
-from .rule_evaluation import evaluate_rule
+from .rule_extraction import _conditions_to_mask
 
 
-def _stability_grade(mean: float, std: float, valid_folds: int) -> str:
-    """根据 CV 均值/标准差/有效折数判定稳定性等级。"""
-    min_folds = RULE_MINING_CONFIG['stability_min_folds']
-    if valid_folds < min_folds or np.isnan(mean) or mean == 0:
+def _stability_grade(mean: float, std: float, valid_ratio: float) -> str:
+    """根据重抽样坏账率均值/标准差/有效占比判定稳定性等级。"""
+    if valid_ratio < RULE_MINING_CONFIG['stability_min_valid_ratio'] or np.isnan(mean) or mean == 0:
         return '不稳定'
     cv = std / mean  # 变异系数
     if cv <= STABILITY_CV_STABLE:
@@ -38,62 +35,58 @@ def _stability_grade(mean: float, std: float, valid_folds: int) -> str:
 
 
 def assess_rule_stability(
-    df: pd.DataFrame,
+    df_eval: pd.DataFrame,
     rules_df: pd.DataFrame,
     target: str = 'is_bad',
-    n_splits: int = None,
+    n_boot: int = None,
     random_state: int = 42,
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """为规则表追加 CV 稳定性列。
+    """为规则表追加稳定性列（在 df_eval 上 bootstrap）。
 
-    追加字段：cv_bad_rate_mean, cv_bad_rate_std, cv_valid_folds, stability
+    追加字段：stab_bad_rate_mean, stab_bad_rate_std, stab_valid_n, stab_n, stability
     """
     if rules_df.empty:
         return rules_df
-    if n_splits is None:
-        n_splits = RULE_MINING_CONFIG['cv_splits']
+    if n_boot is None:
+        n_boot = RULE_MINING_CONFIG['bootstrap_n']
 
-    df_clean = df.dropna(subset=[target]).reset_index(drop=True)
-    y = df_clean[target].astype(int)
-
-    # 分层 K 折（保证每折坏客户比例一致）
-    if y.sum() < n_splits:
-        if verbose:
-            print(f"[稳定性] 坏客户数 {y.sum()} < n_splits={n_splits}，跳过 CV")
-        rules_df = rules_df.copy()
-        rules_df['cv_bad_rate_mean'] = np.nan
-        rules_df['cv_bad_rate_std'] = np.nan
-        rules_df['cv_valid_folds'] = 0
-        rules_df['stability'] = '不稳定'
-        return rules_df
-
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    df_clean = df_eval.dropna(subset=[target]).reset_index(drop=True)
+    y = df_clean[target].astype(int).to_numpy()
+    n = len(y)
     min_bad = RULE_MINING_CONFIG['min_bad_in_leaf']
 
-    results = []
-    for _, row in rules_df.iterrows():
-        fold_bad_rates: List[float] = []
-        valid_folds = 0
-        for _, test_idx in skf.split(df_clean, y):
-            holdout = df_clean.iloc[test_idx]
-            stats = evaluate_rule(holdout, row['conditions'], target=target)
-            if stats and stats.get('bad_n', 0) >= min_bad:
-                fold_bad_rates.append(stats['bad_rate'])
-                valid_folds += 1
+    masks = [
+        _conditions_to_mask(df_clean, row['conditions'], row.get('fill_values')).to_numpy()
+        for _, row in rules_df.iterrows()
+    ]
 
-        if fold_bad_rates:
-            mean_br = float(np.mean(fold_bad_rates))
-            std_br = float(np.std(fold_bad_rates, ddof=0))
+    rng = np.random.default_rng(random_state)
+    bad_rates = [[] for _ in masks]
+    for _ in range(n_boot if n > 0 else 0):
+        idx = rng.integers(0, n, n)
+        y_b = y[idx]
+        for k, mask in enumerate(masks):
+            hit = mask[idx]
+            cover = int(hit.sum())
+            bad = int(y_b[hit].sum())
+            if cover > 0 and bad >= min_bad:
+                bad_rates[k].append(bad / cover)
+
+    results = []
+    for rates in bad_rates:
+        if rates:
+            mean_br = float(np.mean(rates))
+            std_br = float(np.std(rates, ddof=0))
         else:
             mean_br, std_br = np.nan, np.nan
-
-        grade = _stability_grade(mean_br, std_br, valid_folds)
+        valid_ratio = len(rates) / n_boot if n_boot else 0.0
         results.append({
-            'cv_bad_rate_mean': mean_br,
-            'cv_bad_rate_std': std_br,
-            'cv_valid_folds': valid_folds,
-            'stability': grade,
+            'stab_bad_rate_mean': mean_br,
+            'stab_bad_rate_std': std_br,
+            'stab_valid_n': len(rates),
+            'stab_n': n_boot,
+            'stability': _stability_grade(mean_br, std_br, valid_ratio),
         })
 
     stab_df = pd.DataFrame(results)

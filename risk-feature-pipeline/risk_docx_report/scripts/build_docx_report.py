@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -32,7 +33,23 @@ def _infer_output_path(report_markdown: Path, output: Optional[str]) -> Path:
 
 def _run_command(cmd: List[str], label: str):
     print(f"[INFO] {label}: {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"{label}失败（退出码 {e.returncode}），详见上方输出。") from e
+
+
+def _check_node_deps(script_dir: Path) -> None:
+    """预检 Node 渲染器依赖（docx npm 包），缺失时给出中文安装指引而非原始堆栈。"""
+    probe = subprocess.run(
+        ["node", "-e", f"require.resolve('docx', {{paths: [{json.dumps(str(script_dir))}]}})"],
+        capture_output=True,
+    )
+    if probe.returncode != 0:
+        raise RuntimeError(
+            "未找到 Node 依赖包 docx：docx 渲染器无法加载。\n"
+            f"  请在 {script_dir.parent} 目录执行 `npm ci`（或 `npm install`）后重试。"
+        )
 
 
 def build_docx_report(
@@ -54,6 +71,7 @@ def build_docx_report(
             "  请先安装 Node.js（建议 >= 16），并确认 risk_docx_report/node_modules/ 存在\n"
             "  （缺失时在 risk_docx_report/ 目录执行 npm install）。"
         )
+    _check_node_deps(script_dir)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

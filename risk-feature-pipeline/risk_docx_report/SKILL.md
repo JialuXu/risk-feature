@@ -1,6 +1,6 @@
 ---
 name: risk_docx_report
-description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 docx 生成能力产出正式 Word 报告。用户要把最终分析结果整理成 `.docx` 交付件时使用。
+description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 docx 生成能力产出正式 Word 报告。当用户说"生成 Word 报告"、"出正式报告/交付件"、"导出 .docx"时触发（需已到 Level 1，CLI `report`）。
 ---
 
 > **何时读我**：只有需要渲染器/docx 校验脚本配置细节时才读本文件；常规出报告走 `python -m risk_pipeline report`（见 `references/cli/report.md`，对外交付先过阻断节点 3）。
@@ -46,7 +46,7 @@ description: 基于 risk_export_report 的 LLM JSON、`report-prompt.md` 与 doc
 
 - 输入 JSON 用 `risk_export_report` 的正式文件，不手拼字段名。
 - 正文用 Markdown，避免标题/表格丢失。
-- 附录的结构化表仅作"解释性增强"，不替代正文业务分析。
+- 附录的结构化表仅作正文业务分析的"解释性增强"。
 - 征信精简版 JSON：拼 `分群画像_重点` + `分群画像_简略` 作附录来源。
 
 ## 职责边界

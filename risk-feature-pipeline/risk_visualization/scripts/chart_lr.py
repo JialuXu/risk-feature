@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """LR 系数：跨分群×特征系数热力图 + 跨分群 AUC 条形图。
 
-注：原"每分群一张"的 LR 系数横向条形图已移除——与系数热力图信息重复、且随分群数量
-爆炸，对最终业务报告无增量价值。分群系数对比看热力图、模型判别力看 AUC 图即可。
+注：不出「每分群一张」的 LR 系数条形图——与系数热力图信息重复、且随分群数量爆炸。
+分群系数对比看热力图、模型判别力看 AUC 图即可。
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from . import style  # 字体配置
 from .style import (
     AUC_TYPE_COLORS, FIGSIZE_BAR_WIDE, FIGSIZE_HEATMAP, GRID_COLOR, NEUTRAL_COLOR,
 )

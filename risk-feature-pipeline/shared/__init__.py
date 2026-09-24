@@ -1,15 +1,22 @@
 # -*- coding: utf-8 -*-
-"""DEPRECATION SHIM：`shared` 包已重命名为 `risk_pipeline`。
+"""DEPRECATION SHIM：`shared` 包是兼容层，下一版本移除。
 
-本文件作为兼容层，把 `from shared.X import Y` 透明转发到 `risk_pipeline.X`。
-下一版本会移除此 shim，请尽快把 import 改为 `from risk_pipeline.X import Y`。
+把 `from shared.X import Y` 透明转发到 `risk_pipeline.X`（它本身也是兼容 shim）。
+请改用真实模块：
+  - config / config_loader / column_mapper / paths → `risk_core.<模块>`
+  - run_generic_pipeline → `risk_mining.pipeline`
+  - run_credit_pipeline / run_gsfc_pipeline → `risk_legacy_chains.scripts`
+  - 命令行 → `python -m risk_pipeline <子命令>`
 """
 import sys
 import warnings
 
 warnings.warn(
-    "`shared` 包已重命名为 `risk_pipeline`；请改用 `from risk_pipeline.X import Y`。"
-    "兼容 shim 仅作为过渡，下一版本会移除。",
+    "`shared` 是兼容 shim，下一版本移除。请改用："
+    "risk_core.config / config_loader / column_mapper / paths；"
+    "run_generic_pipeline → risk_mining.pipeline；"
+    "run_credit_pipeline / run_gsfc_pipeline → risk_legacy_chains.scripts；"
+    "命令行 → python -m risk_pipeline <子命令>。",
     DeprecationWarning,
     stacklevel=2,
 )

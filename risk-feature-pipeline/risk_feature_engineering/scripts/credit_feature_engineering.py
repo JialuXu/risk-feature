@@ -7,7 +7,6 @@
 """
 
 import numpy as np
-import pandas as pd
 
 from .config import CREDIT_CONFIG
 from .io_utils import safe_divide

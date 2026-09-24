@@ -28,8 +28,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline.config import COL_TARGET
-from risk_pipeline.pipeline import run_generic_pipeline
+from risk_core.config import COL_TARGET
+from risk_mining.pipeline import run_generic_pipeline
 from risk_mining.export import assemble_exports
 
 

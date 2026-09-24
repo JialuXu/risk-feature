@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Flag 单一注册表（解耦重构 Stage 4，DECOUPLING-DESIGN §4.3 / §9 阶段4）。
+"""Flag 单一注册表（DECOUPLING-DESIGN §4.3）。
 
 每个子命令的每条 flag 在此**只声明一次**：
-  - ``cli._build_parser`` 遍历本表构建 argparse（不再手抄 add_argument）；
+  - ``cli._build_parser`` 遍历本表构建 argparse；
   - ``run`` 子命令的 flag 集从 **prepare∪analyze 并集派生**（``flags_for('run')``）：
     按 option-string 去重、``required`` 一律降 False（run 在 ``cmd_run`` 内自行校验
     generic 必填项）、``--steps``/``--category-dims`` 用 run 专属条目/覆盖；
-  - ``cmd_run`` 的转发 Namespace 由 ``dests_for(cmd)`` 派生（不再手抄字段清单）。
+  - ``cmd_run`` 的转发 Namespace 由 ``dests_for(cmd)`` 派生。
 
-由此根除 C15 结构性错误源：给 prepare/analyze 加一个 flag 只改本文件一处，
-run 路径自动获得该 flag 并自动透传——不会再出现「漏改 run 分支 → 运行期静默 None」。
+给 prepare/analyze 加一个 flag 只改本文件一处，run 路径自动获得该 flag 并自动透传。
 
-⚠ 条目 kwargs 逐字对齐 argparse 语义（help/type/choices/required/action/dest），
-   8 个非 run 子命令的 ``--help`` 输出必须与阶段 4 之前**字节一致**（铁律 2）。
-   run 的 --help 本阶段按设计**变化**：新增 --prepared/--features-file/--qual-dims/
-   --project-name（并集带来），部分 help 文案改为继承 prepare 声明（单一真源）。
+⚠ 条目 kwargs 逐字对齐 argparse 语义（help/type/choices/required/action/dest）。
+   ``--help`` 输出以人工基线为准（无自动化 --help 锁）：help 文案变更须同步人工基线。
+   run 的 flag 集为 prepare∪analyze 并集，部分 help 文案继承 prepare 声明（单一真源）。
 
 条目形状：
   普通 flag: {'opts': (option strings...), 'kwargs': {...add_argument kwargs...}}
@@ -61,8 +59,8 @@ SPECS = {
         {'opts': ('--merge-cols',), 'kwargs': {
             'default': None,
             'help': '只从补充表带入这些列（逗号分隔；缺省=带入全部非主键列）'}},
-        {'opts': ('--id-col',), 'kwargs': {'required': True, 'help': '主键列名（无默认，必填）'}},
-        {'opts': ('--target-col',), 'kwargs': {'required': True, 'help': '目标列名（无默认，必填）'}},
+        {'opts': ('--id-col',), 'kwargs': {'required': True, 'help': '主键列名（必填）'}},
+        {'opts': ('--target-col',), 'kwargs': {'required': True, 'help': '目标列名（必填）'}},
         {'opts': ('--bad-id-col',), 'kwargs': {
             'default': None, 'help': '坏客户清单主键列名（默认与 --id-col 同）'}},
         {'opts': ('--filter-file',), 'kwargs': {
@@ -88,9 +86,7 @@ SPECS = {
             'help': '[阻断节点 1 / 拆分版] 显式声明坏客户标记的取值（如 "1"），写入 audit'}},
         {'opts': ('--skip-preflight',), 'kwargs': {
             'action': 'store_true',
-            # 打包/沙盒收尾（config/ → risk_core/config/ + fix B「改数据走 flag」）刻意改述此串：
-            # 旧写法指向已删的 config/column_mapping.yaml（死路径）且引导改随包 YAML，与新规矩矛盾。
-            # 本串不再冻结——改动会让 prepare/run --help 字节变化（无自动化 --help 锁，仅人工基线）。
+            # 本串引导「改数据走 flag、不改随包配置」；改动会让 prepare/run --help 字节变化，须同步人工基线。
             'help': '跳过 column_mapping.yaml 与宽表的字段映射预检；分群列与默认不同时加本 flag '
                     '放行，再给 analyze/run 传 --category-dims <实际列名>（不改随包配置）'}},
     ],
@@ -105,8 +101,8 @@ SPECS = {
             'default': 'univariate,iv,lr',
             'help': '子集，逗号分隔；可选: univariate,iv,lr,rules；'
                     'CLI 强制按 univariate→iv→lr→rules 顺序。'
-                    '加 rules 会跑决策树规则挖掘并把树持久化到 _intermediate/，'
-                    '供 visualize 出真树图 / 规则散点 / 指标组合 / 共现网络'}},
+                    '加 rules 会跑决策树规则挖掘（树持久化到 _intermediate/），'
+                    'export 据此写出风险规则表，供 visualize 出 rules（规则散点）/ combos（指标组合）图'}},
         {'opts': ('--category-dims',), 'kwargs': {
             'default': None, 'help': '类别维度列名（逗号分隔），默认自动检测'}},
         {'opts': ('--qual-dims',), 'kwargs': {

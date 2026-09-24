@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""单元测试：risk_pipeline.paths 的优先级与友好报错。"""
+"""单元测试：risk_core.paths 的优先级与友好报错。"""
 from __future__ import annotations
 
 import os
@@ -7,8 +7,8 @@ import stat
 
 import pytest
 
-from risk_pipeline import paths
-from risk_pipeline.paths import (
+from risk_core import paths
+from risk_core.paths import (
     ENV_OUTPUT_ROOT,
     ENV_PROJECT_ROOT,
     ensure_writable_dir,
@@ -142,7 +142,7 @@ def test_ensure_writable_dir_permission_error_message(tmp_path):
 
 def test_yaml_expandvars(tmp_path, monkeypatch):
     """config_loader 应展开 YAML 字符串里的 ${VAR}。"""
-    from risk_pipeline.config_loader import load_yaml
+    from risk_core.config_loader import load_yaml
 
     monkeypatch.setenv('TEST_BASE', '/expanded/base')
     yaml_path = tmp_path / 'cfg.yaml'
@@ -164,7 +164,7 @@ def test_config_constants_use_output_root(tmp_path, monkeypatch):
     monkeypatch.setenv(ENV_OUTPUT_ROOT, str(tmp_path))
     # 强制重载 config 模块以拾取新 env
     import importlib
-    import risk_pipeline.config as cfg_mod
+    import risk_core.config as cfg_mod
     importlib.reload(cfg_mod)
     try:
         assert os.path.isabs(cfg_mod.OUTPUT_DIR_CREDIT)
@@ -179,7 +179,7 @@ def test_config_constants_relative_without_env(monkeypatch):
     """未设 env 时常量仍是相对路径，保持向后兼容。"""
     monkeypatch.delenv(ENV_OUTPUT_ROOT, raising=False)
     import importlib
-    import risk_pipeline.config as cfg_mod
+    import risk_core.config as cfg_mod
     importlib.reload(cfg_mod)
     assert not os.path.isabs(cfg_mod.OUTPUT_DIR_CREDIT)
     assert cfg_mod.OUTPUT_DIR_CREDIT == 'output/征信'

@@ -2,7 +2,6 @@
 """pytest fixtures：合成数据 + 临时项目根。"""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -10,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-# 把 risk-feature-pipeline/ 加入 sys.path（让 `import risk_pipeline` 工作）
+# 把 risk-feature-pipeline/ 加入 sys.path（让 `import risk_core` / `risk_mining` / 各子 skill 工作）
 _PIPELINE_ROOT = str(Path(__file__).resolve().parent.parent)
 if _PIPELINE_ROOT not in sys.path:
     sys.path.insert(0, _PIPELINE_ROOT)

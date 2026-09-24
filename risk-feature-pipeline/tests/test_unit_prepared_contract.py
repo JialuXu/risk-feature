@@ -77,7 +77,7 @@ def test_read_prepared_tolerates_none_and_missing_id_col(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_features_json_schema_contract(project_workdir):
-    from risk_pipeline import cli
+    from risk_mining import cli
     rc = cli.main([
         'prepare',
         '--wide', project_workdir['wide'],
@@ -139,7 +139,7 @@ def leading_zero_workdir(tmp_path, monkeypatch):
 
 
 def test_trigger_e2e_preserves_leading_zero_ids(leading_zero_workdir, tmp_path):
-    from risk_pipeline import cli
+    from risk_mining import cli
     rc = cli.main([
         'run', '--pipeline', 'generic',
         '--wide', 'data/raw/wide.csv', '--bad-customer', 'data/raw/bad.csv',

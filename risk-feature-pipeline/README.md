@@ -15,7 +15,7 @@
 ```bash
 pip install .            # 核心：分析链路（prepare/analyze/export/query/trigger/run）
 pip install '.[viz]'     # 追加：visualize 出图（matplotlib）
-pip install '.[dev]'     # 追加：pytest 等开发依赖
+pip install '.[dev]'     # 追加：pytest / ruff 等开发依赖（本地自检：ruff check . && pytest -q，与 CI 一致）
 ```
 
 安装后可在**任意目录**运行；产物默认落在**当前工作目录**下的 `data/results/<project>/` 与 `output/<project>/`。要固定输入/输出位置，设两个环境变量（优先级高于自动探测）：
@@ -41,7 +41,7 @@ risk-pipeline run --pipeline generic --wide data/raw/x.csv \
 python -m risk_pipeline <subcommand> [args]
 ```
 
-核心子命令如下：
+9 个子命令如下（全局参数 `-q` / `--verbose` / `--state-dir` 写在子命令前后均可）：
 
 | 子命令 | 作用 | 结果层级 |
 |---|---|---|
@@ -50,6 +50,7 @@ python -m risk_pipeline <subcommand> [args]
 | `export` | 将 `_intermediate/` 转成标准 CSV、LLM JSON 和分群画像 | Level 1 |
 | `query` | 只读已有结果，查询 top IV / LR / 相关性 | 不推进 |
 | `visualize` | Level 1 后读取结果 CSV 生成 PNG 图表 | 不推进 |
+| `explore_thresholds` | Level 1 后对人工挑选的 (分群, 特征) 跑 optbinning 候选阈值 | 不推进 |
 | `trigger` | 将风险结论落到客户级触碰明细 | Level 2 |
 | `report` | 将 LLM JSON 与报告正文渲染为 Word | Level 3 |
 | `run` | 便捷组合；`generic` 走 `prepare → analyze → export` | Level 1 |
@@ -96,7 +97,7 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 ## 集成改造要点
 
-- 新银行或新数据源**长期接入**（开发仓库维护动作）：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取；**不存在** `--columns-file` / `--config` CLI 入参，也不会自动加载 `.risk_pipeline_columns.yaml` 或 `config/<bank>.yaml`。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
+- 新银行或新数据源**长期接入**（开发仓库维护动作）：直接编辑 `risk_core/config/column_mapping.yaml`（字段映射）与 `risk_core/config/default.yaml`（阈值、路径、IV 参数），CLI 自动读取。`prepare` 阶段会做一次列名预检，若 YAML 期望的分群维度在宽表中完全缺失会硬错提示。
 - **一次性分析某份列名不同的数据**：不要改 YAML（沙盒/安装模式下等于改写随包分发的默认配置），走 CLI flag——`--id-col` / `--target-col` / `--category-dims <实际列名>`，预检拦截时加 `--skip-preflight` 放行。
 - `prepare` 是数据进入链路的唯一标准入口；不要在外部脚本里手写“读宽表 + merge 坏客户 + 推断特征列”。
 - `query` 和 `visualize` 都读取磁盘快照，不会自动感知上游数据已变化；重跑分析后需要重新 `export`，再查询或出图。
@@ -109,6 +110,6 @@ python -m risk_pipeline visualize --project 我的项目          # 需先装可
 
 | 文档 | 用途 |
 |---|---|
-| [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源（A4 后统一列名、A5 后文件改名） |
+| [`docs/SCHEMA.md`](docs/SCHEMA.md) | 所有 Level 1/Level 2 落盘 CSV 的列字典权威来源 |
 | [`docs/GLOSSARY.md`](docs/GLOSSARY.md) | dim / group / scope / coverage 等术语统一表 + 列名跨表对照 + 阻断节点缩写 |
 | [`docs/risk-pipeline-mechanism.drawio`](docs/risk-pipeline-mechanism.drawio) | 核心链路机制图源文件 |

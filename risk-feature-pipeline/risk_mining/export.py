@@ -1,24 +1,21 @@
 # -*- coding: utf-8 -*-
-"""挖掘内核·导出装配唯一实现（解耦重构 Stage 3）。
+"""挖掘内核·导出装配唯一实现（DECOUPLING-DESIGN §5.4）。
 
-背景（DECOUPLING-DESIGN §1.2 根因2 / §5.4）：``build_corr_export`` /
-``build_lr_export`` / ``build_comprehensive_table`` / ``build_llm_report_data``
-四个 report 构建器的**调用序列**曾在 4 处各抄一份——
-``pipeline.py`` 的 credit/gsfc/generic 三段 + ``commands/export.py`` 的 ``cmd_export``。
-四份平行副本导致「改一处导出字段要同步四处、漏一处运行期静默降级」。
+``build_corr_export`` / ``build_lr_export`` / ``build_comprehensive_table`` /
+``build_llm_report_data`` 四个 report 构建器的调用序列只在这里写一次，
+credit/gsfc/generic 三条链路与 ``cmd_export`` 都调用它，改导出字段只改一处。
 
-本模块把这段装配收敛为**唯一** ``assemble_exports()``：读 results 中间产物、
+``assemble_exports()``：读 results 中间产物、
 调 4 个构建器、把 ``corr_exports/lr_exports/comprehensive/llm_report_data`` 写回
 results（原地）。落盘参数（project_name / output_subdir / results_base /
 output_base）因链路而异、**不属装配范围**——各调用方在 assemble 之后各自
 ``export_results(...)``。
 
-不变量（§7「对外 schema 一致」）：credit/gsfc 行为逐字保住——
-- credit/gsfc 历史上**不传** raw/derived → 构建器走 ``None`` 默认、跳过原始-衍生对比；
-  故本函数默认 ``raw_features=derived_features=None``，调用方不传即维持旧行为
+不变量（§7「对外 schema 一致」）：credit/gsfc 输出由 golden 测试锁定——
+- credit/gsfc 调用方**不传** raw/derived → 构建器走 ``None`` 默认、跳过原始-衍生对比；
+  故本函数默认 ``raw_features=derived_features=None``
   （``None`` 与 ``[]`` 在两个构建器里等价：``if a or b`` / ``set(a or [])``）。
-- credit 历史上**不传** ``target_col`` → 构建器默认 ``COL_TARGET='is_bad'``；credit 的
-  目标列本就是 ``is_bad``，故显式补传 ``target_col`` 是**一致性对齐、非行为修复**。
+- credit 显式传 ``target_col=COL_TARGET``（即 ``is_bad``），与构建器默认值相同，数值不变。
 """
 from __future__ import annotations
 

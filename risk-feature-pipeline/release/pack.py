@@ -16,7 +16,6 @@ import hashlib
 import json
 import re
 import shutil
-import sys
 import tarfile
 import zipfile
 from datetime import datetime, timezone

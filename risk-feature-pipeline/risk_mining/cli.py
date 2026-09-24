@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """risk_mining 统一 CLI 入口（组合根路由层）。
 
-对 agent 暴露的入口仍是 `python -m risk_pipeline <subcommand>`（转发至此）。
+对 agent 暴露的入口是 `python -m risk_pipeline <subcommand>`（转发至此）。
 
 使用方式：
   python -m risk_pipeline <subcommand> [args]
@@ -10,7 +10,7 @@
   prepare            构建 prepared.csv + features.json（前置态）
   analyze            跑 univariate/iv/lr/rules 子集 → _intermediate/（过渡态）
   export             重建结果 → 8 张 CSV + LLM JSON（→ Level 1）
-  query              只读已有结果，top-N / 分群查询（不改 level）
+  query              只读已有结果：top-N / 分群查询
   trigger            客户级触碰提取 → 三张表（→ Level 2）
   report             LLM JSON → docx（→ Level 3）
   visualize          生成 IV/相关性/LR/分群/规则/组合可视化 PNG（Level 1 后）
@@ -21,26 +21,26 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
-
-# 把 risk-feature-pipeline/ 加入 sys.path，便于 CLI 内部 fully-qualified import
-# 子 skill（risk_data_prep / risk_export_report / ...）。
-_MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent)
-if _MY_SKILLS_ROOT not in sys.path:
-    sys.path.insert(0, _MY_SKILLS_ROOT)
 
 
-def _make_global_parent() -> argparse.ArgumentParser:
-    """返回一个含全局 flag 的 parent parser，让每个子命令都接受这些 flag。"""
+def _make_global_parent(for_subcommand: bool = False) -> argparse.ArgumentParser:
+    """返回一个含全局 flag 的 parent parser，让顶层与每个子命令都接受这些 flag。
+
+    for_subcommand=True 时各 flag 的 default 为 SUPPRESS：子命令里没写的 flag 不产生
+    默认值，从而不会覆盖写在子命令**之前**的同名 flag（argparse 子解析器默认值
+    会覆盖父解析器已解析值；否则 ``-q prepare …`` 的 -q 会被静默丢弃）。
+    """
+    d = {'default': argparse.SUPPRESS} if for_subcommand else {}
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument('--state-dir', default=None, help='自定义 state.json 目录（默认随 project）')
-    p.add_argument('-q', '--quiet', action='store_true', help='静默')
-    p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志')
+    p.add_argument('--state-dir', help='自定义 state.json 目录（默认随 project）', **d)
+    p.add_argument('-q', '--quiet', action='store_true', help='静默', **d)
+    p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志', **d)
     return p
 
 
 def _build_parser() -> argparse.ArgumentParser:
     global_parent = _make_global_parent()
+    sub_global_parent = _make_global_parent(for_subcommand=True)
 
     parser = argparse.ArgumentParser(
         prog='python -m risk_pipeline',
@@ -54,7 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
               --target-col is_bad --project xxx
   analyze:  python -m risk_pipeline analyze --project xxx \\
               --steps univariate,iv,lr --category-dims 企业规模
-  analyze 含规则挖掘（供 visualize 出决策树/组合图）：
+  analyze 含规则挖掘（供 visualize 出 rules / combos 图）：
             python -m risk_pipeline analyze --project xxx \\
               --steps univariate,iv,lr,rules --category-dims 企业规模
   export:   python -m risk_pipeline export --project xxx
@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
     from .argspec import SUBCOMMAND_HELP, SUBCOMMAND_ORDER, flags_for
 
     for name in SUBCOMMAND_ORDER:
-        p = sub.add_parser(name, parents=[global_parent], help=SUBCOMMAND_HELP[name])
+        p = sub.add_parser(name, parents=[sub_global_parent], help=SUBCOMMAND_HELP[name])
         for entry in flags_for(name):
             if 'group' in entry:
                 grp = p.add_mutually_exclusive_group(required=entry.get('required', False))
@@ -94,7 +94,7 @@ def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if not getattr(args, 'quiet', False):
+    if not args.quiet:
         from risk_core.paths import get_output_root, get_project_root
         print(f'[路径] 项目根={get_project_root()}  输出根={get_output_root()}'
               f'（可用 RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT 覆盖）')

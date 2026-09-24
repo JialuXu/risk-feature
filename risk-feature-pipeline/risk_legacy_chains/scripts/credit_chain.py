@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""征信链路 (Pipeline A) — run_credit_pipeline（从 risk_pipeline/pipeline.py 逐字迁出）。
+"""征信链路 (Pipeline A) — run_credit_pipeline。
 
-算法/前端/内核均未改动；仅把模块级 _load_module/_banner 改为 from ._common 引入。
+黑盒老链路，口径由 tests/test_golden_legacy_chains.py 锁定；_load_module/_banner 来自 ._common。
 """
 import pandas as pd  # noqa: F401  函数体内亦局部 import，保留以对齐原模块
 
-from risk_pipeline.config import COL_TARGET
+from risk_core.config import COL_TARGET
 from risk_mining.export import assemble_exports
 
 from ._common import _load_module, _banner
@@ -23,7 +23,6 @@ def run_credit_pipeline(steps=None, verbose=True):
     返回:
         results: 包含各步骤结果的字典
     """
-    import pandas as pd
 
     # 加载各模块
     mod_data_prep = _load_module('risk_data_prep', 'data_prep')
@@ -202,8 +201,8 @@ def run_credit_pipeline(steps=None, verbose=True):
         project_root = mod_io.get_project_root()
 
         # 装配 4 张导出表（corr/lr/comprehensive/llm_report_data）→ results
-        # 唯一实现见 risk_mining.export.assemble_exports；credit 显式补 target_col=COL_TARGET
-        # 为一致性对齐（其目标列本就是 is_bad，行为与旧实现逐字一致）。
+        # 唯一实现见 risk_mining.export.assemble_exports；credit 显式传 target_col=COL_TARGET
+        # （即 is_bad，与构建器默认值相同，数值不变）。
         assemble_exports(
             results,
             df=df,

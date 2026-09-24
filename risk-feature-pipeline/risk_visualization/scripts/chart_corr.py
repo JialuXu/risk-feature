@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """分群 × 特征 相关系数热力图（跨分群对比）。
 
-注：原"每分群一张"的相关系数横向条形图已移除——它与本热力图信息重复、且随分群数
-量爆炸（一个维度几十张），对最终业务报告无增量价值。跨分群相关性看本热力图即可。
+注：不出「每分群一张」的相关系数条形图——与本热力图信息重复、且随分群数量爆炸
+（一个维度几十张）。跨分群相关性看本热力图即可。
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from . import style  # 字体配置
 from .style import FIGSIZE_HEATMAP
 
 
