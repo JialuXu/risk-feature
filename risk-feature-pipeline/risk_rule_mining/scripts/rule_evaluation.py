@@ -6,7 +6,7 @@
     evaluate_rule(df, conditions, target) -> dict
     evaluate_rules(df, rules_df, target) -> pd.DataFrame  # 原表追加评估列
 """
-from typing import List, Dict, Tuple
+from typing import List, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
@@ -43,8 +43,11 @@ def evaluate_rule(
     df: pd.DataFrame,
     conditions: List[Tuple[str, str, float]],
     target: str = 'is_bad',
+    fill_values: Optional[Dict[str, float]] = None,
 ) -> Dict:
     """评估单条规则在指定数据集上的统计表现。
+
+    fill_values：挖掘时的中位数填补值，保证评估与训练同一缺失口径。
 
     返回字段：coverage_n, coverage_pct, bad_n, bad_rate, overall_bad_rate,
              lift, bad_rate_ci_low, bad_rate_ci_high
@@ -54,7 +57,7 @@ def evaluate_rule(
     if n_total == 0:
         return {}
 
-    mask = _conditions_to_mask(df_clean, conditions)
+    mask = _conditions_to_mask(df_clean, conditions, fill_values)
     cover_n = int(mask.sum())
     if cover_n == 0:
         return {
@@ -95,7 +98,9 @@ def evaluate_rules(
     cfg = RULE_MINING_CONFIG
     eval_records = []
     for _, row in rules_df.iterrows():
-        stats = evaluate_rule(df, row['conditions'], target=target)
+        stats = evaluate_rule(
+            df, row['conditions'], target=target, fill_values=row.get('fill_values'),
+        )
         eval_records.append(stats)
 
     eval_df = pd.DataFrame(eval_records)

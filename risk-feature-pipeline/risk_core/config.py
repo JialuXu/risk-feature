@@ -175,8 +175,10 @@ RULE_MINING_CONFIG = {
     'min_coverage': _rm.get('min_coverage', 0.01),
     'min_lift': _rm.get('min_lift', 1.5),
     'top_k_per_segment': _rm.get('top_k_per_segment', 10),
-    'cv_splits': _rm.get('cv_splits', 5),
-    'stability_min_folds': _rm.get('stability_min_folds', 3),
+    'holdout_ratio': _rm.get('holdout_ratio', 0.3),
+    'holdout_min_bad': _rm.get('holdout_min_bad', 10),
+    'bootstrap_n': _rm.get('bootstrap_n', 200),
+    'stability_min_valid_ratio': _rm.get('stability_min_valid_ratio', 0.6),
     'tree_criterion': _rm.get('tree_criterion', 'gini'),
     'class_weight': _rm.get('class_weight', 'balanced'),
 }

@@ -177,15 +177,20 @@ def run_gsfc_pipeline(steps=None, verbose=True):
 
         mod_lr = _load_module('risk_logistic_regression', 'group_logistic_regression')
 
+        # 黑盒老链路保持历史缺失口径（填 0），数值由 golden test 钉死
+        from risk_core.missing import MISSING_POLICY_LEGACY_ZERO
         lr_coef_results, lr_auc_results = {}, {}
         for dim in category_dims:
-            coef_df, auc_df, skipped = mod_lr.lr_by_group(df, dim, feature_cols)
+            coef_df, auc_df, skipped = mod_lr.lr_by_group(
+                df, dim, feature_cols, missing_policy=MISSING_POLICY_LEGACY_ZERO,
+            )
             lr_coef_results[dim] = coef_df
             lr_auc_results[dim] = auc_df
 
         if qual_dims:
             coef_q, auc_q, skipped_q = mod_lr.lr_by_qualification(
-                df, qual_dims, feature_cols
+                df, qual_dims, feature_cols,
+                missing_policy=MISSING_POLICY_LEGACY_ZERO,
             )
             lr_coef_results['资质标签'] = coef_q
             lr_auc_results['资质标签'] = auc_q

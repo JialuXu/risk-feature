@@ -23,7 +23,7 @@ from .config import (
 )
 
 
-def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> pd.Series:
+def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> Optional[pd.Series]:
     """解析 feature 的 scope 字段，返回布尔掩码（True=该客户落入触发范围）。
 
     支持 4 种形态：
@@ -31,7 +31,7 @@ def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> pd.S
         'waist'                                → 等价 {"dim": "是否腰部企业", "value": 1}
         {"dim": "X", "value": "Y"}             → df[X] == Y
         {"dim": "X", "values": ["Y1","Y2"]}    → df[X].isin([...])
-    若 dim 不在宽表列中，返回全 True 并不阻断（与现状一致：当前 waist 写法在缺列时也是放行）。
+    若 dim 不在宽表列中返回 None：调用方须跳过该特征，不得把分群规则套用到全量客户。
     """
     if scope is None or scope == 'full':
         return pd.Series(True, index=df.index)
@@ -42,7 +42,7 @@ def _resolve_scope_mask(df: pd.DataFrame, scope: Union[str, Dict, None]) -> pd.S
     if isinstance(scope, dict):
         dim = scope.get('dim')
         if not dim or dim not in df.columns:
-            return pd.Series(True, index=df.index)
+            return None
         if 'values' in scope:
             return df[dim].isin(scope['values'])
         if 'value' in scope:
@@ -111,12 +111,17 @@ def compute_thresholds(
     target_col: str = 'is_bad',
 ) -> Dict:
     """
-    为每个特征计算触碰阈值。
+    为每个特征计算触碰阈值（只在该特征的适用范围 scope 内计算）。
 
     优先级：
     1. explicit_threshold（报告中明确给出）
     2. 坏客户均值——positive 方向取 >=, negative 方向取 <=
-    3. 兜底：全量中位数（好/坏有效样本不足时）
+    3. 兜底：范围内中位数（好/坏有效样本不足时）
+
+    口径说明：阈值用被扫描客户自身的好坏标签计算（样本内），触碰率偏乐观。
+    坏客户均值与好客户均值的大小关系与配置的 risk_direction 相反时，
+    在 direction_check 中标注「不一致」，提示方向配置可能有误。
+    scope 维度列不在宽表时返回 {'skip_reason': ...}，该特征不参与触碰。
     """
     thresholds = {}
     for feat in features:
@@ -127,34 +132,44 @@ def compute_thresholds(
             thresholds[name] = None
             continue
 
+        scope = feat.get('scope', 'full')
+        scope_mask = _resolve_scope_mask(df, scope)
+        if scope_mask is None:
+            thresholds[name] = {
+                'skip_reason': f'适用范围列不存在({_format_scope_label(scope)})，已跳过',
+            }
+            continue
+
         if 'explicit_threshold' in feat:
             op, val = feat['explicit_threshold']
             thresholds[name] = {'operator': op, 'value': val, 'source': '报告明确阈值'}
             continue
 
-        series = pd.to_numeric(df[col], errors='coerce')
-        good_vals = series[df[target_col] == 0].dropna()
-        bad_vals = series[df[target_col] == 1].dropna()
+        scoped = df.loc[scope_mask]
+        scope_note = '' if scope in (None, 'full') else f'，范围={_format_scope_label(scope)}'
+        series = pd.to_numeric(scoped[col], errors='coerce')
+        good_vals = series[scoped[target_col] == 0].dropna()
+        bad_vals = series[scoped[target_col] == 1].dropna()
+        op = '>=' if feat['risk_direction'] == 'positive' else '<='
 
         if len(good_vals) < 10 or len(bad_vals) < 5:
-            median_val = series.dropna().median()
-            op = '>=' if feat['risk_direction'] == 'positive' else '<='
             thresholds[name] = {
                 'operator': op,
-                'value': median_val,
-                'source': '全量中位数(好/坏样本不足)',
+                'value': series.dropna().median(),
+                'source': f'范围内中位数(好/坏样本不足{scope_note})',
             }
             continue
 
         good_mean = good_vals.mean()
         bad_mean = bad_vals.mean()
-        op = '>=' if feat['risk_direction'] == 'positive' else '<='
+        consistent = bad_mean > good_mean if feat['risk_direction'] == 'positive' else bad_mean < good_mean
         thresholds[name] = {
             'operator': op,
             'value': bad_mean,
-            'source': f'坏客户均值(好:{good_mean:.4g}, 坏:{bad_mean:.4g})',
+            'source': f'坏客户均值(样本内{scope_note}; 好:{good_mean:.4g}, 坏:{bad_mean:.4g})',
             'good_mean': good_mean,
             'bad_mean': bad_mean,
+            'direction_check': '一致' if consistent else '⚠ 不一致：坏客户均值未偏向配置的风险方向',
         }
 
     return thresholds
@@ -209,14 +224,15 @@ def evaluate_triggers(
         values = pd.to_numeric(df.get(col), errors='coerce') if col in df.columns else pd.Series(np.nan, index=df.index)
         result[f'{name}_值'] = values
 
-        if col not in df.columns or threshold_info is None:
+        if col not in df.columns or threshold_info is None or 'skip_reason' in threshold_info:
             result[f'{name}_触碰'] = np.nan
             continue
 
         op_fn = _OPS.get(threshold_info['operator'])
         triggered = op_fn(values, threshold_info['value']) & values.notna() if op_fn else pd.Series(False, index=df.index)
 
-        # 应用 scope 维度筛选（'full' 全量 / 'waist' 腰部 / dict 通用维度）
+        # 应用 scope 维度筛选（'full' 全量 / 'waist' 腰部 / dict 通用维度）；
+        # 维度列缺失的特征已在 compute_thresholds 标记 skip_reason，不会走到这里
         triggered = triggered & _resolve_scope_mask(df, feat.get('scope', 'full'))
 
         result[f'{name}_触碰'] = triggered.astype(int).where(values.notna(), np.nan)
@@ -304,7 +320,11 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
             '适用范围': _format_scope_label(feat.get('scope', 'full')),
         }
         if t is None:
-            base.update({'触碰条件': '(列不存在)', '阈值来源': '-', '好客户均值': '-', '坏客户均值': '-'})
+            base.update({'触碰条件': '(列不存在)', '阈值来源': '-', '好客户均值': '-', '坏客户均值': '-',
+                         '方向校验': '-'})
+        elif 'skip_reason' in t:
+            base.update({'触碰条件': '(已跳过)', '阈值来源': t['skip_reason'], '好客户均值': '-',
+                         '坏客户均值': '-', '方向校验': '-'})
         else:
             val_str = f"{t['value']:.6g}" if isinstance(t['value'], (int, float)) else str(t['value'])
             base.update({
@@ -312,6 +332,7 @@ def build_threshold_table(features: List[Dict], thresholds: Dict) -> pd.DataFram
                 '阈值来源': t.get('source', ''),
                 '好客户均值': f"{t['good_mean']:.4g}" if isinstance(t.get('good_mean'), (int, float)) else '-',
                 '坏客户均值': f"{t['bad_mean']:.4g}" if isinstance(t.get('bad_mean'), (int, float)) else '-',
+                '方向校验': t.get('direction_check', '-'),
             })
         rows.append(base)
     return pd.DataFrame(rows)
@@ -388,6 +409,7 @@ def extract_triggers(
 
     # 计算阈值
     thresholds = compute_thresholds(df, features, target_col=target_col)
+    _warn_threshold_issues(thresholds)
 
     # 评估触碰（df_wide_full 含 info_cols + target_col，便于 _print_summary 计算坏客户触碰率）
     # 把 keep_metadata_cols 透传为 extra_info_cols：让用户指定的非默认元信息列
@@ -439,10 +461,27 @@ def extract_triggers(
     return df_wide, df_long, df_threshold
 
 
+def _warn_threshold_issues(thresholds: Dict) -> None:
+    """跳过的特征、方向与数据不符的特征必须可见（与 verbose 无关，写 stderr）。"""
+    import sys
+    skipped = [(n, t['skip_reason']) for n, t in thresholds.items() if t and 'skip_reason' in t]
+    conflicts = [n for n, t in thresholds.items()
+                 if t and str(t.get('direction_check', '')).startswith('⚠')]
+    for n, reason in skipped:
+        print(f"[WARN] 触碰特征「{n}」{reason}", file=sys.stderr)
+    if conflicts:
+        print(
+            f"[WARN] {len(conflicts)} 个特征的坏/好客户均值方向与配置的 risk_direction 相反，"
+            f"触碰名单可能大量误报好客户，请核对方向配置：{conflicts[:10]}"
+            f"{'...' if len(conflicts) > 10 else ''}",
+            file=sys.stderr,
+        )
+
+
 def _print_summary(df_wide: pd.DataFrame, features: List[Dict], target_col: str) -> None:
     """打印触碰统计摘要。"""
     print(f"\n{'=' * 70}")
-    print("触碰统计摘要")
+    print("触碰统计摘要（样本内：阈值由同一批客户的好坏标签算出，坏客户触碰率偏乐观）")
     print(f"{'=' * 70}")
 
     # 各特征触碰率
