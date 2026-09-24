@@ -2,39 +2,49 @@
 """
 risk_export_report 配置
 
-公共配置统一从 risk_pipeline.config 导入，本文件仅保留模块专属配置。
+公共配置统一从 risk_core.config 导入，本文件仅保留模块专属配置。
 """
 import sys
 from pathlib import Path
 
-# 将 risk-feature-pipeline/ 加入 sys.path，使 risk_pipeline 包可被 import
+# 将 risk-feature-pipeline/ 加入 sys.path，使 risk_core / risk_mining 包可被 import
 _MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _MY_SKILLS_ROOT not in sys.path:
     sys.path.insert(0, _MY_SKILLS_ROOT)
 
 # 导入全部公共配置（DATA_CONFIG, SEGMENT_DIMS, CREDIT_BINS, SAMPLE_THRESHOLDS 等）
-from risk_pipeline.config import *  # noqa: F401,F403
+from risk_core.config import *  # noqa: F401,F403
 
 # =============================================================================
 # 模块专属配置：导出报告
 # =============================================================================
-from risk_pipeline.config import (  # noqa: F401 (补充路径常量)
-    RESULTS_DIR_CREDIT, OUTPUT_DIR_CREDIT,
-    RESULTS_DIR_GSFC,   OUTPUT_DIR_GSFC,
-    RESULTS_DIR,        OUTPUT_DIR_GENERIC,
-)
+# 输出路径在**调用时**解析（遵循当时的 RISK_OUTPUT_ROOT），不在 import 时冻结。
+from risk_core import config as _core_cfg  # noqa: E402
 
-# 链路 A（征信）
-CREDIT_PIPELINE_PATHS = {
-    'results_rel': RESULTS_DIR_CREDIT,
-    'output_rel':  OUTPUT_DIR_CREDIT,
+_PIPELINE_PATH_NAMES = {
+    'credit': ('RESULTS_DIR_CREDIT', 'OUTPUT_DIR_CREDIT'),   # 链路 A（征信）
+    'gsfc': ('RESULTS_DIR_GSFC', 'OUTPUT_DIR_GSFC'),         # 链路 B（工商财务）
+    'generic': ('RESULTS_DIR', 'OUTPUT_DIR_GENERIC'),        # 通用宽表链路
 }
 
-# 通用宽表链路（generic）
-GENERIC_PIPELINE_PATHS = {
-    'results_rel': RESULTS_DIR,
-    'output_rel':  OUTPUT_DIR_GENERIC,
-}
+
+def pipeline_paths(kind: str = 'credit') -> dict:
+    """返回某链路的 {'results_rel', 'output_rel'}（调用时解析）。"""
+    res_name, out_name = _PIPELINE_PATH_NAMES[kind]
+    return {'results_rel': getattr(_core_cfg, res_name),
+            'output_rel': getattr(_core_cfg, out_name)}
+
+
+def __getattr__(name):
+    """PEP 562：RESULTS_DIR_* / OUTPUT_DIR_* 与旧的 *_PIPELINE_PATHS 按访问时的 env 解析。"""
+    if name in _core_cfg.OUTPUT_PATH_NAMES:
+        return getattr(_core_cfg, name)
+    if name == 'CREDIT_PIPELINE_PATHS':
+        return pipeline_paths('credit')
+    if name == 'GENERIC_PIPELINE_PATHS':
+        return pipeline_paths('generic')
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
 
 # 链路 A LLM JSON「报告目标」模板，{pname} 替换为 project_name
 CREDIT_LLM_REPORT_GOAL_TEMPLATE = (

@@ -649,21 +649,11 @@ LLM 已基于 `_LLM报告数据.json` 写好一份 Markdown 正文；`risk_docx_
 
 ### 4.3 配置驱动
 
-- **唯一 Python 配置源**：`risk_pipeline/config.py`。
-- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`。
-- **多银行适配**：用户写一份覆盖 YAML，深度合并默认值。
-- **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异。
-
-```yaml
-# config/city_bank.yaml — 仅覆盖差异
-thresholds:
-  min_samples: 30
-  min_bad_samples: 5
-column_mapping:
-  required:
-    customer_id: "客户号"
-    target: "是否不良"
-```
+- **唯一 Python 配置源**：`risk_core/config.py`（旧路径 `risk_pipeline.config` 为兼容别名）。
+- **YAML 数据源**：`risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（随包分发）。
+- **单行场景，不支持运行时覆盖配置**：CLI 与 Python API 都只读随包 YAML；适配某份数据走 CLI flag
+  （`--id-col` / `--target-col` / `--category-dims` …），长期接入新银行属开发仓库维护动作（直接改随包 YAML）。
+- **字段映射**：`ColumnMapper` 屏蔽不同银行的字段命名差异（映射值来自随包 `column_mapping.yaml`）。
 
 ### 4.4 路径可移植
 
@@ -869,12 +859,4 @@ thresholds:
   min_samples: 30
 ```
 
-**Python API 路径（高级用法）**：当不走 CLI、直接在 notebook 调研时，可以传入自定义路径深度合并：
-
-```python
-# 仅 Python API 可用；CLI 入口不接受 --config，请走上方"CLI 路径"
-from risk_pipeline.config_loader import load_config
-config = load_config("config/my_bank.yaml")  # 自动深度合并默认值
-```
-
-→ 所有下游 Skill 自动用新映射，不改一行代码。
+→ 改随包 YAML 后所有下游 Skill 自动用新映射，不改一行代码。Python API 也读同一份 YAML，没有单独的覆盖入口（`load_config(path)` 只返回合并后的字典，不影响管线实际使用的阈值/列名）。

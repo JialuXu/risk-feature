@@ -15,7 +15,7 @@ from pathlib import Path
 _MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _MY_SKILLS_ROOT not in sys.path:
     sys.path.insert(0, _MY_SKILLS_ROOT)
-from risk_pipeline.column_mapper import ColumnMapper
+from risk_core.column_mapper import ColumnMapper
 
 _T = SAMPLE_THRESHOLDS
 _mapper = ColumnMapper()

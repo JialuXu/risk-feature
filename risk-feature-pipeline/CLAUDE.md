@@ -49,7 +49,7 @@
 
 > 完成一个阶段后，把对应行改成 ✅ 并一句话记结果（commit hash / 新增用例）。批次：**A(1→4) 必做 → B(5→7) 拆分 → C(8) 可并行 → D(9,10) 可选**。
 
-> **收尾（2026-07-05）**：必做批次 A/B/C + 阶段 9 全部收官，阶段 10 已砍，**重构视作完成**。两条 grep 红线均通过（挖掘内核零子skill import、`risk_*/scripts` 零横向 import），`references/_index.md` 懒加载就位，**244 passed**。残留（内核物理仍在 `risk_pipeline/`：`pipeline_state.py`/`analysis/`；3× `iv_analysis.py` 转发 + `shared/` + CSV 双写 + `MIN_IV_FULL` 别名）= 已知技术债，随「下个版本 shim 退休批次」处理（清单见 §7 + 会话审计），本轮不动。
+> **收尾（2026-07-05）**：必做批次 A/B/C + 阶段 9 全部收官，阶段 10 已砍，**重构视作完成**。两条 grep 红线均通过（挖掘内核零子skill import、`risk_*/scripts` 零横向 import），`references/_index.md` 懒加载就位，**244 passed**。残留（~~内核物理仍在 `risk_pipeline/`~~ 设计检视第三批已迁入 `risk_mining/`，见 CHANGELOG E1；3× `iv_analysis.py` 转发 + `shared/` + CSV 双写 + `MIN_IV_FULL` 别名）= 已知技术债，随「下个版本 shim 退休批次」处理（清单见 §7 + 会话审计），本轮不动。
 
 > **收尾追加·11 抽取 credit/gsfc 黑盒（2026-07-05，commit `c58c698` + golden `c4529d8`）**：把 `run_credit_pipeline`/`run_gsfc_pipeline` 从 `risk_pipeline/pipeline.py` **逐字**迁出到新 skill `risk_legacy_chains/scripts/{credit_chain,gsfc_chain}.py`（函数体字节级不变；前端/内核不搬，靠 `_load_module` 名字串照旧动态复用）。`pipeline.py`（881→434 行）只留 `run_generic_pipeline` + `main()` + 两行 re-export（保号：`from risk_pipeline.pipeline import run_credit_pipeline` 不变）。**黑盒不再与 generic 混在同一模块**。安全前提先落地：`tests/test_golden_legacy_chains.py` 值级钉死两链路 IV/AUC/LR/单变量（244→**246 passed**）。--help 顶层+run 逐字节不变、`python -m shared --pipeline gsfc` 端到端 exit 0。
 
@@ -65,7 +65,7 @@
 4. **两条 grep 红线**（拆分完成的硬验收）：
    - 挖掘内核 `risk_mining/{analyze,export,analysis,pipeline_state}` **不得** `import risk_<任何子skill>`。
    - `risk_*/scripts/` **不得**出现跨子 skill import（当前有 2 条：`visualize.py:20`、`threshold_explore.py:29` 依赖 `result_query`——阶段 1 把 `load_results`+`Results` 升 `risk_core` 后消除）。
-5. **不变量零破坏**（详见设计文档 §7）：Level 状态机单向推进、3 个物理 `exit 1` 阻断节点、路径优先级 `env>入参>探测data/>CWD` + **`RISK_OUTPUT_ROOT` 须在首次 `import config` 前设置**（config 路径常量是 import-time 冻结）、`_intermediate` wire format、指纹 `schema_version=2` 向后兼容、原子落盘、**credit/gsfc 黑盒不可拆**。
+5. **不变量零破坏**（详见设计文档 §7）：Level 状态机单向推进、3 个物理 `exit 1` 阻断节点、路径优先级 `env>入参>探测data/>CWD`（`RISK_*_ROOT` 一律调用时解析，config 路径常量第三批起不再 import-time 冻结）、`_intermediate` wire format、指纹 `schema_version=2` 向后兼容、原子落盘、**credit/gsfc 黑盒不可拆**。
 6. **契约先行（P6）：** 拆某个子 skill 前，先把它读/写的磁盘契约固化进 `risk_core/contracts.py`（列名白名单、dtype、文件名模板、键集合），再拆。写点与读点分属不同 skill 后，靠 contracts 兜住。
 7. **中文输出**、CSV `utf-8-sig`、跳过分群要显式记原因、AUC 标类型——沿用既有编码规范（见上层 CLAUDE.md）。
 

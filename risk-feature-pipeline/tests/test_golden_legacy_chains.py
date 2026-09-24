@@ -23,8 +23,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline.config import COL_CUSTOMER_ID, COL_REPORT_DATE
-from risk_pipeline.pipeline import run_credit_pipeline, run_gsfc_pipeline
+from risk_core.config import COL_CUSTOMER_ID, COL_REPORT_DATE
+from risk_legacy_chains.scripts import run_credit_pipeline, run_gsfc_pipeline
 from risk_data_prep.scripts.config import CREDIT_CONFIG
 
 # IV 是纯算术、逐位可复现；LR 经 sklearn（lbfgs/BLAS）留一点浮点余量。

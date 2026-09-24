@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 from risk_core import contracts as cli_io
-from risk_pipeline.pipeline_state import PipelineLevelError, format_status_stamp, load_state
+from risk_mining.pipeline_state import PipelineLevelError, format_status_stamp, load_state
 
 from ._common import (
     _err,

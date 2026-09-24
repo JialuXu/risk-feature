@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline.config import COL_CUSTOMER_ID, COL_REPORT_DATE
-from risk_pipeline.pipeline import run_credit_pipeline
+from risk_core.config import COL_CUSTOMER_ID, COL_REPORT_DATE
+from risk_legacy_chains.scripts import run_credit_pipeline
 from risk_data_prep.scripts.config import CREDIT_CONFIG
 
 
@@ -125,8 +125,8 @@ def test_run_credit_state_unified_and_visible_downstream(credit_workdir):
     """
     import json as _json
 
-    from risk_pipeline import cli
-    from risk_pipeline.pipeline_state import load_state
+    from risk_mining import cli
+    from risk_mining.pipeline_state import load_state
 
     rc = cli.main([
         'run', '--pipeline', 'credit', '--quiet',

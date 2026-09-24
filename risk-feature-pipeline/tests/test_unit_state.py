@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from risk_pipeline.pipeline_state import PipelineLevelError, load_state
+from risk_mining.pipeline_state import PipelineLevelError, load_state
 
 
 def test_initial_state(tmp_path):

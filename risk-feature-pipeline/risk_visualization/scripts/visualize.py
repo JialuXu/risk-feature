@@ -97,6 +97,7 @@ def generate_charts(
     dim: Optional[str] = None,
     dpi: int = 300,
     project_root: Optional[str] = None,
+    subdir: Optional[str] = None,
 ) -> Dict[str, List[str]]:
     """生成 PNG 图表集合。
 
@@ -109,7 +110,8 @@ def generate_charts(
                        优先于此默认值
         dim:          限定单一分群维度
         dpi:          PNG 分辨率
-        project_root: 项目根目录（含 data/），默认从 CWD 向上找
+        project_root: 产物根目录（含 data/results/），默认 = 输出根（RISK_OUTPUT_ROOT，未设时为项目根）
+        subdir:       结果子目录（export --output-subdir），默认 = project_name
 
     Returns:
         {kind: [str(path), ...]}；未生成的 kind 缺省（不在 dict 里）
@@ -123,7 +125,7 @@ def generate_charts(
     if invalid:
         raise ValueError(f'不支持的 kinds: {invalid}；可选: {list(ALL_KINDS)}')
 
-    r = load_results(project_name, project_root=project_root)
+    r = load_results(project_name, subdir=subdir, project_root=project_root)
 
     if out_dir is not None:
         chart_dir = Path(out_dir)

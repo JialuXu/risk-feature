@@ -16,6 +16,6 @@ IO/字体/结果读取等无编排、无状态机、无分析算法的稳定件�
   contracts       - §5 磁盘契约单一真源（列名/dtype/白名单/文件名模板/wire schema）
 
 依赖规则：risk_core 不反向依赖任何上层（risk_pipeline / risk_mining / 子 skill）。
-兼容性：旧路径 ``risk_pipeline.paths`` 等经 ``risk_pipeline/__init__.py`` 的
-模块别名转发到此处，是同一对象（``import risk_pipeline.paths is risk_core.paths``）。
+兼容性：旧路径 ``risk_pipeline.paths`` 等经 ``risk_pipeline/`` 下的
+模块别名转发到此处，是同一对象（``risk_pipeline.paths is risk_core.paths``）。
 """

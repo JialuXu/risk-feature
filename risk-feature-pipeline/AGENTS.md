@@ -92,7 +92,7 @@ python -m risk_pipeline run        全流程便捷组合（generic / credit / gs
 如未来真要做多 YAML 切换，新加 flag 时务必在组合根 `risk_mining/argspec.py` 单一注册表声明并在对应 `commands/<cmd>.py` 消费掉，不要再让"声明而不读"的 flag 静默吞用户输入。
 
 **路径环境变量**（`RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT`，沙盒/安装模式必设，
-含 import-time 冻结时序坑）→ 见 [`references/paths-env.md`](references/paths-env.md)。
+含读写产物的落点约定）→ 见 [`references/paths-env.md`](references/paths-env.md)。
 
 ---
 

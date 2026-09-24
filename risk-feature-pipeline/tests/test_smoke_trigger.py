@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def test_trigger_with_custom_features(project_workdir, tmp_path):

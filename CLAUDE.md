@@ -272,21 +272,18 @@ pytest -k smoke                                 # 仅 smoke
 
 All configuration is centralized and YAML-driven:
 
-- **唯一 Python 配置源**: `risk-feature-pipeline/risk_pipeline/config.py` — 所有模块 `from risk_pipeline.config import *`（旧 `shared/config.py` 已是转发 shim）
-- **YAML 数据源**: `risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（IV 可信度阈值见 `iv.credibility`）
-- **各子模块 `scripts/config.py`**: 仅 `from risk_pipeline.config import *` + 模块专属常量
-- **用户覆盖**: 只覆盖差异项的自定义 YAML；其余自动回退默认值
+- **唯一 Python 配置源**: `risk-feature-pipeline/risk_core/config.py` — 所有模块 `from risk_core.config import ...`（`risk_pipeline.config` / `shared.config` 是转发 shim）
+- **YAML 数据源**: `risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（随包分发；IV 可信度阈值见 `iv.credibility`）
+- **各子模块 `scripts/config.py`**: 仅 `from risk_core.config import *` + 模块专属常量
+- **不支持运行时覆盖（单行场景，已决）**: CLI 与 Python API 都只读随包 YAML，没有 `--config` / 覆盖文件入口。适配某份数据走 CLI flag（`--id-col` / `--target-col` / `--category-dims` …）；长期接入新银行属开发仓库维护动作，直接改随包 YAML。
+- **输出路径常量**（`RESULTS_DIR*` / `OUTPUT_DIR*`）在访问时按 `RISK_OUTPUT_ROOT` 解析，不再 import 时冻结。
 
 ```python
-from shared.config_loader import load_config
-config = load_config()                         # 默认
-config = load_config("config/my_bank.yaml")    # 深度合并
-
-from shared.column_mapper import ColumnMapper
-mapper = ColumnMapper("config/my_bank.yaml")
-mapper.customer_id  # -> "CUST_NO"
-mapper.target       # -> "DEFAULT_FLAG"
-mapper.qual_prefix  # -> "标签_"
+from risk_core.column_mapper import ColumnMapper
+mapper = ColumnMapper()          # 读随包 column_mapping.yaml
+mapper.customer_id  # -> "客户编号"
+mapper.target       # -> "is_bad"
+mapper.qual_prefix  # -> "是_"
 mapper.detect_qual_cols(df.columns)
 ```
 
@@ -355,21 +352,6 @@ A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本�
 - AUC must be labeled with type (交叉验证 / 训练集-样本不足 / 训练集-CV失败)
 - No customer names, IDs, or phone numbers in any output
 - CSV exports use `utf-8-sig` encoding
-
-### Multi-Bank Support
-
-```yaml
-# config/city_bank.yaml — 仅覆盖与默认值不同的部分
-thresholds:
-  min_samples: 30
-  min_bad_samples: 5
-column_mapping:
-  required:
-    customer_id: "客户号"
-    target: "是否不良"
-  qualification:
-    prefix: "标签_"
-```
 
 ## Data Paths
 

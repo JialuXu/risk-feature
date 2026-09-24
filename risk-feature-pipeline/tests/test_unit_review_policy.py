@@ -11,7 +11,7 @@ import pytest
 
 def test_univariate_corr_and_diff_agree_on_direction_with_missing():
     """缺失集中在坏客户时，fillna(0) 会让相关系数与均值差方向相反；成对删除后一致。"""
-    from risk_pipeline.analysis.engine import _univariate_single_group
+    from risk_mining.analysis.engine import _univariate_single_group
 
     rng = np.random.default_rng(0)
     n = 1000
@@ -44,7 +44,7 @@ def test_impute_for_model_policies():
 
 def test_woe_table_iv_sums_to_calc_iv():
     from risk_export_report.scripts.report_insights import calc_woe_table
-    from risk_pipeline.analysis.iv_core import calc_iv
+    from risk_mining.analysis.iv_core import calc_iv
 
     rng = np.random.default_rng(3)
     n = 3000

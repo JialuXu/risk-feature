@@ -9,14 +9,14 @@ import threading
 import numpy as np
 import pandas as pd
 
-from risk_pipeline import cli
-from risk_pipeline.pipeline_state import load_state
+from risk_mining import cli
+from risk_mining.pipeline_state import load_state
 
 
 # ===== IV：零膨胀特征不再塌成 1 箱 =====
 
 def test_calc_iv_zero_inflated_keeps_tail_signal():
-    from risk_pipeline.analysis.iv_core import calc_iv
+    from risk_mining.analysis.iv_core import calc_iv
 
     rng = np.random.default_rng(0)
     x = np.r_[np.zeros(920), rng.uniform(1, 10, 80)]
@@ -31,7 +31,7 @@ def test_calc_iv_zero_inflated_keeps_tail_signal():
 
 def test_calc_iv_regular_continuous_unchanged():
     """普通连续特征仍走等频分箱，分箱数 = 自适应分箱数。"""
-    from risk_pipeline.analysis.iv_core import calc_iv
+    from risk_mining.analysis.iv_core import calc_iv
 
     rng = np.random.default_rng(1)
     x = rng.normal(size=2000)
@@ -45,7 +45,7 @@ def test_calc_iv_regular_continuous_unchanged():
 
 def test_calc_feature_thresholds_global_iv_matches_optbinning():
     from optbinning import OptimalBinning
-    from risk_pipeline.analysis.engine import calc_feature_thresholds
+    from risk_mining.analysis.engine import calc_feature_thresholds
 
     rng = np.random.default_rng(1)
     n = 2000

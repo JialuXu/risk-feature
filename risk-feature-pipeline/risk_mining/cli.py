@@ -21,26 +21,26 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
-
-# 把 risk-feature-pipeline/ 加入 sys.path，便于 CLI 内部 fully-qualified import
-# 子 skill（risk_data_prep / risk_export_report / ...）。
-_MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent)
-if _MY_SKILLS_ROOT not in sys.path:
-    sys.path.insert(0, _MY_SKILLS_ROOT)
 
 
-def _make_global_parent() -> argparse.ArgumentParser:
-    """返回一个含全局 flag 的 parent parser，让每个子命令都接受这些 flag。"""
+def _make_global_parent(for_subcommand: bool = False) -> argparse.ArgumentParser:
+    """返回一个含全局 flag 的 parent parser，让顶层与每个子命令都接受这些 flag。
+
+    for_subcommand=True 时各 flag 的 default 为 SUPPRESS：子命令里没写的 flag 不产生
+    默认值，从而不会覆盖写在子命令**之前**的同名 flag（argparse 子解析器默认值
+    会覆盖父解析器已解析值——曾导致 ``-q prepare ...`` 里的 -q 被静默丢弃）。
+    """
+    d = {'default': argparse.SUPPRESS} if for_subcommand else {}
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument('--state-dir', default=None, help='自定义 state.json 目录（默认随 project）')
-    p.add_argument('-q', '--quiet', action='store_true', help='静默')
-    p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志')
+    p.add_argument('--state-dir', help='自定义 state.json 目录（默认随 project）', **d)
+    p.add_argument('-q', '--quiet', action='store_true', help='静默', **d)
+    p.add_argument('--verbose', action='store_true', help='打印底层 pipeline 详细日志', **d)
     return p
 
 
 def _build_parser() -> argparse.ArgumentParser:
     global_parent = _make_global_parent()
+    sub_global_parent = _make_global_parent(for_subcommand=True)
 
     parser = argparse.ArgumentParser(
         prog='python -m risk_pipeline',
@@ -78,7 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
     from .argspec import SUBCOMMAND_HELP, SUBCOMMAND_ORDER, flags_for
 
     for name in SUBCOMMAND_ORDER:
-        p = sub.add_parser(name, parents=[global_parent], help=SUBCOMMAND_HELP[name])
+        p = sub.add_parser(name, parents=[sub_global_parent], help=SUBCOMMAND_HELP[name])
         for entry in flags_for(name):
             if 'group' in entry:
                 grp = p.add_mutually_exclusive_group(required=entry.get('required', False))
@@ -94,7 +94,7 @@ def main(argv=None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if not getattr(args, 'quiet', False):
+    if not args.quiet:
         from risk_core.paths import get_output_root, get_project_root
         print(f'[路径] 项目根={get_project_root()}  输出根={get_output_root()}'
               f'（可用 RISK_PROJECT_ROOT / RISK_OUTPUT_ROOT 覆盖）')

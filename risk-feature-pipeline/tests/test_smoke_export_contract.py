@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 PROJECT = 'export_contract'

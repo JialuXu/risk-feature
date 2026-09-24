@@ -7,7 +7,9 @@ import sys
 import time
 
 from risk_core import contracts as cli_io
-from risk_pipeline.pipeline_state import PipelineLevelError, format_status_stamp, load_state
+from risk_mining.pipeline_state import (
+    PipelineLevelError, format_status_stamp, last_export_subdir, load_state,
+)
 
 from ._common import (
     _err,
@@ -69,9 +71,12 @@ def cmd_explore_thresholds(args) -> int:
     df = cli_io.read_prepared(prepared, id_col=_id_col_from_features(project))  # §5.1
 
     try:
-        results = load_results(project, project_root=_output_root())  # 读 export 写过的产物
+        results = load_results(  # 读 export 写过的产物（含 --output-subdir）
+            project, subdir=last_export_subdir(project, state.history),
+            project_root=_output_root(),
+        )
     except FileNotFoundError:
-        # Level 1 已确认但 load_results 仍找不到（自定义 subdir 等）；以 None 继续，
+        # Level 1 已确认但 load_results 仍找不到（结果目录被移走等）；以 None 继续，
         # 风险方向将回落到 bin_jump
         results = None
         print('  [警告] load_results 未找到导出目录，将回落到 bin_jump 方向推断；'
