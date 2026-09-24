@@ -101,7 +101,9 @@ rule_mining:
   min_coverage: 0.01         # 规则最小覆盖率（<1% 视为边缘规则）
   min_lift: 1.5              # 规则最小 Lift（坏账率 / 整体坏账率）
   top_k_per_segment: 10      # 每个分群保留 Top-K 条规则
-  cv_splits: 5               # 稳定性交叉验证折数
-  stability_min_folds: 3     # 规则被视为"稳定"的最少出现折数
+  holdout_ratio: 0.3         # 留出测试集比例：训练集挖规则，测试集出 lift/坏账率/闸门/建议用途
+  holdout_min_bad: 10        # 测试集坏客户下限；不足（或训练集坏客户 < min_bad_lr）则回退全量样本内评估
+  bootstrap_n: 200           # 稳定性：在测试集上 bootstrap 重抽样次数
+  stability_min_valid_ratio: 0.6  # 有效重抽样（命中坏客户 ≥ min_bad_in_leaf）占比下限，低于即"不稳定"
   tree_criterion: "gini"     # 分裂准则：gini / entropy
   class_weight: "balanced"   # 样本不平衡处理（坏客户占比低时必须）

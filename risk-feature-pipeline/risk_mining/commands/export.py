@@ -81,12 +81,14 @@ def _write_audit_json(
                     '分群值' if '分群值' in unstable.columns else None
                 )
                 rule_id = '规则编号' if '规则编号' in unstable.columns else None
-                folds = 'CV有效折数' if 'CV有效折数' in unstable.columns else None
+                valid = '稳定性有效次数' if '稳定性有效次数' in unstable.columns else None
+                scope = '评估口径' if '评估口径' in unstable.columns else None
                 for _, row in unstable.iterrows():
                     entry = {
                         '分群': f"{row.get(seg_dim, '?')}.{row.get(seg_val, '?')}" if seg_dim and seg_val else '全样本',
                         '规则编号': str(row.get(rule_id, '')) if rule_id else '',
-                        'CV有效折数': int(row[folds]) if folds and pd.notna(row[folds]) else None,
+                        '稳定性有效次数': int(row[valid]) if valid and pd.notna(row[valid]) else None,
+                        '评估口径': str(row[scope]) if scope and pd.notna(row[scope]) else None,
                     }
                     audit['unstable_rules'].append(entry)
     except Exception as e:  # noqa: BLE001

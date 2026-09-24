@@ -48,10 +48,10 @@ def test_scope_dict_values_multi():
     assert mask.tolist() == [True, False, True, True]
 
 
-def test_scope_dict_missing_dim_falls_back_to_full():
-    """dim 不在宽表列时退化为全量（不阻断），与 waist 旧行为一致。"""
-    mask = _resolve_scope_mask(_df(), {'dim': '不存在的列', 'value': 'X'})
-    assert mask.tolist() == [True, True, True, True]
+def test_scope_dict_missing_dim_returns_none():
+    """dim 不在宽表列时返回 None（调用方跳过该特征），不再退化为全量。"""
+    assert _resolve_scope_mask(_df(), {'dim': '不存在的列', 'value': 'X'}) is None
+    assert _resolve_scope_mask(_df()[['企业规模']], 'waist') is None
 
 
 # ---------- _format_scope_label ----------

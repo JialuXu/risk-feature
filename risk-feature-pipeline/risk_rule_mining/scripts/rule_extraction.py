@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier, _tree
 
+from risk_core.missing import fit_fill_values, impute_median
+
 from .config import (
     RULE_MINING_CONFIG,
     SAMPLE_THRESHOLDS,
@@ -153,11 +155,18 @@ def _conditions_to_text(conditions: List[Tuple[str, str, float]]) -> str:
 def _conditions_to_mask(
     df: pd.DataFrame,
     conditions: List[Tuple[str, str, float]],
+    fill_values: Optional[Dict[str, float]] = None,
 ) -> pd.Series:
-    """规则条件 → 布尔掩码。缺失值视为不命中。"""
+    """规则条件 → 布尔掩码。
+
+    fill_values：挖掘时拟合的中位数填补值（缺失口径：训练与评估同一套填补）。
+    传入时缺失值先按其填补再判定；未传或该特征无填补值时，缺失视为不命中。
+    """
     mask = pd.Series(True, index=df.index)
     for feat, op, thr in conditions:
         col = df[feat]
+        if fill_values and feat in fill_values:
+            col = col.fillna(fill_values[feat])
         if op == '<=':
             mask &= (col <= thr)
         elif op == '>':
@@ -198,7 +207,7 @@ def mine_rules(
     """从宽表挖掘风险规则。
 
     流程：准入检查 → 拟合树 → 提取叶路径 → 过滤"坏富集"路径 → 去重 → 返回 DataFrame。
-    返回 DataFrame 列：rule_id, conditions, conditions_text, feature_list,
+    返回 DataFrame 列：rule_id, conditions, fill_values, conditions_text, feature_list,
                       depth, leaf_n, leaf_bad, leaf_good。
 
     Args:
@@ -221,13 +230,15 @@ def mine_rules(
             print(f"[跳过] 好客户数 {n_good} < MIN_GOOD_LR={SAMPLE_THRESHOLDS['MIN_GOOD_LR']}，无法挖掘规则")
         return pd.DataFrame()
 
-    # 只保留数值列（树需要数值输入）；缺失以中位数填充（仅用于拟合，不影响规则定义）
+    # 只保留数值列（树需要数值输入）；缺失口径：中位数填补，填补值随规则一并返回，
+    # 评估 / 打分时按同一套填补值判定命中（见 _conditions_to_mask）
     X_raw = df_clean[feature_cols].select_dtypes(include=[np.number])
     if X_raw.shape[1] == 0:
         if verbose:
             print("[跳过] 无数值特征可用于树分裂")
         return pd.DataFrame()
-    X = X_raw.fillna(X_raw.median())
+    fill_values = fit_fill_values(X_raw)
+    X = impute_median(X_raw, fill_values)
     y = df_clean[target].astype(int)
 
     tree = fit_rule_tree(X, y, max_depth=max_depth)
@@ -280,6 +291,7 @@ def mine_rules(
         records.append({
             'rule_id': i,
             'conditions': r['conditions'],
+            'fill_values': {f: fill_values[f] for f in feats if f in fill_values},
             'conditions_text': _conditions_to_text(r['conditions']),
             'feature_list': feats,
             'depth': len(feats),

@@ -34,6 +34,9 @@ from risk_pipeline.config import (
 )
 from risk_pipeline.analysis.iv_core import calc_iv as _calc_iv_base, _assess_iv_reliability
 from risk_pipeline.column_mapper import ColumnMapper
+from risk_core.missing import (
+    MISSING_POLICY_MODEL, impute_for_model, impute_median, pairwise_valid,
+)
 
 warnings.filterwarnings('ignore')
 
@@ -122,11 +125,13 @@ def _univariate_single_group(group_df, feature_cols, target=COL_TARGET):
     for feat in feature_cols:
         if feat not in group_df.columns:
             continue
-        feat_data = group_df[feat].fillna(0)
+        # 缺失口径：统计检验一律成对删除（与下方均值差 / T 检验同一批样本）
+        valid = pairwise_valid(group_df, feat, target)
+        feat_data = valid[feat]
 
         # 相关系数（点二列相关）
         corr_row[feat] = (
-            feat_data.corr(group_df[target]) if feat_data.std() > 0 else 0.0
+            feat_data.corr(valid[target]) if len(valid) > 2 and feat_data.std() > 0 else 0.0
         )
 
         # 好坏客户均值差异
@@ -227,10 +232,6 @@ def univariate_by_group(df, dim_col, feature_cols, target=COL_TARGET,
     # 按样本数降序排列
     if not meta_df.empty:
         order = meta_df.sort_values('样本数', ascending=False).index
-        for d in [corr_df, diff_df, pval_df]:
-            if not d.empty:
-                idx = [i for i in order if i in d.index]
-                d.reindex(idx)
         corr_df = corr_df.reindex([i for i in order if i in corr_df.index])
         diff_df = diff_df.reindex([i for i in order if i in diff_df.index])
         pval_df = pval_df.reindex([i for i in order if i in pval_df.index])
@@ -348,7 +349,8 @@ def _fit_lr_single(X_scaled, y, feature_names, n_samples, n_bad):
 
 
 def lr_by_group(df, dim_col, feature_cols, target=COL_TARGET,
-                min_bad=None, min_good=None, min_group_size=None):
+                min_bad=None, min_good=None, min_group_size=None,
+                missing_policy=MISSING_POLICY_MODEL):
     """
     按类别型维度进行分群逻辑回归分析
 
@@ -395,7 +397,7 @@ def lr_by_group(df, dim_col, feature_cols, target=COL_TARGET,
             skipped.append(f"{gname}: 好客户数={n_good} < {min_good}")
             continue
 
-        X = gdf[valid_feats].fillna(0)
+        X = impute_for_model(gdf[valid_feats], missing_policy)
         y = gdf[target]
         nz = [c for c in X.columns if X[c].std() > 0]
         if len(nz) < 2:
@@ -441,7 +443,8 @@ def lr_by_group(df, dim_col, feature_cols, target=COL_TARGET,
 
 
 def lr_by_qualification(df, qual_cols, feature_cols, target=COL_TARGET,
-                        min_bad=None, min_good=None):
+                        min_bad=None, min_good=None,
+                        missing_policy=MISSING_POLICY_MODEL):
     """
     按二进制标签维度进行逻辑回归分析
     （只分析有该资质的客户群体）
@@ -477,7 +480,7 @@ def lr_by_qualification(df, qual_cols, feature_cols, target=COL_TARGET,
             skipped.append(f"{qname}: 好客户数={n_good} < {min_good}")
             continue
 
-        X = df_yes[valid_feats].fillna(0)
+        X = impute_for_model(df_yes[valid_feats], missing_policy)
         y = df_yes[target]
         nz = [c for c in X.columns if X[c].std() > 0]
         if len(nz) < 2:
@@ -745,7 +748,7 @@ def compare_feature_sets(df, dim_col, raw_features, derived_features, target=COL
         auc_raw, auc_derived = np.nan, np.nan
 
         for feat_set, label in [(raw_features, 'raw'), (derived_features, 'derived')]:
-            X = gdf[[f for f in feat_set if f in gdf.columns]].fillna(0)
+            X = impute_median(gdf[[f for f in feat_set if f in gdf.columns]])
             X = X[[c for c in X.columns if X[c].std() > 0]]
             if len(X.columns) < 2:
                 continue
@@ -894,7 +897,7 @@ def calc_feature_thresholds(df, segment_feature_pairs, target=COL_TARGET):
             print(f"  [跳过] {label}: 坏客户不足 (bad={n_bad} < {MIN_BAD_SAMPLES})")
             continue
 
-        x = df_sub[feat].fillna(0).values
+        x = impute_median(df_sub[[feat]])[feat].values  # 缺失口径：建模/切分 → 中位数填补
         y = df_sub[target].values
 
         if pd.Series(x).nunique() <= 1:
