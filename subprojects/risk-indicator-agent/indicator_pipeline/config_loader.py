@@ -29,8 +29,19 @@ def _resolve_env(value: Any) -> Any:
     return value
 
 
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """递归合并: dict 逐键合并, 其它类型 (含 list) 整体覆盖."""
+    merged = dict(base)
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(merged.get(k), dict):
+            merged[k] = _deep_merge(merged[k], v)
+        else:
+            merged[k] = v
+    return merged
+
+
 def load(config_path: str | Path | None = None, project_root: Path | None = None) -> AgentConfig:
-    """加载配置. 默认读项目 config/default.yaml."""
+    """加载配置. 默认读项目 config/default.yaml, 若存在 config/local.yaml (不入库) 则叠加其上."""
     if project_root is None:
         project_root = Path(__file__).resolve().parent.parent
 
@@ -40,11 +51,16 @@ def load(config_path: str | Path | None = None, project_root: Path | None = None
         load_dotenv(env_path)
 
     # 加载 YAML
+    local_path = None
     if config_path is None:
         config_path = project_root / "config" / "default.yaml"
+        local_path = project_root / "config" / "local.yaml"
     config_path = Path(config_path)
     with config_path.open("r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
+    if local_path is not None and local_path.exists():
+        with local_path.open("r", encoding="utf-8") as f:
+            raw = _deep_merge(raw, yaml.safe_load(f) or {})
     raw = _resolve_env(raw)
 
     # 构造 dataclass

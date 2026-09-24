@@ -21,9 +21,18 @@ if str(_PROJECT_ROOT) not in sys.path:
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-disabled")
 
 
+# 合成的示例字段字典 (真实 references/ 不入库)
+_DEMO_REFERENCES_DIR = _PROJECT_ROOT / "tests" / "fixtures" / "references"
+
+
 @pytest.fixture
 def project_root() -> Path:
     return _PROJECT_ROOT
+
+
+@pytest.fixture
+def demo_references_dir() -> Path:
+    return _DEMO_REFERENCES_DIR
 
 
 @pytest.fixture
@@ -60,6 +69,7 @@ def tmp_cfg(tmp_path: Path):
     cfg.paths.meta_snapshots_dir = str(tmp_path / "data" / "meta_store" / "snapshots")
     cfg.paths.audit_log = str(tmp_path / "data" / "meta_store" / "audit.log")
     cfg.paths.output_dir = str(tmp_path / "output")
+    cfg.paths.references_dir = str(_DEMO_REFERENCES_DIR)
     # 关闭 LLM 语义关 (默认测试不调真实 API)
     cfg.step3.setdefault("semantic_check", {})["enabled"] = False
     # 减少超时,加速测试
@@ -132,10 +142,10 @@ def mock_llm_with_proposals() -> MockLLM:
             "担保查询未结清比",
             "CRDTC",
             "担保人征信查询次数与信贷未结清机构数之比, 反映融资行为",
-            "GUARTOR_CRDTC_QRY_CNT / NULLIF(CRDT_TX_UNPAYOFF_TOTAL_ORG_CNT, 0)",
-            ["DT_SSDP_CORP_CUST_CRDTC_IND_W", "DT_SSDP_CORP_CUST_OTHER_CRDTC_IND_W"],
-            ["DT_SSDP_CORP_CUST_CRDTC_IND_W.GUARTOR_CRDTC_QRY_CNT(担保人征信查询次数)",
-             "DT_SSDP_CORP_CUST_OTHER_CRDTC_IND_W.CRDT_TX_UNPAYOFF_TOTAL_ORG_CNT(信贷交易未结清总机构数)"],
+            "GUAR_QRY_CNT / NULLIF(UNPAYOFF_ORG_CNT, 0)",
+            ["DEMO_CORP_CREDIT_REPORT", "DEMO_CORP_CREDIT_REPORT_EXT"],
+            ["DEMO_CORP_CREDIT_REPORT.GUAR_QRY_CNT(担保人征信查询次数)",
+             "DEMO_CORP_CREDIT_REPORT_EXT.UNPAYOFF_ORG_CNT(信贷交易未结清总机构数)"],
             "P0",
         )],
         "PUB": [_make_proposal(
@@ -144,9 +154,9 @@ def mock_llm_with_proposals() -> MockLLM:
             "PUB",
             "近 12 月信贷逾期类舆情条数",
             "COUNT(*) WHERE TAG_NAME='信贷逾期' AND PUB_TIME ∈ M12",
-            ["DT_SSDP_CORP_CUST_PUB_OPINION_A"],
-            ["DT_SSDP_CORP_CUST_PUB_OPINION_A.TAG_NAME(风险标签)",
-             "DT_SSDP_CORP_CUST_PUB_OPINION_A.PUB_TIME(发布时间)"],
+            ["DEMO_CORP_PUBLIC_OPINION"],
+            ["DEMO_CORP_PUBLIC_OPINION.TAG_NAME(风险标签)",
+             "DEMO_CORP_PUBLIC_OPINION.PUB_TIME(发布时间)"],
             "P2",
             window="M12",
         )],

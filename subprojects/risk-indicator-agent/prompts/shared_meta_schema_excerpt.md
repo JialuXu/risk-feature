@@ -40,7 +40,7 @@
 - `CRDTC_M_GUARQRY_UNPAYOFF_SNAP_RATIO` (征信-月度-担保查询未结清-快照-比率)
 - `OPN_M_CHG_LIFE_LEGALREP_CNT` (工商-月度-法人变更-生命周期-计数)
 - `PUB_M_TAG_OVDUE_M12_CNT` (舆情-月度-逾期标签-近12月-计数)
-- `FIN_M_CGB_CRDT_USAGE_SNAP_RATIO` (财务-月度-本行授信使用-快照-比率)
+- `FIN_M_OWN_CRDT_USAGE_SNAP_RATIO` (财务-月度-本行授信使用-快照-比率)
 
 **反例 (禁止)**:
 - ❌ `feature_001` (无语义)

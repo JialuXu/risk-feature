@@ -26,7 +26,7 @@ data/processed/{batch_id}/
 ## 通过
 
 ```bash
-cd /Volumes/Xujl/Skill/risk-indicator-agent
+cd subprojects/risk-indicator-agent   # 自仓库根
 touch data/processed/{batch_id}/APPROVED
 ```
 

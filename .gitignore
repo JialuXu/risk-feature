@@ -23,3 +23,9 @@ __pycache__/
 # risk-feature-pipeline 发布产物（清单与打包脚本入库，dist 不入库）
 risk-feature-pipeline/dist/
 risk-feature-pipeline/build/
+
+# risk-indicator-agent 本地专属：真实配置与参考资料（不入库）
+subprojects/risk-indicator-agent/config/local.yaml
+subprojects/risk-indicator-agent/references/*
+!subprojects/risk-indicator-agent/references/README.md
+.env

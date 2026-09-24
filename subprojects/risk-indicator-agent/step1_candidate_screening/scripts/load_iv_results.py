@@ -11,6 +11,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# 缺省: 同仓库的 risk-feature-pipeline/ (本文件位于 subprojects/risk-indicator-agent/step1_*/scripts/)
+_DEFAULT_PIPELINE_ROOT = Path(__file__).resolve().parents[4] / "risk-feature-pipeline"
+
 
 def _try_use_risk_result_query(pipeline_root: Path) -> bool:
     """尝试把 risk-feature-pipeline 加到 sys.path 以便 import risk_result_query."""
@@ -79,11 +82,11 @@ def _load_via_csv(project_dir: Path) -> dict[str, pd.DataFrame]:
     return out
 
 
-def aggregate_iv(results_dirs: list[str | Path]) -> pd.DataFrame:
+def aggregate_iv(results_dirs: list[str | Path],
+                 pipeline_root: Path | None = None) -> pd.DataFrame:
     """跨多个 project 加载 iv_full 并合并. 列含 项目名."""
     frames = []
-    pipeline_root = Path("/Volumes/Xujl/Skill/risk-feature-pipeline")
-    has_query = _try_use_risk_result_query(pipeline_root)
+    has_query = _try_use_risk_result_query(pipeline_root or _DEFAULT_PIPELINE_ROOT)
 
     for d in results_dirs:
         d = Path(d)
@@ -107,11 +110,11 @@ def aggregate_iv(results_dirs: list[str | Path]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def aggregate_lr(results_dirs: list[str | Path]) -> pd.DataFrame:
+def aggregate_lr(results_dirs: list[str | Path],
+                 pipeline_root: Path | None = None) -> pd.DataFrame:
     """跨项目加载 LR 系数. 用于推断风险方向."""
     frames = []
-    pipeline_root = Path("/Volumes/Xujl/Skill/risk-feature-pipeline")
-    has_query = _try_use_risk_result_query(pipeline_root)
+    has_query = _try_use_risk_result_query(pipeline_root or _DEFAULT_PIPELINE_ROOT)
 
     for d in results_dirs:
         d = Path(d)

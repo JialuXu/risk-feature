@@ -9,38 +9,15 @@ from indicator_pipeline.config import AgentConfig
 from indicator_pipeline.field_dict import FieldDict
 from indicator_pipeline.prompt_loader import load_prompt, render_prompt
 
-# 各域关心的基础表 (传给 LLM 时只列相关的,避免上下文爆炸)
-_DOMAIN_TABLES = {
-    "FIN": [
-        "DT_SSDP_CROP_CUST_FNC_IDX_A",
-        "DT_SSDP_CORP_CUST_CRDT_IND_W",
-        "DT_SSDP_CORP_CUST_BASIC_INFO_W",
-    ],
-    "CRDTC": [
-        "DT_SSDP_CORP_CUST_CRDTC_IND_W",
-        "DT_SSDP_CORP_CUST_OTHER_CRDTC_IND_W",
-        "DT_SSDP_CORP_CUST_CRDTC_TAG_W",
-    ],
-    "OPN": [
-        "DT_SSDP_CORP_CUST_BASIC_INFO_W",
-        "DT_SSDP_CORP_GS_CHG_INFO_A",
-        "DT_SSDP_CORP_GS_TAG_INFO_A",
-    ],
-    "PUB": [
-        "DT_SSDP_CORP_CUST_PUB_OPINION_A",
-    ],
-    "JUDI": [
-        "DT_SSDP_CORP_EXEC_INFO_A",
-        "DT_SSDP_CORP_JUSTICE_SUIT_INFO_A",
-        "DT_SSDP_CORP_JUSTICE_AUC_INFO_A",
-        "DT_SSDP_CORP_LIQD_BKRPT_INFO_A",
-    ],
-}
+def render_base_tables_section(domain: str, fd: FieldDict,
+                               domain_tables: dict[str, list[str]],
+                               max_fields_per_table: int = 80) -> str:
+    """构造给 LLM 看的基础表字段清单 (按域过滤).
 
-
-def render_base_tables_section(domain: str, fd: FieldDict, max_fields_per_table: int = 80) -> str:
-    """构造给 LLM 看的基础表字段清单 (按域过滤)."""
-    relevant = _DOMAIN_TABLES.get(domain, [])
+    domain_tables 来自配置 step2.domain_tables (各域关心的基础表, 传给 LLM 时只列相关的,
+    避免上下文爆炸); 真实表名写在不入库的 config/local.yaml 里.
+    """
+    relevant = domain_tables.get(domain, [])
     blocks: list[str] = []
     for table_en in relevant:
         fields = fd.find_in_table(table_en)
@@ -101,7 +78,7 @@ def build_user_prompt(
         domain_ctx = load_prompt(domain_ctx_filename, cfg.project_root)
 
     seeds_json = json.dumps(seeds, ensure_ascii=False, indent=2)
-    base_tables = render_base_tables_section(domain, fd)
+    base_tables = render_base_tables_section(domain, fd, cfg.step2.get("domain_tables") or {})
     existing_section = render_existing_indicators_section(existing_indicators, domain)
 
     template = load_prompt("step2_proposer_user_template.md", cfg.project_root)

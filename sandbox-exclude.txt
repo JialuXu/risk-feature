@@ -1,7 +1,7 @@
 # rsync filter 规则：拷贝 risk-feature-pipeline/ 到沙盒时的排除清单
 # 用法（注意源路径末尾的斜杠）：
-#   rsync -a --filter='merge /Volumes/Xujl/Skill/sandbox-exclude.txt' \
-#       /Volumes/Xujl/Skill/risk-feature-pipeline/  <沙盒目的地>/risk-feature-pipeline/
+#   rsync -a --filter='merge <仓库根>/sandbox-exclude.txt' \
+#       <仓库根>/risk-feature-pipeline/  <沙盒目的地>/risk-feature-pipeline/
 # 规则按先匹配先生效；"+"=保留，"-"=排除；开头的 / 表示锚定到 risk-feature-pipeline/ 根。
 
 # —— 文档瘦身（agent 消费路径是 SKILL.md → AGENTS.md，以下仅给人看/与执行无关）——

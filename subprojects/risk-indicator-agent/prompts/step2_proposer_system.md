@@ -51,7 +51,7 @@
 
 2. **source_tables 必须从给定的「基础表清单」选**, 不要编造表名. 找不到合适的表 → 在 `notes` 中说明缺口, source_tables 留空数组并把 priority 改成 P0-阻塞.
 
-3. **source_fields 用格式** `表英文名.字段英文名(中文)`, 例: `DT_SSDP_CORP_CUST_PUB_OPINION_A.TAG_NAME(风险标签)`
+3. **source_fields 用格式** `表英文名.字段英文名(中文)`, 例: `DEMO_CORP_PUBLIC_OPINION.TAG_NAME(风险标签)`
 
 4. **ind_code 命名必须满足正则** `^(FIN|CRDTC|OPN|PUB|JUDI|LON|GUAR|RELA|FUND)_[MDA]_[A-Z0-9_]+$`, 全大写, 长度 ≤60.
 

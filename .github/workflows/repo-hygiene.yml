@@ -1,0 +1,33 @@
+name: repo-hygiene
+
+# 公开仓库防护：拦截误提交的数据文件与密钥（全仓库、每次 push / PR 都跑）
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 拦截数据文件
+        # 只允许 tests/fixtures/ 下的合成小样本；其余数据类文件一律视为误提交
+        run: |
+          bad=$(git -c core.quotepath=off ls-files \
+            | grep -iE '\.(csv|tsv|xlsx?|xlsm|parquet|feather|pkl|pickle|sqlite3?|db|sav|dta|h5)$' \
+            | grep -vE '(^|/)tests/fixtures/' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::以下数据文件不应入库（真实数据请放 data/ 等已忽略目录；测试样本请放 tests/fixtures/）："
+            echo "$bad"
+            exit 1
+          fi
+      - name: 密钥扫描（gitleaks）
+        env:
+          GITLEAKS_VERSION: "8.24.3"
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz gitleaks
+          ./gitleaks git . --no-banner --redact

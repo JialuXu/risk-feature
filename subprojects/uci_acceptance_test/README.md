@@ -8,7 +8,7 @@ risk-feature-pipeline 统一 CLI 改造的端到端验证。所有命令可直�
 uci_acceptance_test/
 ├── README.md           # 本文件
 ├── setup.sh            # 一键建 venv + 导出环境变量（首次运行）
-├── data/raw/wide.csv   # → 软链到 /Volumes/Xujl/Skill/data/UCI_Credit_Card.csv
+├── data/raw/wide.csv   # → 自行下载 UCI_Credit_Card.csv（公开数据集）后软链/拷贝到此（不入库）
 ├── filter.json         # filter 模板：排除稀疏分群（EDUCATION 0/5/6 + MARRIAGE 0）
 └── feats.json          # 自定义 features 模板（trigger 用）
 ```
@@ -20,7 +20,7 @@ uci_acceptance_test/
 ## 0. 一次性准备
 
 ```bash
-cd /Volumes/Xujl/Skill/uci_acceptance_test
+cd subprojects/uci_acceptance_test   # 自仓库根
 source ./setup.sh        # 建 venv（首次需 1-2 分钟）+ 导出 PIPELINE_ROOT / PY
 ```
 
@@ -169,7 +169,7 @@ $PY -c "import pandas as pd; df=pd.read_csv('output/uci_demo/uci_demo_触碰阈�
 ```bash
 # 6a. 节点 1：用一个未见过的"新"数据集跑 prepare
 mkdir -p _block_test/data/raw
-ln -sf /Volumes/Xujl/Skill/data/UCI_Credit_Card.csv _block_test/data/raw/another.csv
+ln -sf "$(pwd)/data/raw/wide.csv" _block_test/data/raw/another.csv
 cd _block_test && PYTHONPATH=$PIPELINE_ROOT $PY -m risk_pipeline prepare \
   --wide data/raw/another.csv --id-col ID \
   --target-col default.payment.next.month \

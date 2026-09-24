@@ -4,6 +4,18 @@
 > 面向**任意类型的客户宽表**（征信、工商财务、舆情、行为、UCI 等公开数据集……），只要有主键、二分类目标列和若干特征列即可入库。
 > 本文件是顶层引导，详细文档分散在各子目录的 `README.md` / `SKILL.md` 中。
 
+**English summary** — A modular risk-feature analysis toolkit for customer-level wide tables
+(any table with an ID column, a binary target and numeric features). The core
+`risk-feature-pipeline/` computes IV/WOE with adaptive binning, segment-level logistic regression,
+decision-tree rule mining with hold-out evaluation, customer-level trigger scanning and Word reports,
+all behind one CLI (`python -m risk_pipeline ...`). Docs and code comments are in Chinese.
+Licensed under MIT.
+
+> **数据声明**：本仓库**不含任何真实客户数据或机构内部数据**。测试一律使用固定种子的合成数据，
+> 验收剧本使用公开的 UCI Credit Card 数据集（需自行下载）；表名、字段名示例均为虚构。
+> 请勿向本仓库提交真实数据、内部表结构或凭证——`data/`、`output/` 等目录已在 `.gitignore` 中排除，
+> CI 也会拦截误提交的数据文件。
+
 ---
 
 ## 一、仓库定位
@@ -276,6 +288,7 @@ python -m indicator_pipeline --step 5 --batch-id $BATCH    # 写元表
 - **代码与输出**：全部中文（注释、日志、CSV 表头、报告正文）
 - **CSV 编码**：`utf-8-sig`（保证 Excel 直接打开不乱码）
 - **数据脱敏**：客户姓名、证件号、手机号不得出现在日志或导出文件中
+- **不入库**：真实数据、内部表名/字段清单、本机路径、密钥一律不提交；本地专属配置放各自的 `local.yaml` / `.env`（已 gitignore）
 - **样本不足自动跳过**：低于阈值时显式记录原因，不静默降级
 - **AUC 必须标类型**：`交叉验证` / `训练集-样本不足` / `训练集-CV失败`
 - **Agent 行为规约**：

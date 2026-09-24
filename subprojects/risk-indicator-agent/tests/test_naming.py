@@ -8,7 +8,7 @@ def test_valid_codes():
         "CRDTC_M_GUARQRY_UNPAYOFF_SNAP_RATIO",
         "OPN_M_CHG_LIFE_LEGALREP_CNT",
         "PUB_M_TAG_OVDUE_M12_CNT",
-        "FIN_M_CGB_CRDT_USAGE_SNAP_RATIO",
+        "FIN_M_OWN_CRDT_USAGE_SNAP_RATIO",
     ]
     for c in cases:
         ok, errs = validate_ind_code(c)

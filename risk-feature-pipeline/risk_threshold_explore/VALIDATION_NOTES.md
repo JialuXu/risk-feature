@@ -1,12 +1,12 @@
 # risk_threshold_explore — 实测验证笔记 + 已知问题
 
 > 验证日期：2026-05-12  
-> 数据：`/Volumes/Xujl/Skill/data/raw/`（舆情特征宽表 ⨝ 客户信息含评级；883 行 × 374 列 / 102 坏客户）  
+> 数据：本地舆情特征宽表 ⨝ 客户信息（含评级；具体规模与数值已脱敏）  
 > 平台：macOS 14（Darwin 25.4.0）+ Python 3.12.13
 
 ## ✅ 修复状态（2026-05-12 第二轮）
 
-所有 4 个 bug + 3 个语义改进**已修复**。下方各项前的 ✅ 表示已落地。详见 `~/.claude/plans/optbinning-cli-plan-distributed-tarjan.md` 修复方案与各文件 diff。
+所有 4 个 bug + 3 个语义改进**已修复**。下方各项前的 ✅ 表示已落地。修复细节见各文件 diff。
 
 ## 1. 验证步骤与结果
 
@@ -25,7 +25,7 @@
 
 ### ✅ 🔴 BUG-1 ｜ chart_threshold.py 用 inf 上界判断颜色，导致高风险柱误涂为低风险蓝（已修）
 
-- **现象**：`风险标签_信贷逾期_数量 > 0.5` 这条规则（4.93x，规则有效=True），分箱图里**两根柱都是蓝色** (`#2E86C1` POS_COLOR)。应当：高风险侧（n=31，坏率 67.7%）= 红色。
+- **现象**：`风险标签_信贷逾期_数量 > 0.5` 这条规则（规则有效=True），分箱图里**两根柱都是蓝色** (`#2E86C1` POS_COLOR)。应当：高风险侧（坏率显著更高）= 红色。
 - **根因**：`chart_threshold.py:101-105` 用 `np.isfinite(upp) and upp > cutoff` 判颜色。当 bin 是 `[0.50, inf)` 时 `upp=inf`，`np.isfinite(inf)=False` 短路成 False → 走 else 分支涂蓝。
 - **建议修复**：改用 lo 下界 + 方向：
   ```python
@@ -76,14 +76,14 @@
 
 ### ✅ NOTE-1 ｜ 用「全样本 IV」做门槛会漏「分群强但全样本弱」的特征（已修：分群 IV 优先 + IV来源列）
 
-- **实测**：`风险标签_信贷逾期_占比` 在「私人控股」分群下 IV=0.75 可信，但**全样本** IV=0（高度零集中、全样本拿不出有效分箱）。当前判定 `MIN_IV_FULL=0.02` → `不通过原因='全局IV < 0.02'`，规则被打成 invalid。
-- **业务侧**：这条规则其实**风险倍数=5.11、p=0、触警率 7.6%**，非常强。被门槛误杀。
+- **实测**：`风险标签_信贷逾期_占比` 在某个分群下 IV 很高且可信，但**全样本** IV=0（高度零集中、全样本拿不出有效分箱）。当前判定 `MIN_IV_FULL=0.02` → `不通过原因='全局IV < 0.02'`，规则被打成 invalid。
+- **业务侧**：这条规则的风险倍数高、显著性强，非常有效，却被门槛误杀。
 - **建议**：把「全局IV」门槛改为「该 segment 下 IV」门槛（从 `iv_group_all` 查），更贴合"分群规则"的语义；或同时记录两个 IV，让规则有效用 `max(iv_full, iv_group)`。
 - **优先级**：高（影响默认结论质量）
 
 ### ✅ NOTE-2 ｜ zero-inflated count 特征 + min_bin_size=0.05 易被 optbinning 判「无有效分箱」（已修：兜底 + CLI `--min-bin-size`）
 
-- **实测**：`传导舆情_信贷逾期_数量` 在私人控股分群下：395 个样本，377 个 0、14 个 1、4 个 2 — 非零占比 4.6%，**刚好低于 `min_bin_size=0.05`** → optbinning 给出 `splits=[]` → skip。但这恰好是高 IV 特征（0.79）。
+- **实测**：`传导舆情_信贷逾期_数量` 在某分群下绝大多数样本为 0、非零占比不足 5%，**刚好低于 `min_bin_size=0.05`** → optbinning 给出 `splits=[]` → skip。但这恰好是高 IV 特征。
 - **业务侧**：损失了能直接当规则的"非零即风险"型特征。
 - **建议**：
   - 在 `OPTBIN_PARAMS` 里把 `min_bin_size` 降到 0.03（或暴露为 CLI flag）；
@@ -175,10 +175,7 @@
 └── .pipeline_state.json                              ← current_level = Level 1，未推进
 
 /tmp/skill_test_data/output/youqing_test/charts/
-├── threshold_binning_控股类型_私人控股_风险标签_信贷逾期_数量.png  ← 颜色 bug
-├── threshold_binning_控股类型_私人控股_风险标签_信贷逾期_占比.png
-├── threshold_binning_控股类型_私人控股_最早舆情距今天数.png
-├── threshold_binning_客户性质_其他有限责任公司_最早舆情距今天数.png
+├── threshold_binning_<维度>_<分群>_<特征>.png                  ← 每个 pair 一张（颜色 bug 见 BUG-1）
 ├── threshold_summary_控股类型.png                              ← 颜色正确，红=有效灰=未通过
 └── threshold_summary_客户性质.png
 ```

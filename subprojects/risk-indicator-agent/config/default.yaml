@@ -1,4 +1,7 @@
 # risk-indicator-agent 主配置
+#
+# 本地专属配置（真实结果目录、真实基础表名等）写在 config/local.yaml（不入库），
+# 加载时按键递归叠加在本文件之上；模板见 config/local.example.yaml。
 
 # === 路径 ===
 paths:
@@ -15,13 +18,11 @@ paths:
   prompts_dir: "prompts"
 
 # === 上游 risk-feature-pipeline ===
+# 相对路径以本子项目根为基准；results_dirs 在 config/local.yaml 里填
+# risk-feature-pipeline 产出的 data/results/<project> 目录
 upstream:
-  pipeline_root: "/Volumes/Xujl/Skill/risk-feature-pipeline"
-  results_dirs:
-    - "/Volumes/Xujl/Skill/data/results/财务行业风险分析"
-    - "/Volumes/Xujl/Skill/data/results/腰部企业征信分析"
-    - "/Volumes/Xujl/Skill/data/results/舆情特征分析"
-    - "/Volumes/Xujl/Skill/data/results/工商变更特征分析"
+  pipeline_root: "../../risk-feature-pipeline"
+  results_dirs: []
 
 # === LLM ===
 llm:
@@ -56,6 +57,15 @@ step2:
     CRDTC: "domain_context_CRDTC.md"
     OPN: "domain_context_OPN.md"
     PUB: "domain_context_PUB.md"
+  # 各域关心的基础表（传给 LLM 时只列相关的，避免上下文爆炸）。
+  # 此处为示例表名，与 tests/fixtures/references/ 的示例字段清单对应；
+  # 接入真实数仓时在 config/local.yaml 里整体覆盖。
+  domain_tables:
+    FIN: [DEMO_CORP_FINANCIAL, DEMO_CORP_LOAN_LIMIT, DEMO_CORP_BASIC_INFO]
+    CRDTC: [DEMO_CORP_CREDIT_REPORT, DEMO_CORP_CREDIT_REPORT_EXT, DEMO_CORP_CREDIT_TAG]
+    OPN: [DEMO_CORP_BASIC_INFO, DEMO_CORP_REG_CHANGE, DEMO_CORP_REG_TAG]
+    PUB: [DEMO_CORP_PUBLIC_OPINION]
+    JUDI: [DEMO_CORP_EXECUTION, DEMO_CORP_LAWSUIT, DEMO_CORP_JUDICIAL_AUCTION, DEMO_CORP_BANKRUPTCY]
 
 # === Step 3 校验 ===
 step3:
