@@ -9,38 +9,15 @@ from indicator_pipeline.config import AgentConfig
 from indicator_pipeline.field_dict import FieldDict
 from indicator_pipeline.prompt_loader import load_prompt, render_prompt
 
-# 各域关心的基础表 (传给 LLM 时只列相关的,避免上下文爆炸)
-_DOMAIN_TABLES = {
-    "FIN": [
-        "DEMO_CORP_FINANCIAL",
-        "DEMO_CORP_LOAN_LIMIT",
-        "DEMO_CORP_BASIC_INFO",
-    ],
-    "CRDTC": [
-        "DEMO_CORP_CREDIT_REPORT",
-        "DEMO_CORP_CREDIT_REPORT_EXT",
-        "DEMO_CORP_CREDIT_TAG",
-    ],
-    "OPN": [
-        "DEMO_CORP_BASIC_INFO",
-        "DEMO_CORP_REG_CHANGE",
-        "DEMO_CORP_REG_TAG",
-    ],
-    "PUB": [
-        "DEMO_CORP_PUBLIC_OPINION",
-    ],
-    "JUDI": [
-        "DEMO_CORP_EXECUTION",
-        "DEMO_CORP_LAWSUIT",
-        "DEMO_CORP_JUDICIAL_AUCTION",
-        "DEMO_CORP_BANKRUPTCY",
-    ],
-}
+def render_base_tables_section(domain: str, fd: FieldDict,
+                               domain_tables: dict[str, list[str]],
+                               max_fields_per_table: int = 80) -> str:
+    """构造给 LLM 看的基础表字段清单 (按域过滤).
 
-
-def render_base_tables_section(domain: str, fd: FieldDict, max_fields_per_table: int = 80) -> str:
-    """构造给 LLM 看的基础表字段清单 (按域过滤)."""
-    relevant = _DOMAIN_TABLES.get(domain, [])
+    domain_tables 来自配置 step2.domain_tables (各域关心的基础表, 传给 LLM 时只列相关的,
+    避免上下文爆炸); 真实表名写在不入库的 config/local.yaml 里.
+    """
+    relevant = domain_tables.get(domain, [])
     blocks: list[str] = []
     for table_en in relevant:
         fields = fd.find_in_table(table_en)
@@ -101,7 +78,7 @@ def build_user_prompt(
         domain_ctx = load_prompt(domain_ctx_filename, cfg.project_root)
 
     seeds_json = json.dumps(seeds, ensure_ascii=False, indent=2)
-    base_tables = render_base_tables_section(domain, fd)
+    base_tables = render_base_tables_section(domain, fd, cfg.step2.get("domain_tables") or {})
     existing_section = render_existing_indicators_section(existing_indicators, domain)
 
     template = load_prompt("step2_proposer_user_template.md", cfg.project_root)

@@ -7,7 +7,7 @@ description: 流水线第 3 步.对 Step 2 的 LLM 提案做 6 道校验关 (命
 
 - Step 2 已跑过, `proposals_draft.json` 存在
 - 元表已初始化 (空也行, 第一次运行会创建)
-- `references/` 软链就绪 (字段查存关需要)
+- `references/` 下放好 `表清单.csv` / `表字段清单.csv`（不入库，字段查存关需要）
 
 ## 触发语
 

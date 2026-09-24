@@ -72,9 +72,10 @@ def load_field_dict(
     return FieldDict(fields=fields)
 
 
-def load_default_field_dict(project_root: Path | None = None) -> FieldDict:
-    """从 references/ 软链加载 (推荐入口)."""
+def load_default_field_dict(project_root: Path | None = None,
+                            references_dir: Path | None = None) -> FieldDict:
+    """从 references/ 加载 (推荐入口). references_dir 缺省 = {project_root}/references."""
     if project_root is None:
         project_root = Path(__file__).resolve().parent.parent
-    refs = project_root / "references"
+    refs = Path(references_dir) if references_dir is not None else project_root / "references"
     return load_field_dict(refs / "表清单.csv", refs / "表字段清单.csv")

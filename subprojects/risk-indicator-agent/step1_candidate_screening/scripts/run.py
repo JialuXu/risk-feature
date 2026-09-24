@@ -22,12 +22,14 @@ def run(batch_id: str, cfg: AgentConfig, **_kwargs: Any) -> dict[str, Any]:
 
     依据 cfg.upstream.results_dirs 加载 IV 结果, 过滤后输出 seeds.json.
     """
-    results_dirs = cfg.upstream.get("results_dirs", [])
+    results_dirs = [cfg.abs_path(d) for d in cfg.upstream.get("results_dirs") or []]
     if not results_dirs:
-        raise RuntimeError("config 中 upstream.results_dirs 为空")
+        raise RuntimeError("config 中 upstream.results_dirs 为空 (在 config/local.yaml 里填写)")
+    pipeline_root = cfg.upstream.get("pipeline_root")
+    pipeline_root = cfg.abs_path(pipeline_root) if pipeline_root else None
 
     logger.info("[step1] 加载 %d 个项目的 IV 结果", len(results_dirs))
-    iv_df = aggregate_iv(results_dirs)
+    iv_df = aggregate_iv(results_dirs, pipeline_root)
     logger.info("[step1] 原始 IV 行数: %d", len(iv_df))
     if iv_df.empty:
         logger.warning("[step1] IV 结果为空,流水线无法继续")
@@ -43,7 +45,7 @@ def run(batch_id: str, cfg: AgentConfig, **_kwargs: Any) -> dict[str, Any]:
     logger.info("[step1] 过滤后行数: %d", len(iv_filtered))
 
     # LR 风险方向
-    lr_df = aggregate_lr(results_dirs)
+    lr_df = aggregate_lr(results_dirs, pipeline_root)
     risk_dirs = risk_direction_from_lr(lr_df)
     logger.info("[step1] LR 风险方向覆盖: %d 个特征", len(risk_dirs))
 

@@ -1,0 +1,7 @@
+表英文名,表中文名
+DEMO_CORP_BASIC_INFO,示例-对公客户基础信息
+DEMO_CORP_CREDIT_REPORT,示例-对公客户征信主表
+DEMO_CORP_CREDIT_REPORT_EXT,示例-对公客户征信补充表
+DEMO_CORP_FINANCIAL,示例-对公客户财务指标
+DEMO_CORP_LOAN_LIMIT,示例-对公客户授信指标
+DEMO_CORP_PUBLIC_OPINION,示例-对公客户舆情明细

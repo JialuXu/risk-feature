@@ -6,8 +6,8 @@ description: 流水线第 1 步.从 risk-feature-pipeline 的 results/ 跨项目
 ## 前置条件
 
 - `risk-feature-pipeline` 至少跑过一轮特征分析, `data/results/{project}/` 下有 8 张 CSV
-- `config/default.yaml` 的 `upstream.results_dirs` 指向真实结果目录
-- `references/` 下软链了 `表清单.csv` / `表字段清单.csv`
+- `config/local.yaml`（不入库）的 `upstream.results_dirs` 指向真实结果目录
+- `references/` 下放好 `表清单.csv` / `表字段清单.csv`（不入库）
 
 ## 触发语
 

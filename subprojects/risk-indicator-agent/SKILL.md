@@ -26,9 +26,10 @@ description: LLM 指标衍生 Agent 流水线（5 步）。把 risk-feature-pipe
 ## 入口（CLI）
 
 ```bash
-cd <仓库根>/risk-indicator-agent
+cd subprojects/risk-indicator-agent   # 自仓库根
 pip install -e .
 cp .env.example .env  # 填 ANTHROPIC_API_KEY
+cp config/local.example.yaml config/local.yaml  # 本地专属配置（不入库）
 
 # 一次性 batch：5 步顺序
 BATCH=20260428_first

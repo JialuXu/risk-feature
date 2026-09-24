@@ -24,7 +24,7 @@ data/processed/{batch_id}/
 ## 通过
 
 ```bash
-cd <仓库根>/risk-indicator-agent
+cd subprojects/risk-indicator-agent   # 自仓库根
 touch data/processed/{batch_id}/STEP5_APPROVED
 ```
 
