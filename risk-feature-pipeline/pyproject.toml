@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "risk-feature-pipeline"
-version = "0.3.0"
+version = "1.0.2"
 description = "企业征信风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰扫描 / Word 报告）"
 readme = "README.md"
 requires-python = ">=3.10"

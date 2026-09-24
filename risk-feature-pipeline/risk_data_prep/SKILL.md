@@ -61,7 +61,8 @@ CLI：`--filter-file filter.json`，内容如 `{"企业规模": {"exclude": ["0"
 
 | 模块 | 作用 |
 |------|------|
-| `scripts/prepare_df.py` | ⭐ `prepare_df`（宽表+打标+选列一行合成） |
+| `scripts/prepare_df.py` | ⭐ `prepare_df`（宽表+打标+选列一行合成；选列后过特征卫生闸） |
+| `scripts/feature_sanity.py` | 特征卫生闸：剔语义残缺资质哑变量名（如 `是_非`）+ 二值特征完全相同/互补去重；剔除记原因、不动 df |
 | `scripts/data_prep.py` | `load_credit_data`、`prepare_credit_wide_table` |
 | `scripts/wide_table_builder.py` | `build_wide_table` |
 | `scripts/io_utils.py` | `load_data`、`read_csv_auto_encoding` |

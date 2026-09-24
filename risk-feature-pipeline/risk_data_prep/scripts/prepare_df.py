@@ -28,6 +28,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
+from .feature_sanity import find_degenerate_qual_names, find_redundant_binary_features
+
 
 def _read_csv_robust(path: str, dtype=None) -> pd.DataFrame:
     """兼容 utf-8-sig / utf-8 / gbk 的读取。
@@ -270,5 +272,20 @@ def prepare_df(
         c for c in df.select_dtypes(include='number').columns
         if c not in excluded and df[c].std(skipna=True) > min_std
     ]
+
+    # 特征卫生闸（见 feature_sanity.py）：先剔语义残缺的资质哑变量名（如上游
+    # one-hot 用取值拼出的「是_非」类列名），再对二值特征做完全相同/互补去重。
+    # 名字闸在前，保证互补对里存活的是「正名」那一列，而不是碰运气按列序。
+    # 只清理入池清单，不动 df；每条剔除显式记原因。
+    dropped = find_degenerate_qual_names(feature_cols)
+    dropped.update(find_redundant_binary_features(
+        df, [c for c in feature_cols if c not in dropped]))
+    if dropped:
+        lines = '\n'.join(f"  - {c}: {why}" for c, why in dropped.items())
+        print(
+            f"[提示] 特征卫生闸剔除 {len(dropped)} 列（列仍保留在 df 中，仅不入特征清单）：\n{lines}",
+            file=sys.stderr,
+        )
+        feature_cols = [c for c in feature_cols if c not in dropped]
 
     return df.reset_index(drop=True), feature_cols
