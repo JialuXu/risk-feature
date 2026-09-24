@@ -35,14 +35,16 @@ PYTHONPATH=<skill代码根> RISK_PROJECT_ROOT=<数据根> RISK_OUTPUT_ROOT=<输�
 
 - `<skill代码根>` = 本 skill 的 `SKILL.md` / `pyproject.toml` 所在目录。你就是从那里读到本文档的——**用已知的真实路径，不要猜**。报 `No module named risk_pipeline` 时先核对这个值，不要去别处找代码。
 - 若环境允许写入，也可一次性 `python -m pip install -e <skill代码根>`，之后任意 CWD 直接 `python -m risk_pipeline ...`（或 `risk-pipeline ...`），无需 `PYTHONPATH`。
-- 每条 Bash 是新 shell：`export` 不跨命令保留，单行前缀最稳（对 `RISK_OUTPUT_ROOT` 的 import-time 冻结也天然满足，见下节）。
+- 每条 Bash 是新 shell：`export` 不跨命令保留，单行前缀最稳。
 
 ## 读取时序（⚠ 最易踩的坑）
 
-- **`RISK_OUTPUT_ROOT` 必须在 Python 进程启动前就位**：`config.py` 的路径常量在
-  **import 时冻结**，进程跑到一半再改 env 无效；`paths.py` / state 目录是调用时
-  实时解析的——两者时序不同，以更严的 config 为准。每条 Bash 是新 shell，
-  也可写成单行前缀：`RISK_OUTPUT_ROOT=... python -m risk_pipeline ...`。
+- `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 均在**调用时**解析（`risk_core.paths`、
+  state 目录、`risk_core.config.RESULTS_DIR*` 等路径常量都一样），Python API 里先
+  import 后设 env 也生效。CLI 下推荐单行前缀：`RISK_OUTPUT_ROOT=... python -m risk_pipeline ...`。
+- 写产物（export/trigger/visualize）与读产物（query/visualize/explore_thresholds/report、
+  `load_results()`）都以**输出根**为准；`export --output-subdir X` 之后，读产物的
+  子命令自动跟随到 `X/`（依据 state 历史里最近一次 export），无需再手动指定。
 - `--wide` / `--bad-customer` 等文件参数**按 CWD 解析，不按项目根**；
   沙盒模式建议一律传绝对路径。
 - 每条 CLI 子命令启动时会打印一行 `[路径] 项目根=... 输出根=...`，

@@ -146,7 +146,7 @@ def configure_chinese_font(force: bool = False, refresh_cache: bool = False) -> 
 
     if hit is None:
         warnings.warn(
-            '[risk_pipeline.font_utils] 未发现任何中文字体，CJK 字符将渲染为方框。\n'
+            '[risk_core.font_utils] 未发现任何中文字体，CJK 字符将渲染为方框。\n'
             '修复建议：\n'
             '  Linux:   sudo apt-get install fonts-noto-cjk  '
             '（或 fonts-wqy-zenhei）\n'
@@ -170,7 +170,7 @@ def configure_chinese_font(force: bool = False, refresh_cache: bool = False) -> 
         # 自检：'中' 字是否真能用 hit 渲染
         if not _self_test_chinese_glyph(hit):
             warnings.warn(
-                f'[risk_pipeline.font_utils] 字体 {hit!r} 命中但不包含中文字形（U+4E2D），'
+                f'[risk_core.font_utils] 字体 {hit!r} 命中但不包含中文字形（U+4E2D），'
                 '可能是字体名同名但内容只含英文。请尝试安装 fonts-noto-cjk 或 '
                 'configure_chinese_font(refresh_cache=True)。'
             )

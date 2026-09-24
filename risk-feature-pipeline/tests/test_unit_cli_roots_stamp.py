@@ -6,8 +6,9 @@ import os
 
 import pytest
 
-from risk_pipeline import cli, paths
-from risk_pipeline.paths import ENV_OUTPUT_ROOT, ENV_PROJECT_ROOT
+from risk_core import paths
+from risk_mining import cli
+from risk_core.paths import ENV_OUTPUT_ROOT, ENV_PROJECT_ROOT
 
 
 @pytest.fixture(autouse=True)

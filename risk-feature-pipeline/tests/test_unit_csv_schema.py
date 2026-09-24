@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def test_unified_column_names_and_filename_aliases(project_workdir):

@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from risk_core import contracts as cli_io
-from risk_pipeline.pipeline_state import format_status_stamp, load_state
+from risk_mining.pipeline_state import format_status_stamp, load_state
 
 from ._common import (
     _err,
@@ -29,7 +29,7 @@ _VALID_ANALYZE_STEPS = ('univariate', 'iv', 'lr', 'rules')
 
 
 def cmd_analyze(args) -> int:
-    from risk_pipeline.pipeline import run_generic_pipeline
+    from risk_mining.pipeline import run_generic_pipeline
 
     started = time.time()
     project = args.project

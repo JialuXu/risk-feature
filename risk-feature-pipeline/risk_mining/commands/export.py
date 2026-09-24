@@ -12,7 +12,7 @@ import pandas as pd
 
 from risk_core import contracts as cli_io
 from risk_core.config import IV_SUSPECT_THRESHOLD
-from risk_pipeline.pipeline_state import format_status_stamp, load_state
+from risk_mining.pipeline_state import format_status_stamp, load_state
 
 from ._common import (
     _err,

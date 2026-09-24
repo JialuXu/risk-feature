@@ -31,7 +31,7 @@ TGT = 'DELINQUENT'
 
 def test_iv_core_fullsample_is_schema_agnostic():
     """iv_core.run_iv_analysis 在异构 schema 下应算出全量 IV（不因缺少征信维度而失败）。"""
-    from risk_pipeline.analysis.iv_core import run_iv_analysis
+    from risk_mining.analysis.iv_core import run_iv_analysis
     iv = run_iv_analysis(_alien_schema_df(), FEATS, target=TGT)
     assert iv is not None and not iv.empty
     assert set(iv['特征']).issubset(set(FEATS))

@@ -5,7 +5,7 @@
 """
 import pandas as pd  # noqa: F401  函数体内亦局部 import，保留以对齐原模块
 
-from risk_pipeline.config import COL_TARGET
+from risk_core.config import COL_TARGET
 from risk_mining.export import assemble_exports
 
 from ._common import _load_module, _banner

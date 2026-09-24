@@ -2,7 +2,7 @@
 """
 风险特征分析流水线 - 共享配置（唯一数值来源）
 
-所有模块通过 from risk_pipeline.config import ... 引用此文件。
+所有模块通过 from risk_core.config import ... 引用此文件。
 配置值从 risk_core/config/default.yaml 和 risk_core/config/column_mapping.yaml 加载，
 Python 接口与改造前完全一致，保证向后兼容。
 """
@@ -14,7 +14,8 @@ from . import paths as _paths
 from .config_loader import load_config, load_column_mapping
 
 # =============================================================================
-# 从 YAML 加载配置
+# 从 YAML 加载配置（随包分发的 default.yaml / column_mapping.yaml；单行场景不支持
+# 运行时覆盖——适配某份数据走 CLI flag，长期接入新银行属开发仓库维护动作）
 # =============================================================================
 _cfg = load_config()
 _mapping = load_column_mapping()
@@ -31,14 +32,15 @@ DATA_CONFIG = {
 }
 
 # =============================================================================
-# 输出路径配置（YAML 提供相对路径；RISK_OUTPUT_ROOT 设置时改为绝对路径）
+# 输出路径配置（YAML 提供相对路径）
 #
-# 设计说明：env 在 import 时一次性读取，于是 os.path.join(project_root, X)
-# 在两种情形都正确：
-#   - 未设 RISK_OUTPUT_ROOT：X 是相对路径，照旧落到 <project_root>/X。
-#   - 设了 RISK_OUTPUT_ROOT：X 是绝对路径，os.path.join 短路返回 X 自身。
-# 因此现存所有 os.path.join(project_root, OUTPUT_DIR_*) 调用点无需改动。
-# 但代价是：要让 env 生效，必须在启动前设置（运行中改无效），符合典型用法。
+# 不在 import 时冻结：下列常量经模块级 __getattr__（PEP 562）**每次访问时**按当时的
+# RISK_OUTPUT_ROOT 解析——
+#   - 未设 RISK_OUTPUT_ROOT：返回相对路径，调用方 os.path.join(project_root, X) 照旧；
+#   - 设了 RISK_OUTPUT_ROOT：返回 <output_root>/X 绝对路径，os.path.join 短路返回自身。
+# 因此进程内先 import 后设 env 也生效。注意 ``from risk_core.config import RESULTS_DIR``
+# 会把**那一刻**的值绑定到调用方名字上——需要随 env 变化的代码请在调用时读
+# ``risk_core.config.RESULTS_DIR``（或直接用 risk_core.paths.results_dir()）。
 # =============================================================================
 def _resolve_output_path(rel: str) -> str:
     rel = rel.rstrip('/')
@@ -47,19 +49,27 @@ def _resolve_output_path(rel: str) -> str:
     return rel
 
 
-# 征信链路
-RESULTS_DIR_CREDIT = _resolve_output_path(_cfg['output']['results_credit'])
-OUTPUT_DIR_CREDIT  = _resolve_output_path(_cfg['output']['final_credit'])
-# 工商财务链路
-RESULTS_DIR_GSFC   = _resolve_output_path(_cfg['output']['results_gsfc'])
-OUTPUT_DIR_GSFC    = _resolve_output_path(_cfg['output']['final_gsfc'])
-# 通用链路
-RESULTS_DIR        = _resolve_output_path(_cfg['output'].get('results', 'data/results'))
-OUTPUT_DIR_GENERIC = _resolve_output_path(_cfg['output'].get('final', 'output'))
+_OUTPUT_PATH_RELS = {
+    # 征信链路
+    'RESULTS_DIR_CREDIT': _cfg['output']['results_credit'],
+    'OUTPUT_DIR_CREDIT': _cfg['output']['final_credit'],
+    # 工商财务链路（OUTPUT_DIR / FINAL_OUTPUT_DIR 为向后兼容别名）
+    'RESULTS_DIR_GSFC': _cfg['output']['results_gsfc'],
+    'OUTPUT_DIR_GSFC': _cfg['output']['final_gsfc'],
+    'OUTPUT_DIR': _cfg['output']['results_gsfc'],
+    'FINAL_OUTPUT_DIR': _cfg['output']['final_gsfc'],
+    # 通用链路
+    'RESULTS_DIR': _cfg['output'].get('results', 'data/results'),
+    'OUTPUT_DIR_GENERIC': _cfg['output'].get('final', 'output'),
+}
+OUTPUT_PATH_NAMES = frozenset(_OUTPUT_PATH_RELS)
 
-# 向后兼容别名
-OUTPUT_DIR       = RESULTS_DIR_GSFC
-FINAL_OUTPUT_DIR = OUTPUT_DIR_GSFC
+
+def __getattr__(name):
+    if name in _OUTPUT_PATH_RELS:
+        return _resolve_output_path(_OUTPUT_PATH_RELS[name])
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
 
 # =============================================================================
 # 分群维度配置
@@ -209,7 +219,7 @@ CREDIT_CONFIG = {
 
 # =============================================================================
 # 列名常量（通过 ColumnMapper 从 YAML 配置生成）
-# 所有模块通过 from risk_pipeline.config import * 获得这些常量，
+# 所有模块通过 from risk_core.config import * 获得这些常量，
 # 替代脚本中硬编码的字段名字符串，使多银行适配生效。
 # =============================================================================
 from .column_mapper import ColumnMapper

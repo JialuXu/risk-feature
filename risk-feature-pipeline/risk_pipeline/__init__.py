@@ -1,43 +1,36 @@
 # -*- coding: utf-8 -*-
-"""risk-feature-pipeline 统一 CLI 入口 + 兼容 shim 包。
+"""risk-feature-pipeline 统一 CLI 入口 + 兼容 shim 包（不含任何实现）。
 
-解耦重构（DECOUPLING-DESIGN §4，阶段 1）：稳定契约底座已抽入 ``risk_core``。
-本包用**模块别名**把旧导入路径透明转发到 risk_core：
-``import risk_pipeline.paths`` 与 ``risk_core.paths`` 是**同一模块对象**
-（``import risk_pipeline.paths is risk_core.paths`` 为 True），私有名（如
-``paths._warned_no_data_dir``）亦可达——这是 ``import *`` 做不到、而 20+ 测试
-依赖的性质。
+对 agent 暴露的入口 ``python -m risk_pipeline <子命令>`` 不变（``__main__`` 转发
+``risk_mining.cli:main``）。其余子模块都是旧导入路径的兼容层，新代码请直接 import 目标：
 
-已退化为 shim 的子模块（转发到组合根 risk_mining）:
-  cli           - 转发 risk_mining.cli（统一 CLI 入口，阶段 2）
-  cli_commands  - 转发 risk_mining.commands（9 子命令实现，阶段 2）
-  cli_io        - 转发 risk_core.contracts（wire/指纹/features.json，阶段 1）
-
-仍物理留在本包的挖掘内核（下阶段迁移）:
-  pipeline       - run_credit / run_gsfc / run_generic_pipeline
-  pipeline_state - Level 状态机
-  analysis       - 共享分析内核（iv_core / engine）
-
-已升入 risk_core 的子模块（经下面的别名转发）:
+别名（与目标是同一模块对象，见 ``_alias.py``；按需加载）:
   paths / config / config_loader / column_mapper / io_utils / font_utils / results_loader
+                          → risk_core.<同名>
+  pipeline_state          → risk_mining.pipeline_state
+  analysis.iv_core/engine → risk_mining.analysis.<同名>
+
+再导出:
+  pipeline      - run_generic_pipeline（risk_mining.pipeline）+ run_credit/gsfc（risk_legacy_chains）
+                  + 旧 ``python -m shared`` 的 argparse 入口 main()
+  cli           - risk_mining.cli
+  cli_commands  - risk_mining.commands
+  cli_io        - risk_core.contracts
+
+依赖方向：risk_core / risk_mining / 各子 skill 均不得 import 本包
+（``tests/test_unit_kernel_boundary.py`` 锁定），本包可在下个版本整体删除。
 """
-import sys as _sys
+import importlib as _importlib
 
-from risk_core import (  # noqa: F401  同一对象转发到 risk_core
-    paths,
-    config,
-    config_loader,
-    column_mapper,
-    io_utils,
-    font_utils,
-    results_loader,
-)
+_SUBMODULES = frozenset({
+    'paths', 'config', 'config_loader', 'column_mapper', 'io_utils', 'font_utils',
+    'results_loader', 'pipeline_state', 'analysis', 'pipeline', 'cli', 'cli_commands',
+    'cli_io',
+})
 
-# 逐子模块登记别名：让 `import risk_pipeline.X` / `from risk_pipeline.X import Y`
-# 解析到与 risk_core.X 完全相同的模块对象（保证私有名与身份判等一致）。
-for _name in (
-    'paths', 'config', 'config_loader', 'column_mapper',
-    'io_utils', 'font_utils', 'results_loader',
-):
-    _sys.modules[f'{__name__}.{_name}'] = _sys.modules[f'risk_core.{_name}']
-del _sys, _name
+
+def __getattr__(name):
+    """PEP 562：``risk_pipeline.paths`` 式属性访问按需导入子模块（兼容旧的急加载行为）。"""
+    if name in _SUBMODULES:
+        return _importlib.import_module(f'{__name__}.{name}')
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

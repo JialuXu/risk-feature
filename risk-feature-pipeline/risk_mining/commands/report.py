@@ -6,7 +6,9 @@ import os
 import time
 from pathlib import Path
 
-from risk_pipeline.pipeline_state import PipelineLevelError, format_status_stamp, load_state
+from risk_mining.pipeline_state import (
+    PipelineLevelError, format_status_stamp, last_export_subdir, load_state,
+)
 
 from ._common import _err, _output_root, _print_stamp, _state_dir
 
@@ -16,17 +18,7 @@ def cmd_report(args) -> int:
 
     started = time.time()
     project = args.project
-    llm_json_path = args.llm_json or os.path.join(
-        _output_root(), 'output', project, f'{project}_LLM报告数据.json',
-    )
     report_md_path = args.report_markdown
-    out_path = args.output or os.path.join(
-        _output_root(), 'output', project, f'{project}.docx',
-    )
-
-    if not os.path.isfile(llm_json_path):
-        _err(f'[report] LLM JSON 不存在: {llm_json_path}\n'
-             f'建议: 先跑 export 子命令落盘 LLM JSON')
     if not os.path.isfile(report_md_path):
         _err(f'[report] --report-markdown 不存在: {report_md_path}')
 
@@ -35,6 +27,14 @@ def cmd_report(args) -> int:
         state.require_level('Level 1')
     except PipelineLevelError as e:
         _err(f'[report] {e}\n建议: 先跑 export 子命令推进到 Level 1')
+
+    # 默认读/写 export 的产物目录（含 --output-subdir），与 query/visualize 一致
+    out_sub = os.path.join(_output_root(), 'output', last_export_subdir(project, state.history))
+    llm_json_path = args.llm_json or os.path.join(out_sub, f'{project}_LLM报告数据.json')
+    out_path = args.output or os.path.join(out_sub, f'{project}.docx')
+    if not os.path.isfile(llm_json_path):
+        _err(f'[report] LLM JSON 不存在: {llm_json_path}\n'
+             f'建议: 先跑 export 子命令落盘 LLM JSON')
 
     # 阻断节点 3：external 必须显式确认 final version
     if args.purpose == 'external' and not getattr(args, 'confirmed_final_version', False):

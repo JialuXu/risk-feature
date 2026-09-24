@@ -2,7 +2,7 @@
 """端到端 smoke：query 子命令读取已导出结果。"""
 from __future__ import annotations
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def test_query_iv_top(project_workdir, capsys):

@@ -17,7 +17,6 @@ import pandas as pd
 from .config import (
     RULE_MINING_CONFIG,
     SAMPLE_THRESHOLDS,
-    FINAL_OUTPUT_DIR,
     STABILITY_CV_MODERATE,
 )
 from .rule_extraction import mine_rules
@@ -194,7 +193,9 @@ def export_rules(
     文件名：`{project_name}_风险规则表.csv`
     """
     if output_dir is None:
-        output_dir = FINAL_OUTPUT_DIR
+        # 缺省落 <输出根>/output（遵循 RISK_OUTPUT_ROOT）；旧默认是相对 CWD 的 output/工商财务
+        from risk_core.paths import output_dir as _default_output_dir
+        output_dir = _default_output_dir()
     out_path = Path(output_dir) / f"{project_name}_风险规则表.csv"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -1,6 +1,9 @@
 # risk-feature-pipeline 解耦重构设计文档
 
-> 状态：**设计草案 v2（已过对抗性核验）** ｜ 范围：架构解耦，不含业务逻辑改动
+> 状态：**已实施**（阶段 1–9 + 设计检视第三批收尾；阶段 10 已砍）｜ 范围：架构解耦，不含业务逻辑改动
+> 实施现状（以代码为准）：挖掘内核 `analysis/` / `pipeline_state.py` / `pipeline.py`（`run_generic_pipeline`）已物理迁入 `risk_mining/`；
+> `risk_pipeline/` 只剩兼容别名与再导出，不含实现，任何生产代码都不再 import 它。四条分层红线（含字符串式动态导入）
+> 由 `tests/test_unit_kernel_boundary.py` 机器化验收。下文 §1/§5 的 `file:line` 引用指向重构前的旧文件，仅作历史依据。
 > 关联文档：需求见 [`PRD-risk-feature-pipeline.md`](PRD-risk-feature-pipeline.md)，列/文件 schema 见 [`SCHEMA.md`](SCHEMA.md)，术语见 [`GLOSSARY.md`](GLOSSARY.md)，硬规矩见 [`../AGENTS.md`](../AGENTS.md)。本文只描述**重构目标架构与迁移路线**，不重述上述内容。
 > v2 修订：依据 5 路对抗性核验（拿真实代码逐条验），修正依赖矩阵（新增"组合根/路由层"）、补齐 6 类漏掉的读契约、写实 shim/入口保号机制、订正 2 处行号数字。
 
@@ -109,6 +112,15 @@
 | **组合根/路由**（cli + commands + argspec） | ✓ | ✓ | ✓（转发，函数直调） | — |
 
 要点：**"挖掘内核 → 子 skill = ✗"和"子 skill 间零横向 = ✗"是本次重构的两条硬约束**，用 §7 的 grep 红线验收。组合根是唯一的"什么都能 import"的组合点（依赖倒置的正确落法）。
+
+**两处明文例外 / 归类（设计检视第三批补记）：**
+- **挖掘内核 → `risk_export_report` = ✓**：它是 export 步的实现（§4.2「不拆」），`risk_mining/export.py` 与
+  `run_generic_pipeline` 的导出步调用它；这是内核唯一允许引用的子 skill 目录，测试白名单只含它一个。
+- **`risk_legacy_chains`（credit/gsfc 黑盒）归「组合根」层**：它按名字串 `_load_module` 调用多个子 skill、
+  并 import `risk_mining.export`，性质上是另一组编排入口；只允许 `risk_mining.commands.run` 与兼容 shim 调用它，
+  内核与独立子 skill 都不得依赖它。
+- 红线检查同时覆盖**字符串式导入**（`importlib.import_module('risk_x…')` / `_load_module('risk_x', …)`）：
+  调用实参里出现的项目包名字符串一律视为依赖。
 
 ### 4.2 目标目录树
 
@@ -232,7 +244,7 @@ risk-feature-pipeline/
 | **三个阻断节点物理 `exit 1`** | 节点1（`--confirmed-new-dataset`/拆分三件套 + `_validate_split_confirmation`）、节点2（trigger `--confirmed`）、节点3（report external `--confirmed-final-version`）；组合根转发前校验，直调子 skill 路径不兜此门 | validation 单测 |
 | **挖掘内核不 import 子 skill** | `analyze/export/analysis/pipeline_state` 中 grep 无 `import risk_<skill>` | **grep 红线**（新增） |
 | **子 skill 零横向 import** | `risk_*/scripts/` 中 grep 无跨子 skill import | **grep 红线**（阶段 7 验收） |
-| **路径优先级 + 读取时序** | `env > 入参 > 探测 data/ > CWD`；裸 `os.getcwd()/__file__` 只允许 `risk_core/paths.py` 一处；**且 `RISK_OUTPUT_ROOT` 须在首次 `import config` 前设置**——config 路径常量是 import-time 冻结（`config.py:43-58`），paths/state 是 call-time 实时（`paths.py:81`/`pipeline_state.py:164`） | paths 单测 + 新增时序用例 |
+| **路径优先级 + 读取时序** | `env > 入参 > 探测 data/ > CWD`；裸 `os.getcwd()/__file__` 只允许 `risk_core/paths.py` 一处；`RISK_*_ROOT` 一律 **call-time** 解析（config 的 `RESULTS_DIR*` 等路径常量经 PEP 562 `__getattr__` 按访问时 env 计算，第三批起不再 import-time 冻结）；读写产物同以输出根为准 | paths 单测 + `test_unit_config_paths.py` |
 | **`_intermediate` wire format** | §5.3 全部键名 + `utf-8-sig` + 宽表 `index` 往返 + `'资质标签'` 特判 + `target_col` 仅在 manifest | export smoke |
 | **对外 schema 一致 + 读契约** | §5.4 三列 + 元信息白名单 + 完整列名常量，三链路同一套 | 新增三链路 schema 用例 |
 | **原子落盘 + 指纹向后兼容** | §5.5/5.6，`schema_version=2` 与老格式并存 | 指纹用例（红线） |

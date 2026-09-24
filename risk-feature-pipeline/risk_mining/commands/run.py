@@ -6,7 +6,7 @@ import argparse as _argparse
 import sys
 import time
 
-from risk_pipeline.pipeline_state import load_state
+from risk_mining.pipeline_state import load_state
 
 from ..argspec import dests_for
 from ._common import _err, _is_quiet, _is_verbose, _state_dir
@@ -42,7 +42,7 @@ def cmd_run(args) -> int:
         )
 
     if args.pipeline == 'credit':
-        from risk_pipeline.pipeline import run_credit_pipeline
+        from risk_legacy_chains.scripts import run_credit_pipeline
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_credit_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))
@@ -67,7 +67,7 @@ def cmd_run(args) -> int:
         return 0
 
     if args.pipeline == 'gsfc':
-        from risk_pipeline.pipeline import run_gsfc_pipeline
+        from risk_legacy_chains.scripts import run_gsfc_pipeline
         steps = [s.strip() for s in args.steps.split(',')] if args.steps else None
         started = time.time()
         run_gsfc_pipeline(steps=steps, verbose=_is_verbose(args) and not _is_quiet(args))

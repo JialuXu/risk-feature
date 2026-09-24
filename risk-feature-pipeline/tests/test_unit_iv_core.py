@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """IV 内核数值单测：钉死 calc_iv / 自适应分箱 / 可信度分级 / WOE 截断。
 
-这些是去重重构（三份 iv_analysis.py → risk_pipeline.analysis.iv_core）的回归网：
+这些是去重重构（三份 iv_analysis.py → risk_mining.analysis.iv_core）的回归网：
 任何改动若改变了 IV 计算或可信度判定，这里会立刻红。
 """
 import math
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from risk_pipeline.analysis.iv_core import (
+from risk_mining.analysis.iv_core import (
     calc_iv,
     _assess_iv_reliability,
     _adaptive_bins,

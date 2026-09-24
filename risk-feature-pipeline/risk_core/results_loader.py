@@ -14,9 +14,7 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -26,20 +24,6 @@ from .contracts import (
     LEGACY_COL_RENAMES as _LEGACY_COL_RENAMES,
 )
 
-
-# 将 risk-feature-pipeline/ 根加入 sys.path（为 prepare_df 等相对导入兜底）。
-# 本模块已升入 risk_core/，不再写死层级：向上找首个含 risk_core/ 或 data/ 的目录。
-def _find_skill_root() -> str:
-    here = Path(__file__).resolve().parent  # risk_core/
-    for cand in [here, *here.parents]:
-        if (cand / 'risk_core').is_dir() or (cand / 'data').is_dir():
-            return str(cand)
-    return str(here.parent)  # 兜底：risk_core 的上一级
-
-
-_SKILL_ROOT = _find_skill_root()
-if _SKILL_ROOT not in sys.path:
-    sys.path.insert(0, _SKILL_ROOT)
 
 # 搜索顺序：generic → 征信(credit) → 工商财务(gsfc)
 # 优先匹配 generic 链路（run_generic_pipeline 导出到 data/results/<project>）
@@ -55,6 +39,12 @@ def _find_project_root(start: Optional[str] = None) -> str:
     """委托到 risk_core.paths.get_project_root（支持 RISK_PROJECT_ROOT）。"""
     from .paths import get_project_root
     return get_project_root(start=start)
+
+
+def _default_results_root() -> str:
+    """结果是写出来的产物：默认从输出根读（RISK_OUTPUT_ROOT，未设时回退项目根），与 export 一致。"""
+    from .paths import get_output_root
+    return get_output_root()
 
 
 @dataclass
@@ -186,7 +176,7 @@ def load_results(project_name: str,
     Args:
         project_name:  跑链路时传入的 project_name
         subdir:        结果子目录名；默认等于 project_name
-        project_root:  手动指定项目根（默认从 CWD 向上找 data/）
+        project_root:  手动指定产物根（默认 = 输出根：RISK_OUTPUT_ROOT，未设时从 CWD 向上找 data/）
         results_base:  data/results 级别的相对路径；None = 自动按优先级搜索
         output_base:   output 级别的相对路径；None = 跟随 results_base 自动选取
 
@@ -201,7 +191,7 @@ def load_results(project_name: str,
     Raises:
         FileNotFoundError: 所有候选路径均不存在；消息列出已尝试的路径。
     """
-    root = project_root or _find_project_root()
+    root = project_root or _default_results_root()
     subdir = subdir or project_name
 
     # 确定实际使用的路径

@@ -15,7 +15,7 @@ ROOT = str(Path(__file__).resolve().parent.parent)
 
 
 def _load_via_load_module(skill, module):
-    """复刻 risk_pipeline/pipeline.py 的 _switch_skill + _load_module。"""
+    """复刻旧 risk_pipeline/pipeline.py 的 _switch_skill + _load_module（现 risk_legacy_chains 仍用）。"""
     for k in [k for k in list(sys.modules) if k == 'scripts' or k.startswith('scripts.')]:
         del sys.modules[k]
     skill_dir = str(Path(ROOT) / skill)

@@ -24,8 +24,7 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score
 
 from .config import (
     CREDIT_CONFIG,
-    CREDIT_PIPELINE_PATHS,
-    GENERIC_PIPELINE_PATHS,
+    pipeline_paths,
     CREDIT_LLM_REPORT_GOAL_TEMPLATE,
     SAMPLE_THRESHOLDS,
     MIN_SAMPLES,
@@ -35,8 +34,8 @@ from .config import (
     COL_INDUSTRY_DATA_COLS, COL_AMOUNT_COLS, COL_SEGMENT_DIMS,
 )
 from .io_utils import read_csv_auto_encoding, ensure_dir
-from risk_pipeline.paths import get_project_root
-from risk_pipeline.column_mapper import ColumnMapper
+from risk_core.paths import get_project_root
+from risk_core.column_mapper import ColumnMapper
 
 _mapper = ColumnMapper()
 from .iv_analysis import calc_iv as _calc_iv_base, _assess_iv_reliability, iv_power_label
@@ -102,8 +101,8 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
         results:       dict，包含各步骤分析结果
         project_name:  可选的项目名称前缀，默认使用 CREDIT_CONFIG['project_name']
         output_subdir: 结果目录下的子目录名称，默认使用 timestamp
-        results_base:  data/results 级别的相对路径，None → CREDIT_PIPELINE_PATHS['results_rel']
-        output_base:   output 级别的相对路径，       None → CREDIT_PIPELINE_PATHS['output_rel']
+        results_base:  data/results 级别的相对路径，None → pipeline_paths('credit')['results_rel']
+        output_base:   output 级别的相对路径，       None → pipeline_paths('credit')['output_rel']
 
     返回:
         exported: 导出的文件列表
@@ -113,8 +112,8 @@ def export_results(project_root, results, project_name=None, output_subdir=None,
     pname = project_name or results.get('project_name') or CREDIT_CONFIG['project_name']
     subdir = output_subdir or results.get('output_subdir') or datetime.now().strftime('%Y%m%d_%H%M')
 
-    _results_base = results_base or CREDIT_PIPELINE_PATHS['results_rel']
-    _output_base  = output_base  or CREDIT_PIPELINE_PATHS['output_rel']
+    _results_base = results_base or pipeline_paths('credit')['results_rel']
+    _output_base  = output_base  or pipeline_paths('credit')['output_rel']
 
     out_dir = os.path.join(project_root, _output_base, subdir)
     res_dir = os.path.join(project_root, _results_base, subdir)
@@ -860,7 +859,7 @@ def _export_llm_report_json(project_root, llm_data, out_dir=None, project_name=N
 
     pname = project_name or CREDIT_CONFIG['project_name']
     if out_dir is None:
-        _base = output_base or CREDIT_PIPELINE_PATHS['output_rel']
+        _base = output_base or pipeline_paths('credit')['output_rel']
         out_dir = os.path.join(project_root, _base)
     ensure_dir(out_dir)
 

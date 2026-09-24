@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from risk_pipeline import cli
+from risk_mining import cli
 
 
 def _run(argv, capsys):
