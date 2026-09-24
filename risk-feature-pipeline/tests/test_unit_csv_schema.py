@@ -2,7 +2,6 @@
 """A4 / A5 单测：CSV 列名统一 + 文件改名兼容副本。"""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd

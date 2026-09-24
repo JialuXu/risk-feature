@@ -7,7 +7,6 @@ from typing import List
 
 import pandas as pd
 
-from . import style  # 字体配置
 from .style import POS_COLOR, NEUTRAL_COLOR, FIGSIZE_BAR_WIDE, GRID_COLOR
 
 

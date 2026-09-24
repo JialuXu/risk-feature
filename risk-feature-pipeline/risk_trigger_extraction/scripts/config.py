@@ -23,13 +23,6 @@
                          {"dim": "X", "values": ["Y1","Y2"]}   # 多值维度筛选
   iv_waist           : 腰部企业IV（scope='waist' 时用于加权得分；通用 scope 无此字段，统一用 iv）
 """
-import sys
-from pathlib import Path
-
-# 向上两级找到 risk-feature-pipeline 根
-_pipeline_root = str(Path(__file__).resolve().parent.parent.parent)
-if _pipeline_root not in sys.path:
-    sys.path.insert(0, _pipeline_root)
 
 from risk_core.config import (  # noqa: F401
     COL_CUSTOMER_ID,

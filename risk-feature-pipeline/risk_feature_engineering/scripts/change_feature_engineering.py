@@ -6,7 +6,6 @@
 risk_iv_diagnosis / risk_segment_univariate 职责重叠）。
 """
 
-import pandas as pd
 
 from .config import (
     CHANGE_HIGH_RISK_CUMULATIVE_COLS,

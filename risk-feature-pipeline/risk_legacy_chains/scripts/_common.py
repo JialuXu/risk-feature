@@ -5,15 +5,7 @@
 **复制**这两段（而非从 risk_pipeline.pipeline 反向 import），以免形成
 risk_legacy_chains -> risk_pipeline.pipeline 的回边。
 """
-import sys
 import importlib
-from pathlib import Path
-
-# 确保 risk-feature-pipeline/ 在 sys.path 中（本文件在 risk_legacy_chains/scripts/ 下，
-# 上溯三级到仓库根），使 _load_module 的 `risk_X.scripts.Y` 限定导入可解析。
-_MY_SKILLS_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _MY_SKILLS_ROOT not in sys.path:
-    sys.path.insert(0, _MY_SKILLS_ROOT)
 
 
 def _load_module(skill_name, module_name):

@@ -9,8 +9,7 @@ from .config import (
     WOE_CAP,
     COL_TARGET,
 )
-from .iv_analysis import _adaptive_bins as _adaptive_bins_for_woe
-from risk_mining.analysis.iv_core import _quantile_bins
+from risk_mining.analysis.iv_core import _adaptive_bins as _adaptive_bins_for_woe, _quantile_bins
 
 
 def rate_feature(iv_val, corr_mean, sign_consistent):

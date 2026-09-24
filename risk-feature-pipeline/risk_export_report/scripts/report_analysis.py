@@ -17,28 +17,19 @@ import os
 import warnings
 import numpy as np
 import pandas as pd
-from scipy import stats
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedKFold, cross_val_score
 
 from .config import (
     CREDIT_CONFIG,
     pipeline_paths,
     CREDIT_LLM_REPORT_GOAL_TEMPLATE,
     SAMPLE_THRESHOLDS,
-    MIN_SAMPLES,
-    MIN_BAD_SAMPLES,
-    COL_CUSTOMER_ID, COL_CUSTOMER_ID_STR, COL_TARGET,
-    COL_REPORT_DATE, COL_QUAL_PREFIX,
-    COL_INDUSTRY_DATA_COLS, COL_AMOUNT_COLS, COL_SEGMENT_DIMS,
+    COL_TARGET,
 )
-from .io_utils import read_csv_auto_encoding, ensure_dir
-from risk_core.paths import get_project_root
+from .io_utils import ensure_dir
 from risk_core.column_mapper import ColumnMapper
 
 _mapper = ColumnMapper()
-from .iv_analysis import calc_iv as _calc_iv_base, _assess_iv_reliability, iv_power_label
+from risk_mining.analysis.iv_core import iv_power_label
 from .report_insights import rate_feature
 
 warnings.filterwarnings('ignore')

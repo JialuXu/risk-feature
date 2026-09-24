@@ -2,7 +2,6 @@
 """单元测试：PipelineState 行为（Level 推进、known_datasets、并发锁）。"""
 from __future__ import annotations
 
-import os
 import threading
 
 import pytest

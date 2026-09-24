@@ -8,7 +8,6 @@ from .iv_analysis import (
     run_iv_analysis,
 )
 from .iv_group_diagnosis import (
-    calc_feature_thresholds,
     iv_by_group,
     iv_by_qualification,
     iv_full_analysis,
@@ -24,5 +23,4 @@ __all__ = [
     'iv_by_group',
     'iv_by_qualification',
     'reliability_diagnosis',
-    'calc_feature_thresholds',
 ]

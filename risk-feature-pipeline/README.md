@@ -15,7 +15,7 @@
 ```bash
 pip install .            # 核心：分析链路（prepare/analyze/export/query/trigger/run）
 pip install '.[viz]'     # 追加：visualize 出图（matplotlib）
-pip install '.[dev]'     # 追加：pytest 等开发依赖
+pip install '.[dev]'     # 追加：pytest / ruff 等开发依赖（本地自检：ruff check . && pytest -q，与 CI 一致）
 ```
 
 安装后可在**任意目录**运行；产物默认落在**当前工作目录**下的 `data/results/<project>/` 与 `output/<project>/`。要固定输入/输出位置，设两个环境变量（优先级高于自动探测）：
@@ -41,7 +41,7 @@ risk-pipeline run --pipeline generic --wide data/raw/x.csv \
 python -m risk_pipeline <subcommand> [args]
 ```
 
-核心子命令如下：
+9 个子命令如下（全局参数 `-q` / `--verbose` / `--state-dir` 写在子命令前后均可）：
 
 | 子命令 | 作用 | 结果层级 |
 |---|---|---|
@@ -50,6 +50,7 @@ python -m risk_pipeline <subcommand> [args]
 | `export` | 将 `_intermediate/` 转成标准 CSV、LLM JSON 和分群画像 | Level 1 |
 | `query` | 只读已有结果，查询 top IV / LR / 相关性 | 不推进 |
 | `visualize` | Level 1 后读取结果 CSV 生成 PNG 图表 | 不推进 |
+| `explore_thresholds` | Level 1 后对人工挑选的 (分群, 特征) 跑 optbinning 候选阈值 | 不推进 |
 | `trigger` | 将风险结论落到客户级触碰明细 | Level 2 |
 | `report` | 将 LLM JSON 与报告正文渲染为 Word | Level 3 |
 | `run` | 便捷组合；`generic` 走 `prepare → analyze → export` | Level 1 |

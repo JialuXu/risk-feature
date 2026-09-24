@@ -31,7 +31,7 @@ def __getattr__(name: str) -> Path:
     """
     if name == 'DEFAULT_OUTPUT_DIR':
         # risk_core.paths 需要 risk-feature-pipeline/（= PROJECT_ROOT）在
-        # sys.path 上；CLI 入口在 cli.py:25-27 已做注入。直调 Python API 时若
+        # sys.path 上；CLI / pip 安装 / pytest 下天然满足。以裸模块方式直跑脚本时若
         # sys.path 未含该目录则在此兜底加一次。
         if str(PROJECT_ROOT) not in sys.path:
             sys.path.insert(0, str(PROJECT_ROOT))

@@ -1,382 +1,110 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code 在本仓库工作时的指引。
 
-## Repository Overview
+## 仓库范围
 
-The project content is **`risk-feature-pipeline/`** — a custom enterprise credit risk feature analysis pipeline (企业征信风险特征分析).
+项目本体是 **`risk-feature-pipeline/`**：企业征信风险特征分析流水线（IV / LR / 规则挖掘 / 客户级触碰 / Word 报告）。
+用户说"更新项目 / 审查改动 / 加功能"时，默认只在这个目录里动手。
 
-**Non-project directories** (reference material only, not part of the codebase):
-- `skills/` — Anthropic's official Skills examples (cloned from anthropics/skills). Used only as a reference for SKILL.md authoring conventions. Do **not** edit or ship files here as part of the pipeline.
-- `data/`, `output/`, `data_old/`, `衍生指标设计/` — local scratch / drafts (gitignored; not reviewed as code).
-- `subprojects/` — sibling projects/experiments consolidated in one place: `risk-indicator-agent/`, `risk_data_extract/`, `risk_feature_MCPServer/`, `uci_acceptance_test/`, `handbook/`. Touch only when the user explicitly points there.
+其它目录不属于项目代码：
+- `subprojects/`（`risk-indicator-agent/`、`risk_data_extract/`、`risk_feature_MCPServer/`、`uci_acceptance_test/`、`handbook/`）—— 兄弟项目，用户明确指向时才碰。
+- `.cursor/skills/` —— 另一个工具的 skill，与本流水线无关。
+- `data/`、`output/`、`data_old/`、`衍生指标设计/` —— 本地数据与草稿（gitignore）。
 
-When the user asks you to "update the project" / "review my changes" / "add a feature," scope your work to `risk-feature-pipeline/` unless they explicitly point elsewhere.
-
-## Risk Analysis Pipeline (risk-feature-pipeline/)
-
-A modular pipeline for mining risk characteristics across customer segments. Each step is a standalone Skill with its own `SKILL.md` and `scripts/` directory. An orchestrator SKILL.md at the pipeline root picks between three pipelines (`credit` / `gsfc` / `generic`) and execution depths (full / single-dim fast / read-existing-results).
-
-### Directory Structure
+## 架构（依赖单向，`tests/test_unit_kernel_boundary.py` 机器化锁定）
 
 ```
-risk-feature-pipeline/
-├── SKILL.md                   # 顶层调度器（credit/gsfc/generic 三条链路的路由）
-├── AGENTS.md                  # 本目录下 agent 的硬规矩（先查再跑、prepare_df、verbose=False 等）
-├── report-prompt.md           # DOCX 报告写作约束（供 risk_docx_report 使用）
-│
-├── risk_pipeline/             # 共享模块 + 统一 CLI 入口
-│   ├── __init__.py
-│   ├── __main__.py            # python -m risk_pipeline 执行入口
-│   ├── cli.py                 # 9 子命令解析（prepare/analyze/export/query/visualize/trigger/explore_thresholds/report/run）
-│   ├── cli_commands.py        # 子命令实现（薄壳 wrap 现有 Python API + state 推进）
-│   ├── cli_io.py              # _intermediate/ 落盘与重建、features.json、数据集指纹
-│   ├── pipeline_state.py      # .pipeline_state.json：Level 推进 + 历史追加 + 阻断节点
-│   ├── paths.py               # get_project_root / get_output_root（唯一定位入口）
-│   ├── config.py              # 公共配置（从 YAML 加载）
-│   ├── config_loader.py       # YAML 加载器（支持深度合并）
-│   ├── column_mapper.py       # 字段映射器 ColumnMapper
-│   ├── pipeline.py            # run_credit_pipeline / run_gsfc_pipeline / run_generic_pipeline
-│   └── analysis/              # ⭐ 共享分析内核（去重后单一实现）
-│       ├── __init__.py
-│       ├── iv_core.py         # IV/WOE/自适应分箱/可信度：唯一实现（三个 Skill 的 iv_analysis.py 退化为 shim）
-│       └── engine.py          # 分群 单变量/IV/LR 引擎：唯一实现（iv_group_diagnosis / group_logistic_regression 退化为 shim）
-│
-├── shared/                    # ⚠️ 兼容 shim：转发到 risk_pipeline.*；下个版本会移除
-│
-├── config/                    # YAML 配置目录
-│   ├── default.yaml           # 默认阈值、IV 参数、数据路径
-│   └── column_mapping.yaml    # 字段映射模板（主键、目标列、分群维度）
-│
-├── risk_data_prep/            # Step 1: 数据准备
-│   └── scripts/
-│       ├── prepare_df.py      # ⭐ 标准 "宽表 + 坏客户 → (df, feature_cols)" 合成
-│       ├── data_prep.py       # prepare_credit_wide_table
-│       ├── wide_table_builder.py
-│       └── io_utils.py
-│
-├── risk_feature_engineering/  # Step 2: 特征工程
-│   └── scripts/
-│       ├── financial_feature_engineering.py
-│       ├── credit_feature_engineering.py
-│       └── change_feature_engineering.py   # 工商变更类衍生特征
-│
-├── risk_segment_univariate/   # Step 3: 分群单变量
-├── risk_iv_diagnosis/         # Step 4: IV 诊断
-├── risk_logistic_regression/  # Step 5: 逻辑回归
-├── risk_rule_mining/          # Step 5.5 (可选): 决策树规则挖掘
-├── risk_export_report/        # Step 6: 标准 CSV + LLM JSON 导出
-│
-├── risk_result_query/         # ⭐ 查询型子 Skill：读磁盘上的已导出结果
-│   ├── SKILL.md
-│   ├── references/            # 按需加载的参考（列名、配方、文件布局）
-│   │   ├── columns.md
-│   │   ├── query_recipes.md
-│   │   └── file_layout.md
-│   └── scripts/
-│       └── results_loader.py  # load_results / top_features
-│
-├── risk_trigger_extraction/   # ⭐ 触碰提取子 Skill：把风险结论落到每个客户
-│   ├── SKILL.md
-│   └── scripts/
-│       ├── config.py          # RISK_FEATURES_GSFC 默认特征配置（GSFC 主题；RISK_FEATURES 为兼容 alias）
-│       └── trigger_extraction.py  # extract_triggers / compute_thresholds / evaluate_triggers
-│
-├── risk_threshold_explore/    # ⭐ 候选规则阈值探索：单变量 optbinning + 业务级判定
-│   ├── SKILL.md
-│   └── scripts/
-│       ├── config.py          # 五道门槛默认值 + OPTBIN_PARAMS
-│       ├── threshold_explore.py  # explore_thresholds 核心 API
-│       └── io_utils.py        # pair-list 读 + 候选阈值表写 + audit 节点追加
-│
-├── risk_docx_report/          # 交付型子 Skill：LLM JSON → 正式 Word 报告
-│   └── scripts/
-│       ├── build_prompt_bundle.py     # 打包 report-prompt.md + LLM JSON
-│       ├── build_docx_report.py       # Markdown 正文 → .docx
-│       └── render_docx_report.js      # Node 渲染器
-│
-└── risk_visualization/        # ⭐ 可视化子 Skill：Level 1 后读 CSV → PNG 图表
-    ├── SKILL.md
-    ├── references/chart_types.md      # 各图含义、解读、常见误读
-    └── scripts/
-        ├── visualize.py               # generate_charts() 顶层入口
-        ├── font_utils.py              # 中文字体 OS 探测
-        ├── style.py                   # 调色板 / figsize / dpi
-        ├── chart_iv.py                # IV 条形图 + 分群 IV 热力图
-        ├── chart_corr.py              # 分群 × 特征 相关系数热力图
-        ├── chart_lr.py                # LR 系数热力图 + 跨分群 AUC
-        ├── chart_segment.py           # 分群画像（坏客户率柱图）
-        ├── chart_rules.py             # 规则 lift × coverage 散点
-        ├── chart_combinations.py      # 指标组合 max-lift 条形图
-        └── chart_threshold.py         # 候选阈值分箱坏率图 + 风险倍数对比图
+risk_core/        叶子层：paths / config / config_loader / column_mapper / contracts（磁盘契约单一真源）
+                  / missing（缺失值口径）/ results_loader / io_utils / font_utils —— 不依赖任何上层
+risk_mining/      挖掘内核：analysis/{engine,iv_core} · pipeline（run_generic_pipeline）
+                  · pipeline_state（Level 状态机）· export（assemble_exports）—— 只依赖 risk_core
+                  （导出步另调其实现 risk_export_report）
+                  组合根：cli · argspec（flag 单一注册表）· commands/<子命令>.py —— 唯一可同时 import 内核与子 skill 的层
+risk_legacy_chains/  credit / gsfc 黑盒老链路（归组合根层；数值由 tests/test_golden_legacy_chains.py 钉死，不改口径）
+risk_<子skill>/   各自 SKILL.md + scripts/；独立子 skill（data_prep / result_query / visualization /
+                  trigger_extraction / threshold_explore / docx_report）只依赖 risk_core，互不横向依赖
+risk_pipeline/ · shared/   纯兼容 shim（旧导入路径的别名/再导出），生产代码不得依赖，下版本删除
 ```
 
-### Skill 分工概览
+新代码按上面分层 import：`from risk_core.paths import ...`、`from risk_mining.analysis.engine import ...`，
+**不要**再写 `risk_pipeline.*` / `shared.*`，也不要在模块顶层 `sys.path.insert`。
+设计与迁移史见 `docs/DECOUPLING-DESIGN.md`，版本变更代号（A1/D2/E1…）见 `CHANGELOG.md`。
 
-| Skill | 角色 | 典型触发语 |
-|---|---|---|
-| 顶层 `SKILL.md` | 总控调度（选链路 + 选深度） | "帮我做风险特征分析"、"分析这份宽表" |
-| `risk_data_prep` | 宽表构建、打标、字段摸底 | "合并数据"、"打 is_bad 标签" |
-| `risk_feature_engineering` | 比率类衍生特征 | "做特征工程" |
-| `risk_segment_univariate` | 分群相关性/均值差/T 检验 | "分群单变量" |
-| `risk_iv_diagnosis` | 自适应分箱 IV + 可信度 | "IV 分析"、"IV 可信度" |
-| `risk_logistic_regression` | 标准化 + L2 的分群 LR | "LR"、"回归系数"、"AUC" |
-| `risk_rule_mining` | 决策树规则挖掘（多变量交互） | "规则挖掘"、"预警规则"、"审批规则" |
-| `risk_export_report` | 8 CSV + LLM JSON + 分群画像 | "导出结果"、"生成 LLM JSON" |
-| `risk_result_query` | **只读磁盘已有结果**，不重跑 | "查/看/top X"、"解读已有分析" |
-| `risk_trigger_extraction` | 把风险结论落到每个客户（触碰 + IV 加权得分） | "哪些客户触碰了风险阈值"、"生成风险预警名单"、"客户级风险扫描" |
-| `risk_threshold_explore` | 候选规则阈值探索（单变量 optbinning + 风险倍数 + 卡方 p） | "候选阈值/单变量阈值评审/这几个 (分群,特征) 跑一下" |
-| `risk_docx_report` | LLM JSON → `.docx` | "生成 Word 报告"、"正式报告" |
-| `risk_visualization` | IV/相关性/LR/分群/规则/指标组合 PNG 图表（Level 1 后只读出图；面向业务报告，仅出概览+每维度热力图） | "画图/可视化/IV 条形图/AUC 图/指标组合图" |
+## 入口
 
-### Pipeline Flow
-
-```
-risk_data_prep → risk_feature_engineering → risk_segment_univariate
-                                          → risk_iv_diagnosis
-                                          → risk_logistic_regression
-                                          → risk_rule_mining (optional)
-                                                    ↓
-                                          risk_export_report
-                                                    ↓
-                                          risk_docx_report (optional, for .docx)
-
-          查询路径（不触发上面任一步骤）：
-          已导出 CSV → risk_result_query.load_results() → top_features()
-
-          可视化路径（Level 1 后；不触发上面任一步骤）：
-          已导出 CSV → risk_visualization.generate_charts() → output/<project>/charts/*.png
-
-          阈值探索路径（Level 1 后；不推进 level）：
-          已导出 CSV + 人工 pair 清单 → risk_threshold_explore.explore_thresholds()
-                                       → 候选阈值表 + 分箱明细 + audit 追加节点
-```
-
-### Key Entry Points
-
-```python
-# ⭐ 标准数据准备入口（不要再每个 agent 手抄合并坏客户的代码）
-from risk_data_prep.scripts import prepare_df
-df, feature_cols = prepare_df(
-    wide_path='...', bad_customer_path='...',
-    id_col='客户编号', target_col='is_bad',
-    filter={'企业规模': {'exclude': ['0']}},
-    exclude_features={'授信总金额', '表内授信余额'},
-)
-
-# ⭐ 统一链路执行
-from shared.pipeline import (
-    run_credit_pipeline, run_gsfc_pipeline, run_generic_pipeline,
-)
-run_generic_pipeline(
-    df=df, feature_cols=feature_cols, target_col='is_bad',
-    project_name='舆情特征分析', category_dims=['企业规模'], qual_dims=[],
-    steps=['univariate', 'iv', 'lr', 'export'], verbose=False,
-)
-
-# ⭐ 查询已导出结果（不重跑链路）
-from risk_result_query.scripts import load_results, top_features
-r = load_results('舆情特征分析')          # 自动定位 data/results/征信/<project>/
-top_features(r, kind='iv', n=15)
-top_features(r, kind='lr', dim='企业规模', group='小型企业', n=15, sign='positive')
-top_features(r, kind='corr', dim='企业规模', group='小型企业', n=15)
-
-# ⭐ 触碰提取（把风险结论落到每个客户）
-from risk_trigger_extraction.scripts.trigger_extraction import extract_triggers
-df_wide, df_long, df_threshold = extract_triggers(
-    df=df,                          # 已完成特征工程的宽表
-    project_name='征信触碰分析',    # 输出文件前缀
-)
-# 默认 features=None → 走 RISK_FEATURES_GSFC（仅工商财务主题适用）。其它主题
-# （征信、舆情、generic）必须传 features=YOUR_LIST 或 CLI --features-file，
-# 否则若匹配率 < 70% 会抛 RuntimeError 阻断（避免输出全 0 名单；数值单一真源
-# 见 risk-feature-pipeline/references/blocking-gates.md 与 MIN_DEFAULT_FEATURE_MATCH_RATE）。
-# 默认会从宽表 CSV 剔除 is_bad/企业规模 等元信息列防 merge 冲突；
-# 需保留可传 keep_metadata_cols=['企业规模', ...]。
-
-# 单步调用（高级用法，普通情况用上面的统一入口即可）
-from risk_data_prep.scripts.data_prep import prepare_credit_wide_table
-from risk_feature_engineering.scripts.financial_feature_engineering import feature_engineering
-from risk_segment_univariate.scripts.segment_univariate import univariate_by_group
-from risk_iv_diagnosis.scripts.iv_group_diagnosis import iv_by_group, reliability_diagnosis
-from risk_logistic_regression.scripts.group_logistic_regression import lr_by_group
-from risk_rule_mining.scripts.rule_extraction import mine_rules
-from risk_export_report.scripts.report_analysis import export_results, build_llm_report_data
-```
-
-注：所有子 Skill 目录均使用下划线命名，可直接作为 Python 包导入。
-
-### CLI Entry (risk_pipeline)
-
-9 子命令（含 `visualize` / `explore_thresholds` / `run`），每条对应链路里一个固定阶段；状态机：前置 → 过渡态 → Level 1 → Level 2/3。
+对 agent 暴露的唯一入口是 CLI（`cd risk-feature-pipeline`）：
 
 ```bash
-cd risk-feature-pipeline
+# 一键：generic 走 prepare → analyze → export（→ Level 1）
+python -m risk_pipeline run --pipeline generic --wide data/raw/x.csv --bad-customer data/raw/bad.csv \
+    --id-col 客户编号 --target-col is_bad --project xxx --confirmed-new-dataset
+python -m risk_pipeline run --pipeline credit        # 老链路；gsfc 同理，数据路径走随包 YAML
 
-# 一键跑通（generic：自带宽表 + 坏客户清单）
-python -m risk_pipeline run --pipeline generic \
-    --wide data/raw/x.csv --id-col 客户编号 --target-col is_bad \
-    --project xxx --confirmed-new-dataset
+# 细控
+python -m risk_pipeline prepare  --wide ... --bad-customer ... --id-col ... --target-col ... --project xxx
+python -m risk_pipeline analyze  --project xxx --steps univariate,iv,lr,rules --category-dims 企业规模
+python -m risk_pipeline export   --project xxx                       # → Level 1
 
-# 也支持征信/工商财务老链路（数据路径走 config/ 默认值）
-python -m risk_pipeline run --pipeline credit
-python -m risk_pipeline run --pipeline gsfc --steps data_prep,iv
-python -m risk_pipeline run --pipeline credit --quiet
-
-# 三步走（细控）：prepare → analyze → export
-python -m risk_pipeline prepare --wide data/raw/x.csv \
-    --bad-customer data/raw/bad.csv --id-col 客户编号 \
-    --target-col is_bad --project xxx --confirmed-new-dataset
-python -m risk_pipeline analyze --project xxx \
-    --steps univariate,iv,lr,rules --category-dims 企业规模
-python -m risk_pipeline export --project xxx
-
-# 后置子命令
-python -m risk_pipeline query --project xxx --kind iv --top 15
+# Level 1 之后（query / visualize / explore_thresholds 不推进 Level）
+python -m risk_pipeline query    --project xxx --kind iv --top 15
 python -m risk_pipeline visualize --project xxx
-python -m risk_pipeline trigger --project xxx --use-default-features --confirmed
 python -m risk_pipeline explore_thresholds --project xxx --pairs-file pairs.csv
-python -m risk_pipeline report --project xxx \
-    --report-markdown report.md --purpose internal
-
-python -m risk_pipeline --help          # 全局帮助
-python -m risk_pipeline <子命令> --help  # 子命令帮助
+python -m risk_pipeline trigger  --project xxx --features-file f.json --confirmed    # → Level 2
+python -m risk_pipeline report   --project xxx --report-markdown r.md --purpose internal   # → Level 3
 ```
 
-合法 `--steps` 取值：
-- `run --pipeline credit`：`data_prep`、`feature_engineering`、`univariate`、`iv`、`lr`、`export`
-- `run --pipeline gsfc`：`data_prep`、`feature_eng`、`univariate`、`iv`、`lr`、`export`
-- `run --pipeline generic` / `analyze`：`univariate`、`iv`、`lr`、`rules`（CLI 强制按此顺序；`export` 由独立子命令完成）
+- 全局参数 `-q` / `--verbose` / `--state-dir` 写在子命令前后均可。
+- `--steps` 合法值：generic/analyze = `univariate,iv,lr,rules`；credit = `data_prep,feature_engineering,univariate,iv,lr,export`；gsfc = `data_prep,feature_eng,univariate,iv,lr,export`。
+- Level 状态机：前置 → 过渡态 → Level 1 → Level 2 → Level 3，记录在 `data/results/<project>/.pipeline_state.json`；prepare 输入变化会把 Level 重置为前置。阻断节点与确认参数见 `references/blocking-gates.md`，各子命令用法见 `references/cli/*.md`。
+- Python API（notebook 调研用）：`risk_data_prep.scripts.prepare_df` → `risk_mining.pipeline.run_generic_pipeline`；读结果用 `risk_result_query.scripts.load_results / top_features`。
 
-老入口 `python -m shared --pipeline ...` 仍可用，但会打印 deprecation 警告，下个版本会移除。
+## Agent 硬规矩（详见 `risk-feature-pipeline/AGENTS.md`）
 
-`risk_pipeline/` 内含统一 CLI（`cli.py` / `cli_commands.py` / `cli_io.py`）、唯一权威的路径模块 `paths.py`（见下文 Data Paths）、运行时状态 `pipeline_state.py`，以及配置入口 `config.py` / `config_loader.py` / `column_mapper.py`。`shared/` 仍保留作为旧的兼容入口。
+1. **先查再跑**：用户说"查/读/解读/top X"时走 `query` / `risk_result_query`，不重跑链路。
+2. **用 `prepare` / `prepare_df`**，不要手抄"读宽表 + 合并坏客户 + 选特征列"。
+3. 单脚本 + `verbose=False` + `head(N)`；大结果禁止整表打印。
+4. 报结论前先看 `{project}_audit.json`（IV 过拟合嫌疑、不稳定规则、Level）。
 
-### Tests
+## 配置与路径
 
-测试在 `risk-feature-pipeline/tests/`（pytest）。`conftest.py` 会把 `risk-feature-pipeline/` 注入 `sys.path` 并提供 `synthetic_dataframe` fixture，可直接从仓库根运行：
+- 配置单一来源：`risk_core/config.py`，数值来自随包 `risk_core/config/default.yaml` + `column_mapping.yaml`。
+- **不支持运行时覆盖（单行场景，已决）**：CLI 与 Python API 都只读随包 YAML，没有 `--config`。适配某份数据走 flag（`--id-col` / `--target-col` / `--category-dims` …）；长期接入新银行属开发仓库维护动作，直接改随包 YAML。
+- 路径唯一入口 `risk_core/paths.py`：`RISK_PROJECT_ROOT`（输入根）、`RISK_OUTPUT_ROOT`（输出根，缺省 = 项目根）；优先级 env > 入参 > 自 CWD 向上找 `data/` > CWD。均在调用时解析。读、写产物统一以输出根为准；读产物的子命令自动跟随 `export --output-subdir`。细节见 `references/paths-env.md`。
+- **永远不要**自写 `os.getcwd()` / `__file__` 兜底路径，用 `risk_core.paths` 的 `get_project_root / get_output_root / results_dir / output_dir / ensure_writable_dir`。
+
+## 统计口径要点
+
+- 样本门槛（`default.yaml` `thresholds`）：MIN_SAMPLES 50、MIN_BAD_SAMPLES 10（IV）、MIN_BAD_CORR 15、MIN_BAD_LR 20 / MIN_GOOD_LR 50、MIN_SAMPLES_CV 200 / MIN_BAD_CV 30（不足则 AUC 降为训练集口径并标注）。
+- IV：自适应分箱，零膨胀特征众数单独成箱，缺失单独成箱，WOE 截断 ±5；IV > 2.0 视为过拟合嫌疑、不进推荐；可信度 可信 / 参考 / 不可信-样本不足 / 不可信-过拟合嫌疑。
+- 缺失值（`risk_core/missing.py`）：统计检验成对删除；LR / 规则 / 阈值用中位数填补（训练与评估同一套）；IV/WOE 缺失单独成箱；credit/gsfc 老链路保持原口径。
+- 规则：训练集挖掘、留出集评估 Lift/闸门，稳定性为留出集 bootstrap；坏客户不足时回退样本内并在「评估口径」列标注。
+- 触碰阈值只在适用范围内计算，并做风险方向校验。
+
+## 产物
+
+generic 链路写 `data/results/<project>/` 与 `output/<project>/`（credit/gsfc 结果 CSV 带 `征信/`、`工商财务/` 前缀）。
+文件名 `{project}_{类型}.csv`（utf-8-sig），主要有 `_IV分析结果_全量.csv`、`_IV分析结果_分群.csv`、`_特征风险相关性.csv`、
+`_逻辑回归系数.csv`、`_IV可信度诊断.csv`、`_IV值透视表.csv`、`_综合特征分析结果.csv`、`_风险规则表.csv`、
+`_LLM报告数据.json`、`_LLM_分群画像.csv`、`_audit.json`。列名与 schema 见 `docs/SCHEMA.md`，术语见 `docs/GLOSSARY.md`。
+
+## 开发与测试
 
 ```bash
 cd risk-feature-pipeline
-pytest                                          # 全部
-pytest tests/test_unit_paths.py                 # 单文件
-pytest tests/test_unit_paths.py::test_env_project_root_wins   # 单用例
-pytest -k smoke                                 # 仅 smoke
+pip install -e '.[viz,dev]'
+ruff check .            # 只开语法错误 + pyflakes 规则，配置在 pyproject.toml
+python -m pytest -q     # 全部；-k smoke 只跑端到端冒烟
 ```
 
-- `test_smoke_*.py` — legacy / query / generic 链路 / trigger 的端到端冒烟。
-- `test_unit_paths.py` — `RISK_PROJECT_ROOT` / `RISK_OUTPUT_ROOT` 优先级、`ensure_writable_dir` 友好报错。
-- `test_unit_state.py`、`test_unit_blocking.py`、`test_unit_validation.py` — pipeline_state / 阻断逻辑 / 入参校验。
+CI（`.github/workflows/risk-feature-pipeline.yml`）在 Python 3.10 / 3.12 上跑同样两步。关键测试：
+`test_unit_kernel_boundary.py`（分层红线，含字符串式动态 import）、`test_golden_legacy_chains.py`（老链路数值钉死）、
+`test_unit_skill_independence.py`（独立子 skill 隔离）、`test_smoke_*.py`（端到端）。
 
-### Configuration Architecture
+## 编码规范
 
-All configuration is centralized and YAML-driven:
-
-- **唯一 Python 配置源**: `risk-feature-pipeline/risk_core/config.py` — 所有模块 `from risk_core.config import ...`（`risk_pipeline.config` / `shared.config` 是转发 shim）
-- **YAML 数据源**: `risk_core/config/default.yaml` + `risk_core/config/column_mapping.yaml`（随包分发；IV 可信度阈值见 `iv.credibility`）
-- **各子模块 `scripts/config.py`**: 仅 `from risk_core.config import *` + 模块专属常量
-- **不支持运行时覆盖（单行场景，已决）**: CLI 与 Python API 都只读随包 YAML，没有 `--config` / 覆盖文件入口。适配某份数据走 CLI flag（`--id-col` / `--target-col` / `--category-dims` …）；长期接入新银行属开发仓库维护动作，直接改随包 YAML。
-- **输出路径常量**（`RESULTS_DIR*` / `OUTPUT_DIR*`）在访问时按 `RISK_OUTPUT_ROOT` 解析，不再 import 时冻结。
-
-```python
-from risk_core.column_mapper import ColumnMapper
-mapper = ColumnMapper()          # 读随包 column_mapping.yaml
-mapper.customer_id  # -> "客户编号"
-mapper.target       # -> "is_bad"
-mapper.qual_prefix  # -> "是_"
-mapper.detect_qual_cols(df.columns)
-```
-
-### Sample Thresholds
-
-Centralized in `risk_core/config/default.yaml` (Python: `shared.config`):
-
-| Threshold | Value | Purpose |
-|-----------|-------|---------|
-| MIN_SAMPLES | 50 | Skip segment if total < 50 |
-| MIN_BAD_SAMPLES | 10 | Skip IV calculation |
-| MIN_BAD_CORR | 15 | Skip correlation/T-test |
-| MIN_BAD_LR | 20 | Skip logistic regression |
-| MIN_GOOD_LR | 50 | Skip logistic regression |
-| MIN_SAMPLES_CV | 200 | Downgrade to train-set AUC |
-| MIN_BAD_CV | 30 | Downgrade to train-set AUC |
-
-### IV Reliability Rules
-
-- WOE capped to [-5.0, +5.0]
-- Adaptive binning: `bins = max(3, min(n_bad // 3, n_samples // 20, 10))`
-- IV > 2.0 = overfitting suspect, excluded from recommendations
-- Credibility grades: 可信 / 参考 / 不可信-样本不足 / 不可信-过拟合嫌疑
-
-### Standard Output Files
-
-Pattern: `{project_name}_{type}.csv` (UTF-8 with BOM). generic 链路写
-`data/results/{project_name}/` 与 `output/{project_name}/`（无主题前缀）；
-credit/gsfc 老链路的**结果 CSV** 带 `征信/`、`工商财务/` 前缀（保留不动）。
-`.pipeline_state.json` 已于解耦阶段 9 统一：所有链路都落 `data/results/{project}/`。
-
-A4/A5 后产物列名/文件名已统一对外（旧名仍写一份兼容副本，下版本移除）：
-- 列：`特征` / `分群维度` / `分群名称`（旧 `特征名称` / `分群值` 在 `load_results()` 读取时自动 rename）
-- 文件：IV 按颗粒度拆分
-
-1. `_IV分析结果_全量.csv` ⭐ — Full-sample IV (旧名 `_IV分析结果.csv` 兼容副本仍写)
-2. `_特征风险相关性.csv` — Per-segment correlations
-3. `_逻辑回归系数.csv` — LR coefficients + AUC + AUC type
-4. `_IV分析结果_分群.csv` ⭐ — Per-segment IV with credibility (旧名 `_IV值分析.csv` 兼容副本)
-5. `_IV可信度透视表.csv` — Credibility pivot
-6. `_IV可信度诊断.csv` — IV reliability summary
-7. `_IV值透视表.csv` — IV pivot (查 top N 最快：行=分群、列=特征)
-8. `_综合特征分析结果.csv` — Consolidated
-9. `_LLM报告数据.json` + `_LLM_分群画像.csv` — for LLM / docx report
-10. `_audit.json` ⭐ — 机器可读自检（IV>2 过拟合特征、不稳定规则、Level 状态；agent 报回前 cat 这个文件）
-
-`risk_result_query.load_results(project_name)` 一次性读取上述文件并暴露为长格式 DataFrame（`iv_full` / `iv_group_all` / `corr_long` / `lr_coef_long` / `lr_auc_long` / `comprehensive` / `reliability_summary` 等）。列名详情见 `docs/SCHEMA.md` 与 `risk_result_query/references/columns.md`；术语表见 `docs/GLOSSARY.md`。
-
-## Agent Behavior (risk-feature-pipeline/AGENTS.md + .cursor rules)
-
-`.cursor/rules/karpathy-guidelines.mdc` 设了 `alwaysApply: true`，对所有改动生效：澄清假设、保持简单、外科手术式改动、目标驱动验证。
-
-在 `risk-feature-pipeline/` 下工作时，必须遵守 `AGENTS.md` 的硬规矩：
-
-1. **先查再跑**：用户说"查/读/解读/top X"时默认走 `risk_result_query`，不重跑链路
-2. **用 `prepare_df`**：不要手抄"读宽表 + 合并坏客户 + 选特征列"
-3. **单脚本 + `verbose=False` + `head(N)`**：Bash 之间不保留 Python 状态；大结果禁止整表打印
-
-决策树、禁止清单、失败上报格式见 `risk-feature-pipeline/AGENTS.md`。
-
-## Coding Standards
-
-- All interactions, comments, outputs in Chinese (中文)
-- Matplotlib: include OS-detection for Chinese font support
-- Skipped segments must be logged explicitly with reason
-- AUC must be labeled with type (交叉验证 / 训练集-样本不足 / 训练集-CV失败)
-- No customer names, IDs, or phone numbers in any output
-- CSV exports use `utf-8-sig` encoding
-
-## Data Paths
-
-All data paths are configurable via `risk_core/config/default.yaml`. Defaults:
-
-- `data/raw/` — Source data (read-only)
-- `data/processed/` — Cleaned intermediate data
-- `data/results/` — Analysis outputs (CSV)
-- `output/` — Final charts, Excel, LLM JSON, docx reports
-
-**唯一权威的路径定位**: `risk_pipeline/paths.py`（旧仓库里散落的 9 处 `get_project_root` 已收敛到此处）。
-
-- `RISK_PROJECT_ROOT` — 显式指定项目根（输入读自何处）。设置后跳过 `data/` 探测。
-- `RISK_OUTPUT_ROOT` — 显式指定输出根（结果写到何处）。未设置时复用项目根。
-- 优先级：env > 函数入参 > 自 CWD 向上找首个含 `data/` 的目录 > CWD 兜底（带一次性 `[WARN]`）。
-- `ensure_writable_dir(path)` 会把 `PermissionError` 转成 `RuntimeError`，提示设置 `RISK_OUTPUT_ROOT`。
-
-**永远不要**自己写 `os.getcwd()` 或 `__file__` 兜底路径——这正是被替换掉的反模式。新代码应 `from risk_pipeline.paths import get_project_root, results_dir, output_dir, ensure_writable_dir`。
-
-## Reference-Only: `skills/`
-
-`skills/` contains Anthropic's official examples cloned from `anthropics/skills`. **Treat it as read-only reference.** Useful when:
-
-- Drafting a new SKILL.md and wanting convention examples
-- Looking at `skill-creator` for the evaluation / packaging workflow
-- Seeing how `docx` / `pdf` / `pptx` / `xlsx` skills structure their scripts
-
-Do not modify files under `skills/` as part of pipeline changes, and do not copy its scaffolding scripts (evals, packaging) into `risk-feature-pipeline/` unless explicitly asked.
+- 交互、注释、输出一律中文；CSV 用 `utf-8-sig`。
+- 输出中不得出现客户名称、编号、电话。
+- 跳过的分群必须显式记录原因；AUC 必须标注类型（交叉验证 / 训练集-样本不足 / 训练集-CV失败）。
+- Matplotlib 出图走 `risk_core.font_utils` 的中文字体探测。
+- 改动保持外科手术式：只动任务涉及的文件，不顺手重构；改行为时补回归测试并在 `CHANGELOG.md` 记代号。

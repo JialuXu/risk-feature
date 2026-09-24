@@ -9,12 +9,6 @@ lr_by_group，仍照常工作（见 tests/test_unit_lr_dedup.py 的 _load_module
 新代码请直接：
     from risk_mining.analysis.engine import lr_by_group
 """
-import sys
-from pathlib import Path
-
-_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
 
 from risk_mining.analysis.engine import (  # noqa: F401
     lr_by_group,

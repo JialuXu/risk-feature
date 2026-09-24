@@ -7,13 +7,6 @@
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# 确保 risk-feature-pipeline/ 在 sys.path 上（被 chart_*.py from . import 触发时仍可用）
-_SKILL_ROOT = str(Path(__file__).resolve().parent.parent.parent)
-if _SKILL_ROOT not in sys.path:
-    sys.path.insert(0, _SKILL_ROOT)
 
 from risk_core.font_utils import configure_chinese_font, active_font  # noqa: F401
 

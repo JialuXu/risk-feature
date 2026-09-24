@@ -38,6 +38,15 @@
 | E4 | 读产物的子命令（`query` / `visualize` / `explore_thresholds` / `report`）跟随最近一次 `export --output-subdir` 的目录（取自 state 历史），不再假定子目录 = 项目名 | CLI |
 | E5 | 全局 flag（`--state-dir` / `-q` / `--verbose`）写在子命令前面不再被静默丢弃 | CLI |
 
+## F 系列 — 文档与工程化（设计检视第四批）
+
+| 代号 | 变更内容 | 影响面 |
+|---|---|---|
+| F1 | 删除死代码：`risk_export_report/scripts/report_export.py`（无调用方，按旧 schema 取列会 KeyError）、`engine.calc_feature_thresholds`（无调用方，与 `risk_threshold_explore` 重复；业务阈值切点请用 `explore_thresholds`）、`risk_export_report` / `risk_logistic_regression` 下无人使用的 `iv_analysis.py` 转发（`risk_iv_diagnosis.scripts.iv_analysis` 作为公开路径保留） | 旧 import 路径失效 |
+| F2 | 移除各模块顶层的 `sys.path.insert`（包安装 / CLI / pytest 下本就无需）；仅 `risk_docx_report/scripts/config.py` 为裸脚本直跑保留按需兜底 | 无 |
+| F3 | 新增 CI（`.github/workflows/risk-feature-pipeline.yml`，Python 3.10 / 3.12：`ruff check .` + `pytest`）与 ruff 配置（E9 + pyflakes）；清理存量未使用 import；`optbinning` 加主版本上界 `<2` | 开发流程 |
+| F4 | 重写仓库根 `CLAUDE.md`（按现架构）与本目录 `CLAUDE.md`（作战手册 → 开发约定）；9 个子 SKILL.md 补触发语并厘清 export_report（写）与 result_query（读）分工；README 子命令表补 `explore_thresholds` | 文档 |
+
 ## C 系列 — CLI 与自检
 
 | 代号 | 变更内容 | 影响面 |

@@ -23,7 +23,6 @@ def run_gsfc_pipeline(steps=None, verbose=True):
     返回:
         results: 包含各步骤结果的字典
     """
-    import pandas as pd
 
     if steps is None:
         steps = ['data_prep', 'feature_eng', 'univariate', 'iv', 'lr', 'export']

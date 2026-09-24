@@ -41,28 +41,6 @@ def test_calc_iv_regular_continuous_unchanged():
     assert iv > 0
 
 
-# ===== calc_feature_thresholds：全局 IV 不再翻倍 =====
-
-def test_calc_feature_thresholds_global_iv_matches_optbinning():
-    from optbinning import OptimalBinning
-    from risk_mining.analysis.engine import calc_feature_thresholds
-
-    rng = np.random.default_rng(1)
-    n = 2000
-    x = rng.normal(size=n)
-    y = (rng.random(n) < 1 / (1 + np.exp(-(2 * x - 2)))).astype(int)
-    df = pd.DataFrame({'维度': 'a', 'f': x, 'is_bad': y})
-
-    thr, detail = calc_feature_thresholds(df, [('维度', 'a', 'f')], target='is_bad')
-    optb = OptimalBinning(dtype='numerical', solver='cp', min_bin_size=0.05, max_n_bins=8)
-    optb.fit(x, y)
-    expected = optb.binning_table.build().loc['Totals', 'IV']
-    assert abs(thr['全局IV'].iloc[0] - round(expected, 4)) < 1e-4
-    # 明细表不应含汇总行
-    assert not detail[('a', 'f')]['Bin'].astype(str).str.lower().str.contains('total').any()
-    assert (detail[('a', 'f')]['Bin'].astype(str) != '').all()
-
-
 # ===== analyze：重跑核心分析时清理上一轮中间产物 =====
 
 def _prepare(project_workdir, project, extra=()):
