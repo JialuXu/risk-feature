@@ -20,7 +20,9 @@ else
 fi
 
 # 2) 导出环境变量到当前 shell（必须 source 此脚本才生效）
-export PIPELINE_ROOT="${PIPELINE_ROOT:-<仓库根>/risk-feature-pipeline}"
+# 缺省指向同仓库的 risk-feature-pipeline/（本脚本位于 subprojects/uci_acceptance_test/）
+_SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PIPELINE_ROOT="${PIPELINE_ROOT:-$(cd "$_SETUP_DIR/../../risk-feature-pipeline" && pwd)}"
 export PY="$VENV_DIR/bin/python"
 
 if [ ! -d "$PIPELINE_ROOT/risk_pipeline" ]; then

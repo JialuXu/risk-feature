@@ -21,9 +21,18 @@ if str(_PROJECT_ROOT) not in sys.path:
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-disabled")
 
 
+# 合成的示例字段字典 (真实 references/ 不入库)
+_DEMO_REFERENCES_DIR = _PROJECT_ROOT / "tests" / "fixtures" / "references"
+
+
 @pytest.fixture
 def project_root() -> Path:
     return _PROJECT_ROOT
+
+
+@pytest.fixture
+def demo_references_dir() -> Path:
+    return _DEMO_REFERENCES_DIR
 
 
 @pytest.fixture
@@ -60,6 +69,7 @@ def tmp_cfg(tmp_path: Path):
     cfg.paths.meta_snapshots_dir = str(tmp_path / "data" / "meta_store" / "snapshots")
     cfg.paths.audit_log = str(tmp_path / "data" / "meta_store" / "audit.log")
     cfg.paths.output_dir = str(tmp_path / "output")
+    cfg.paths.references_dir = str(_DEMO_REFERENCES_DIR)
     # 关闭 LLM 语义关 (默认测试不调真实 API)
     cfg.step3.setdefault("semantic_check", {})["enabled"] = False
     # 减少超时,加速测试

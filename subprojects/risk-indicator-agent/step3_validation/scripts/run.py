@@ -64,7 +64,7 @@ def run(
         return {"step": 3, "batch_id": batch_id, "validated": 0, "rejected": 0}
 
     # 准备 ctx
-    fd = load_default_field_dict(cfg.project_root)
+    fd = load_default_field_dict(cfg.project_root, cfg.abs_path(cfg.paths.references_dir))
     meta_store = MetaStore(
         sqlite_path=cfg.abs_path(cfg.paths.meta_sqlite),
         snapshots_dir=cfg.abs_path(cfg.paths.meta_snapshots_dir),

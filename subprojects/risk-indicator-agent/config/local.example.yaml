@@ -1,0 +1,18 @@
+# 复制为 config/local.yaml（不入库）后按本地环境填写。
+# 加载时按键递归叠加在 config/default.yaml 之上；list 整体覆盖。
+
+upstream:
+  results_dirs:
+    - "/path/to/risk-feature-pipeline/data/results/<project>"
+
+paths:
+  # 放真实 表清单.csv / 表字段清单.csv 的目录（相对路径以本子项目根为基准）
+  references_dir: "references"
+
+step2:
+  domain_tables:
+    FIN: [YOUR_FIN_TABLE]
+    CRDTC: [YOUR_CREDIT_TABLE]
+    OPN: [YOUR_BASIC_INFO_TABLE, YOUR_REG_CHANGE_TABLE]
+    PUB: [YOUR_PUBLIC_OPINION_TABLE]
+    JUDI: [YOUR_JUDICIAL_TABLE]

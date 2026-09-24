@@ -57,7 +57,7 @@ def run(
     existing_active = meta_store.list_active()
 
     # 字段字典
-    fd = load_default_field_dict(cfg.project_root)
+    fd = load_default_field_dict(cfg.project_root, cfg.abs_path(cfg.paths.references_dir))
 
     # 按 domain 分桶
     by_domain: dict[str, list[dict[str, Any]]] = defaultdict(list)

@@ -5,9 +5,10 @@ LLM 指标衍生 Agent 流水线 — 把 `risk-feature-pipeline` 的特征挖掘
 ## 快速开始
 
 ```bash
-cd <仓库根>/risk-indicator-agent
+cd subprojects/risk-indicator-agent   # 自仓库根
 pip install -e .
 cp .env.example .env  # 填 ANTHROPIC_API_KEY
+cp config/local.example.yaml config/local.yaml  # 填上游结果目录 / 真实基础表名（不入库）
 
 # 单元测试
 pytest tests/ -v
@@ -37,7 +38,7 @@ risk-indicator-agent/
 ├── SKILL.md / AGENTS.md / README.md   总文档
 ├── config/                             配置（meta_schema 是单一事实源）
 ├── prompts/                            外置 .md prompt（人审/git diff 友好）
-├── references/                         软链到 <本地参考资料>/
+├── references/                         本地放字段字典与设计文档（不入库，见下）
 ├── indicator_pipeline/                 共享组件
 ├── step1..step5_*/                     5 个独立子 Skill
 ├── data/                               工作目录（raw/processed/meta_store/results）
@@ -55,15 +56,16 @@ risk-indicator-agent/
 | 人审 | 异步 sentinel 文件（写 review packet + 等 APPROVED 文件） |
 | Step 4 | 仅出工单 + SQL 骨架，本地不执行 |
 
-详见 `<本地实施计划>`（实施计划）。
-
 ## 与 risk-feature-pipeline 的关系
 
 - **上游**：消费 `risk-feature-pipeline/data/results/{project}/` 的 IV/LR 结果
 - **下游**：写入元表后，下次特征分析重跑时把 P3-观察 指标加入验证；IV 结果回写到元表 `iv_history`
 
-## 文档参考
+## 本地参考资料（不入库）
 
-- 业务方法论：`references/工作链路-指标设计方法论.md`
-- 元表 40 字段：`references/衍生指标层数据结构设计文档.md` §1.2
-- 4 个设计模式：`references/原始加工逻辑整合纪要.md` §3
+`references/` 目录在仓库中只有说明文件，下列内容需在本地自备：
+
+- `表清单.csv`（列：表英文名, 表中文名）/ `表字段清单.csv`（列：表英文名, 字段英文名, 字段中文名, 字段类型）——Step 2/3 的字段字典；格式可参照 `tests/fixtures/references/` 下的合成示例
+- 业务方法论：`工作链路-指标设计方法论.md`
+- 元表 40 字段：`衍生指标层数据结构设计文档.md` §1.2
+- 4 个设计模式：`原始加工逻辑整合纪要.md` §3
